@@ -200,7 +200,13 @@ def resolve_share_url(share_url: str, provider: str = "alfresco") -> WfxResponse
         return _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
 
 
-def browse_share_url(share_url: str, auth: BridgeAuthContext, provider: str = "alfresco", operation: str = "list") -> WfxResponse:
+def browse_share_url(
+    share_url: str,
+    auth: BridgeAuthContext,
+    provider: str = "alfresco",
+    operation: str = "list",
+    provider_path_override: str | None = None,
+) -> WfxResponse:
     resolved = resolve_share_url(share_url, provider)
     if not resolved.ok:
         return resolved
@@ -208,7 +214,21 @@ def browse_share_url(share_url: str, auth: BridgeAuthContext, provider: str = "a
     if not isinstance(resolved.data, dict):
         return _failure(WfxErrorCode.INTERNAL_ERROR, "Resolved share URL payload has invalid format.")
 
-    path = str(resolved.data.get("path", ""))
+    resolved_payload = dict(resolved.data)
+
+    path = str(resolved_payload.get("path", ""))
+    path_source = "share_url"
+    if provider_path_override:
+        normalized_override = unquote(provider_path_override).replace("\\", "/").strip()
+        if not normalized_override:
+            return _failure(WfxErrorCode.BAD_PATH, "provider_path_override is empty.")
+        if not normalized_override.startswith("/"):
+            normalized_override = f"/{normalized_override}"
+        path = build_wfx_path(provider, normalized_override)
+        resolved_payload["path"] = path
+        resolved_payload["share_path"] = normalized_override
+        path_source = "provider_path_override"
+
     if not path:
         return _failure(WfxErrorCode.BAD_PATH, "Resolved share URL does not contain a target path.")
 
@@ -216,6 +236,8 @@ def browse_share_url(share_url: str, auth: BridgeAuthContext, provider: str = "a
         response = list_path(path, auth)
     elif operation == "stat":
         response = stat_path(path, auth)
+    elif operation == "download":
+        response = download_path(path, auth)
     else:
         return _failure(WfxErrorCode.NOT_SUPPORTED, f"Unsupported operation for share URL browse: {operation}")
 
@@ -223,7 +245,8 @@ def browse_share_url(share_url: str, auth: BridgeAuthContext, provider: str = "a
         return response
 
     merged_data = {
-        "resolved": resolved.data,
+        "resolved": resolved_payload,
+        "path_source": path_source,
         "result": response.data,
     }
     merged_meta = dict(response.metadata or {})

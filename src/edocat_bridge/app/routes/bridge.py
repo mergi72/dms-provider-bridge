@@ -61,4 +61,10 @@ def bridge_resolve_share_url(payload: WfxShareUrlRequest) -> dict:
 
 @router.post("/browse-share-url")
 def bridge_browse_share_url(payload: WfxShareUrlBrowseRequest) -> dict:
-    return browse_share_url(payload.share_url, payload.auth, payload.provider, payload.operation).model_dump()
+    return browse_share_url(
+        payload.share_url,
+        payload.auth,
+        payload.provider,
+        payload.operation,
+        payload.provider_path_override,
+    ).model_dump()
