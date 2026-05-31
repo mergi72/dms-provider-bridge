@@ -41,6 +41,8 @@ Rychlé spuštění (Bash, např. Git Bash/WSL):
 ./scripts/run-tests.sh all
 ```
 
+Poznámka: oba skripty hledají interpreter v pořadí `.venv312`, `.venv`, a nakonec systémový `python`/`python3` z PATH.
+
 ## WFX Bridge API (pro C# plugin)
 
 Formát vzdálené cesty:

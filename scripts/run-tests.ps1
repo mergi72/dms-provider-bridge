@@ -3,10 +3,28 @@ param(
     [string]$Suite = "all"
 )
 
-$python = ".\.venv312\Scripts\python.exe"
+$pythonCandidates = @(
+    ".\.venv312\Scripts\python.exe",
+    ".\.venv\Scripts\python.exe"
+)
+
+$python = $null
+foreach ($candidate in $pythonCandidates) {
+    if (Test-Path $candidate) {
+        $python = $candidate
+        break
+    }
+}
+
+if (-not $python) {
+    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+    if ($pythonCmd) {
+        $python = $pythonCmd.Source
+    }
+}
 
 if (-not (Test-Path $python)) {
-    Write-Error "Python interpreter not found at $python"
+    Write-Error "Python interpreter not found. Tried .venv312, .venv and PATH python."
     exit 1
 }
 
