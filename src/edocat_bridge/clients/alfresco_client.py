@@ -139,11 +139,51 @@ class AlfrescoClient:
         }
         return self._request_json("POST", self.search_nodes_url(), headers=self.auth_headers(ticket), payload=payload)
 
+    def first_search_entry(self, ticket: str, query: str) -> dict | None:
+        response = self.search_nodes(ticket, query, max_items=1)
+        entries = response.get("list", {}).get("entries", [])
+        if not entries:
+            return None
+        first = entries[0]
+        if isinstance(first, dict):
+            return first.get("entry") if isinstance(first.get("entry"), dict) else None
+        return None
+
     def get_node(self, ticket: str, node_id: str) -> dict:
         return self._request_json("GET", self.node_by_id_url(node_id), headers=self.auth_headers(ticket))
 
     def get_children(self, ticket: str, node_id: str) -> dict:
         return self._request_json("GET", self.node_children_url(node_id), headers=self.auth_headers(ticket))
+
+    def child_by_name(self, ticket: str, parent_id: str, name: str) -> dict | None:
+        response = self.get_children(ticket, parent_id)
+        entries = response.get("list", {}).get("entries", [])
+        for item in entries:
+            entry = item.get("entry", {}) if isinstance(item, dict) else {}
+            if str(entry.get("name", "")) == name:
+                return entry
+        return None
+
+    def resolve_doc_library_node(self, ticket: str) -> dict | None:
+        # doc_library is expected in Alfresco PATH format (for example /app:company_home/st:sites).
+        query = f'PATH:"{self.doc_library}"'
+        return self.first_search_entry(ticket, query)
+
+    def resolve_node_by_relative_path(self, ticket: str, relative_path: str) -> dict | None:
+        normalized = self.normalize_path(relative_path)
+        root = self.resolve_doc_library_node(ticket)
+        if not root:
+            return None
+        current = root
+        if normalized == "/":
+            return current
+
+        for segment in [part for part in normalized.split("/") if part]:
+            child = self.child_by_name(ticket, str(current.get("id", "")), segment)
+            if not child:
+                return None
+            current = child
+        return current
 
     def copy_node(self, ticket: str, node_id: str, target_parent_id: str, name: str | None = None) -> dict:
         payload: dict[str, str] = {"targetParentId": target_parent_id}

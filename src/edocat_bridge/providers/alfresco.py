@@ -34,8 +34,8 @@ class AlfrescoProvider(Provider):
                 return None
         return None
 
-    def _live_node(self, path: str, auth: BridgeAuthContext | None) -> dict | None:
-        ticket = self._ticket(auth)
+    def _live_node(self, path: str, auth: BridgeAuthContext | None, ticket: str | None = None) -> dict | None:
+        ticket = ticket or self._ticket(auth)
         if not ticket:
             return None
         resolved = self._resolve_path(path)
@@ -44,8 +44,8 @@ class AlfrescoProvider(Provider):
         except Exception:
             return None
 
-    def _target_parent_and_name(self, destination: str) -> tuple[str, str | None, str]:
-        resolved = self._resolve_path(destination)
+    def _target_parent_and_name(self, destination: str, ticket: str | None = None) -> tuple[str, str | None, str]:
+        resolved = self._resolve_path(destination, ticket)
         is_file_like = "." in resolved["name"] and not destination.endswith("/")
         if is_file_like:
             return resolved["parent_id"], resolved["name"], resolved["path"]
@@ -65,12 +65,27 @@ class AlfrescoProvider(Provider):
             mime_type=entry.get("content", {}).get("mimeType") if isinstance(entry.get("content"), dict) else props.get("cm:content.mimetype"),
         )
 
-    def _resolve_path(self, path: str) -> dict[str, str]:
+    def _resolve_path(self, path: str, ticket: str | None = None) -> dict[str, str]:
         normalized = self.client.normalize_path(path)
-        node_id = self.client.node_id_from_path(normalized)
         parent_path = self.client.parent_path(normalized)
+        node_id = self.client.node_id_from_path(normalized)
         parent_id = self.client.node_id_from_path(parent_path)
         name = normalized.rstrip("/").split("/")[-1] or "/"
+
+        if ticket:
+            try:
+                live_node = self.client.resolve_node_by_relative_path(ticket, normalized)
+                if live_node and live_node.get("id"):
+                    node_id = str(live_node["id"])
+            except Exception:
+                pass
+            try:
+                live_parent = self.client.resolve_node_by_relative_path(ticket, parent_path)
+                if live_parent and live_parent.get("id"):
+                    parent_id = str(live_parent["id"])
+            except Exception:
+                pass
+
         return {
             "path": normalized,
             "node_id": node_id,
@@ -82,7 +97,7 @@ class AlfrescoProvider(Provider):
     def list_items(self, path: str, auth: BridgeAuthContext | None = None) -> ListingResult:
         ticket = self._ticket(auth)
         if ticket:
-            resolved = self._resolve_path(path)
+            resolved = self._resolve_path(path, ticket)
             try:
                 response = self.client.get_children(ticket, resolved["node_id"])
                 entries = response.get("list", {}).get("entries", [])
@@ -125,10 +140,11 @@ class AlfrescoProvider(Provider):
         return mapping.get(operation)
 
     def stat_item(self, path: str, auth: BridgeAuthContext | None = None) -> DmsItem | None:
-        live_node = self._live_node(path, auth)
+        ticket = self._ticket(auth)
+        live_node = self._live_node(path, auth, ticket)
         if live_node and isinstance(live_node.get("entry"), dict):
             return self._item_from_entry(live_node["entry"], self.client.normalize_path(path))
-        resolved = self._resolve_path(path)
+        resolved = self._resolve_path(path, ticket)
         is_folder = resolved["path"] == "/" or path.endswith("/")
         return DmsItem(
             id=resolved["node_id"],
@@ -139,15 +155,13 @@ class AlfrescoProvider(Provider):
         )
 
     def copy_item(self, source: str, destination: str, auth: BridgeAuthContext | None = None) -> OperationResult:
-        resolved = self._resolve_path(source)
         ticket = self._ticket(auth)
-        target_parent_id, target_name, destination_path = self._target_parent_and_name(destination)
-        mode = "preview"
+        resolved = self._resolve_path(source, ticket)
+        target_parent_id, target_name, destination_path = self._target_parent_and_name(destination, ticket)
         message = f"endpoint={self.client.node_copy_url(resolved['node_id'])};mode=preview"
         if ticket:
             try:
                 self.client.copy_node(ticket, resolved["node_id"], target_parent_id, target_name)
-                mode = "live"
                 message = f"endpoint={self.client.node_copy_url(resolved['node_id'])};mode=live"
             except Exception as exc:
                 message = f"endpoint={self.client.node_copy_url(resolved['node_id'])};mode=preview;warning={type(exc).__name__}"
@@ -161,9 +175,9 @@ class AlfrescoProvider(Provider):
         )
 
     def rename_item(self, source: str, destination: str, auth: BridgeAuthContext | None = None) -> OperationResult:
-        resolved = self._resolve_path(source)
         ticket = self._ticket(auth)
-        target_parent_id, target_name, destination_path = self._target_parent_and_name(destination)
+        resolved = self._resolve_path(source, ticket)
+        target_parent_id, target_name, destination_path = self._target_parent_and_name(destination, ticket)
         message = f"endpoint={self.client.node_move_url(resolved['node_id'])};mode=preview"
         if ticket:
             try:
@@ -181,8 +195,9 @@ class AlfrescoProvider(Provider):
         )
 
     def delete_item(self, target: str, auth: BridgeAuthContext | None = None) -> OperationResult:
-        resolved = self._resolve_path(target)
-        mode = "live" if self._ticket(auth) else "preview"
+        ticket = self._ticket(auth)
+        resolved = self._resolve_path(target, ticket)
+        mode = "live" if ticket else "preview"
         return OperationResult(
             success=True,
             operation="delete",
@@ -192,8 +207,9 @@ class AlfrescoProvider(Provider):
         )
 
     def make_dir(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:
-        resolved = self._resolve_path(path)
-        mode = "live" if self._ticket(auth) else "preview"
+        ticket = self._ticket(auth)
+        resolved = self._resolve_path(path, ticket)
+        mode = "live" if ticket else "preview"
         return OperationResult(
             success=True,
             operation="mkdir",
@@ -203,8 +219,9 @@ class AlfrescoProvider(Provider):
         )
 
     def download_item(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:
-        resolved = self._resolve_path(path)
-        mode = "live" if self._ticket(auth) else "preview"
+        ticket = self._ticket(auth)
+        resolved = self._resolve_path(path, ticket)
+        mode = "live" if ticket else "preview"
         return OperationResult(
             success=True,
             operation="download",
@@ -214,12 +231,12 @@ class AlfrescoProvider(Provider):
         )
 
     def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, overwrite: bool = False, auth: BridgeAuthContext | None = None) -> OperationResult:
-        resolved = self._resolve_path(destination)
+        ticket = self._ticket(auth)
+        resolved = self._resolve_path(destination, ticket)
         target_parent_id = resolved["parent_id"] if resolved["path"] != "/" and "." in resolved["name"] else resolved["node_id"]
         target_destination = f"{resolved['path'].rstrip('/')}/{file_name}" if resolved["path"] != "/" and "." not in resolved["name"] else resolved["path"]
         suffix = "?overwrite=true" if overwrite else ""
         content_state = "inline-base64" if content_base64 else "external-stream"
-        ticket = self._ticket(auth)
         message = f"endpoint={self.client.node_create_child_url(target_parent_id)}{suffix};content={content_state};mode=preview"
         if ticket:
             try:
