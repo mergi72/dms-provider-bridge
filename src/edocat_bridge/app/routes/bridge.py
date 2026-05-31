@@ -76,7 +76,11 @@ def bridge_browse_share_url(payload: WfxShareUrlBrowseRequest) -> dict:
     ).model_dump()
 
 
-@router.post("/browse-share-url-validate")
+@router.post(
+    "/browse-share-url-validate",
+    deprecated=True,
+    summary="Deprecated alias for /browse-share-url with execute=false",
+)
 def bridge_browse_share_url_validate(payload: WfxShareUrlValidateRequest) -> dict:
     return browse_share_url(
         payload.share_url,

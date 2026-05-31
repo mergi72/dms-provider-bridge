@@ -89,6 +89,7 @@ Lightweight validace bez spuštění operace:
 - `browse-share-url-validate`: stejné vstupy jako `browse-share-url`, ale bez `auth` a bez `content_base64`.
 - Endpoint vrací vypočtené `source`/`destination` cesty a validační chyby payloadu, bez volání provider operace.
 - Interně je to alias na `browse-share-url` s `execute=false` (jedna společná implementační cesta).
+- V OpenAPI je endpoint označen jako deprecated; preferovaný endpoint je `browse-share-url` s `execute=false`.
 
 Poznámka k `download` payloadu:
 
