@@ -66,6 +66,7 @@ def bridge_browse_share_url(payload: WfxShareUrlBrowseRequest) -> dict:
         payload.auth,
         payload.provider,
         payload.operation,
+        payload.execute,
         payload.provider_path_override,
         payload.destination_share_url,
         payload.destination_path_override,

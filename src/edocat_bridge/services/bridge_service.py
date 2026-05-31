@@ -205,6 +205,7 @@ def browse_share_url(
     auth: BridgeAuthContext,
     provider: str = "alfresco",
     operation: str = "list",
+    execute: bool = True,
     provider_path_override: str | None = None,
     destination_share_url: str | None = None,
     destination_path_override: str | None = None,
@@ -212,6 +213,24 @@ def browse_share_url(
     content_base64: str | None = None,
     overwrite: bool = False,
 ) -> WfxResponse:
+    if not execute:
+        validated = validate_browse_share_url(
+            share_url,
+            provider,
+            operation,
+            provider_path_override,
+            destination_share_url,
+            destination_path_override,
+            file_name,
+        )
+        if not validated.ok:
+            return validated
+        metadata = dict(validated.metadata or {})
+        metadata["operation"] = f"browse-share-url:dry-run:{operation}"
+        payload = dict(validated.data) if isinstance(validated.data, dict) else {"validated": validated.data}
+        payload["executed"] = False
+        return _success(data=payload, metadata=metadata)
+
     resolved = resolve_share_url(share_url, provider)
     if not resolved.ok:
         return resolved

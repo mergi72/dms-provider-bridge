@@ -44,6 +44,7 @@ class WfxShareUrlBrowseRequest(BaseModel):
     auth: BridgeAuthContext
     provider: Literal["alfresco"] = "alfresco"
     operation: Literal["list", "stat", "download", "copy", "rename", "mkdir", "delete", "upload"] = "list"
+    execute: bool = True
     provider_path_override: str | None = Field(default=None, description="Optional provider path override in /path format")
     destination_share_url: str | None = Field(default=None, description="Optional destination Share URL for copy/rename")
     destination_path_override: str | None = Field(default=None, description="Optional destination path override in /path format")
