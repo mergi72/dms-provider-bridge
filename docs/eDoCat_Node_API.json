@@ -1,0 +1,1403 @@
+{
+	"swagger": "2.0",
+	"info": {
+		"title": "eDoCat API",
+		"version": "1.0",
+		"description": "### CRUD API pro všechny operace s dokumenty a adresáři.\n- `/node` - vytvoření, aktualizace, smazání\n- `/node/query` - jednoduché hledání\n- `/node/search` - pokročilé vyhledávání\n- `/node/tracker` - auditní stopa",
+		"contact": {
+			"name": "Onlio a.s.",
+			"url": "https://edocat.cz",
+			"email": "support@onlio.com"
+		}
+	},
+	"host": "prezentace.edocat.net",
+	"basePath": "/edocat/api/v1/",
+	"schemes": ["https"],
+	"consumes": ["application/json", "text/xml"],
+	"produces": ["application/json"],
+	"paths": {
+		"/api/v1/node": {
+			"put": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["node"],
+				"parameters": [
+					{
+						"name": "body",
+						"description": "V rámci body jsou odeslány parametry aktualizovaného dokumentu. Povinným parametrem je identifikátor dokumentu (**uuid**), ostatní parametry jsou nepovinné. \n\nNeodeslané parametry jsou ignorovány a budou zachovány jejich hodnoty před odesláním requestu. Datový model odpovídá **NodeUpdateData**. \n\n**Typy hodnot:**\n* Obsah přenášených dokumentů je vždy kódován ve formátu **base64**.\n* Vlastnosti typu **datum** a **datum a čas** příjmají hodnoty ve formátu **date / date-time: https://tools.ietf.org/html/rfc3339#section-5.6**\n* Hodnoty vlastnosti typu **autorita** (uživatel/uživatelská skupina/kombinace) jsou předávány jako **userName**, kterým se uživatel hlásí do eDoCat DMS (např. \"user@domain.xx\"), respektive **groupID** včetně prefixu \"GROUP_\" (např. \"GROUP_groupName\").\n* Více hodnot pro jednu vlastnost typu **autorita** jsou předávány jako pole textových hodnot.\n* Hodnoty vlastnosti typu **číselník** jsou předávány ve formátu **uuid** požadované položky vybraného číselníku.\n* Hodnoty **číselných**, respektive **textových listů** jsou předávány jako **integer** / **string** odpovídajích hodnotu vlastností definovaných v modelu dokumentového typu (dodá administrátor systému).",
+						"schema": {
+							"$ref": "#/definitions/NodeUpdateData"
+						},
+						"in": "body",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Successful operation",
+						"schema": {
+							"$ref": "#/definitions/NodeData"
+						},
+						"examples": {
+							"application/json": "{\n    \"mimeType\": \"application/pdf\",\n    \"name\": \"API Document - 1 attachment.pdf\",\n    \"nodeType\": \"contract\",\n    \"props\": {\n        \"AgreementNumber\": \"SML01\",\n        \"ValidFrom\": \"2024-05-21T08:00:00.000Z\",\n        \"ValidTo\": \"2024-05-21T08:00:00.000Z\",\n        \"NextRevisionDate\": \"2024-05-21T08:00:00.000Z\",\n        \"SupplierName\": \"Onlio a.s.\",\n        \"IdentificationNumber\": \"ID123\",\n        \"ErpCode\": 123,\n        \"Company\": \"Onlio a.s.\",\n        \"AgreementType\": \"Test contract\"\n    },\n    \"tags\": [\"Tag\",\"Štítek\"],\n    \"uuid\": \"b104468e-e5b8-464b-8b65-02a416cafc9f\",\n    \"content\": \"JVBERi0xLjMKJcTl8uXr......base64...\",\n    \"path\": \"siteId/folder1/folder2\",\n    \"attachment\": [\n        {\n            \"name\": \"Příloha smlouvy.pdf\",\n            \"mimeType\": \"application/pdf\",\n            \"content\": \"Og0MTGCjMgMCBvYmoKPDwgL......base64...\",\n            \"encoding\": \"UTF-8\"\n        }\n    ],\n    \"relatedDocs\": [\"40d5206e-d260-4d40-897a-a055068d2ac0\"]\n    \"evidenceNumber\": \"DOC-32022381\",\n    \"encoding\": \"UTF-8\"\n}"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/ErrorData"
+						},
+						"examples": {
+							"application/json": {
+								"errorCode": 0,
+								"errorMessage": "string"
+							}
+						}
+					},
+					"409": {
+						"description": "In case of ConcurrencyFailureException",
+						"schema": {
+							"$ref": "#/definitions/ErrorData"
+						},
+						"examples": {
+							"application/json": {
+								"errorCode": 409,
+								"errorMessage": "konflikt při vykonáni transakce -- souběh transakcí nebo soubězná modifikace jednoho dokumentu"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"operationId": "updateNode",
+				"summary": "Aktualizace existujícího dokumentu",
+				"description": "Metoda aktualizace již existujícího dokumentu. V rámci requestu lze odeslat změny hodnot vlastností, souvisejících dokumentů a příloh a nebo nový obsah dokumentu. Pokud dojde ke změně obsahu dokumentu, je v rámci eDoCat DMS automaticky založena nová verze dokumentu.\n\n\n## Autorizace:\nUživatel, který odesílá request musí mít právo **WRITE** na cílovou Node (typicky dokument) definovanou hodnotou parametru **uuid**, v opačném případě skončí request chybou.\n \n\n## Příklady:\n\n### 1. Změna názvu dokumentu\n    \n    {\n        \"uuid\": \"a6d31d80-cee1-4a99-9615-d3cf5352a71e\",\n        \"name\": \"New Document Name.pdf\"\n    }\n\n**Výsledek:**\n* Dokumentu uloženým pod `uuid` a6d31d80-cee1-4a99-9615-d3cf5352a71e byl změněn název na hodnotu `name`.\n\n### 2. Založení nové verze dokumentu\n    \n    {\n        \"uuid\": \"a6d31d80-cee1-4a99-9615-d3cf5352a71e\",\n        \"content\": \"DIgNyAwIFIKPj4gPj4KZW5kb2JqCjggMCB......base64...\"\n    }\n\n**Výsledek:**\n* Dokumentu uloženým pod `uuid` a6d31d80-cee1-4a99-9615-d3cf5352a71e byl nahrán nový obsah.\n* Došlo k založení nové (minor) verze dokumentu.\n* Nový obsah odpovídá dekódované base64 hodnotě parametru `content`.\n\n### 3. Nahrání nové verze, změna metadat a názvu\n\n    {\n        \"uuid\": \"a6d31d80-cee1-4a99-9615-d3cf5352a71e\",\n        \"content\": \"DIgNyAwIFIKPj4gPj4KZW5kb2JqCjggMCB......base64...\",\n        \"name\": \"Contract-SIGNED.pdf\",\n        \"props\": \n        {\n            \"ValidFrom\": \"2024-05-21T08:00:00.000Z\",\n            \"ValidTo\": \"2024-05-21T08:00:00.000Z\",\n            \"Company\": \"Onlio a.s.\",\n            \"AgreementType\": \"SLA\",\n            \"Status\": \"Signed\",\n        },\n    }\n\n**Výsledek:** *(např. Scénář nahrání podepsané smlouvy na její pracovní verzi.)*\n* Změnu názvu dokumentu (typicky DOCX -> PDF)\n* Novou verzi obsahu (DOCX -> PDF)\n* Změnu některých metadat viz `props` (stav smlouvy, účinnost od, ...)\n\n### 4. Nahrání nové přílohy a nové verze stávající přílohy\n\n    {\n        \"uuid\": \"a6d31d80-cee1-4a99-9615-d3cf5352a71e\",\n        \"attachment\": [ \n        {\n            \"name\": \"Nová Příloha.pdf\",\n            \"content\": \"DIgNyAwIFIKPj4gPj4KZW5kb2JqCjggMCB......base64...\",\n        },\n        {\n            \"name\": \"Aktualizovaná Příloha.pdf\",\n            \"content\": \"bHRlciAvRmxhdGVEZWNvZGUgL0xlbmd0aC......base64...\",\n            \"uuid\": \"40d5206e-d260-4d40-897a-a055068d2ac0\"\n        },\n        ]\n    }\n\n**Výsledek:**\n* Nová Příloha.pdf bude nahrána jako zcela nový objekt k dokumentu (CREATE), protože její záznam v poli `attachment` neobsahuje parametr `uuid`.\n* Pro druhý záznam byla hodnota `uuid` odeslána a identifikuje již existující přílohu. Proto bude tato část volání vyhodnocena jako (UPDATE).\n* Pokud se nyní \"Aktualizovaná Příloha.pdf\" před requestem jmenovala jinak, došlo u tohoto záznamu i k aktualizaci jeho názvu.\n"
+			},
+			"post": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["node"],
+				"parameters": [
+					{
+						"name": "body",
+						"description": "V rámci body jsou odeslány parametry nově tvořeného dokumentu. Povinným parametrem je umístění dokumentu (**path**), ostatní parametry jsou nepovinné.\n\nPro neodeslané parametry budou novému dokumentu přiděleny jejich výchozí hodnoty, viz model **NodeCreateData**. \n\n**Typy hodnot:**\n* Obsah přenášených dokumentů je vždy kódován ve formátu **base64**.\n* Vlastnosti typu **datum** a **datum a čas** příjmají hodnoty ve formátu **date / date-time: https://tools.ietf.org/html/rfc3339#section-5.6**\n* Hodnoty vlastnosti typu **autorita** (uživatel/uživatelská skupina/kombinace) jsou předávány jako **userName**, kterým se uživatel hlásí do eDoCat DMS (např. \"user@domain.xx\"), respektive **groupID** včetně prefixu \"GROUP_\" (např. \"GROUP_groupName\").\n* Více hodnot pro jednu vlastnost typu **autorita** jsou předávány jako pole textových hodnot.\n* Hodnoty vlastnosti typu **číselník** jsou předávány ve formátu **uuid** požadované položky vybraného číselníku.\n* Hodnoty **číselných**, respektive **textových listů** jsou předávány jako **integer** / **string** odpovídajích hodnotu vlastností definovaných v modelu dokumentového typu (dodá administrátor systému).",
+						"schema": {
+							"$ref": "#/definitions/NodeCreateData"
+						},
+						"in": "body",
+						"required": false
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Successful operation",
+						"schema": {
+							"$ref": "#/definitions/NodeData"
+						},
+						"examples": {
+							"application/json": {
+								"content": "base64",
+								"mimeType": "string",
+								"name": "string",
+								"nodeType": "string",
+								"path": "string",
+								"props": {
+									"key": "anyValue"
+								},
+								"tags": ["string"],
+								"uuid": "string",
+								"parentDocument": "string",
+								"attachment": [
+									{
+										"name": "string",
+										"mimeType": "string",
+										"content": "base64",
+										"externalPath": "string",
+										"uuid": "string",
+										"encoding": "string"
+									}
+								],
+								"relatedDocs": ["string"],
+								"evidenceNumber": "string",
+								"encoding": "string"
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/ErrorData"
+						},
+						"examples": {
+							"application/json": {
+								"errorCode": 0,
+								"errorMessage": "string"
+							}
+						}
+					},
+					"409": {
+						"description": "konflikt při vykonáni transakce -- souběh transakcí nebo soubězná modifikace jednoho dokumentu",
+						"schema": {
+							"$ref": "#/definitions/ErrorData"
+						},
+						"examples": {
+							"application/json": {
+								"errorCode": 409,
+								"errorMessage": "konflikt při vykonáni transakce -- souběh transakcí nebo soubězná modifikace jednoho dokumentu"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"operationId": "createNode",
+				"summary": "Založení nového dokumentu",
+				"description": "Request BODY definuje nový dokument. Určuje jeho typ, umístění, obsah, hodnoty vlastností, související dokumenty a další parametry. Návratem úspěšného requestu (200) je JSON objekt obsahující všechny informace o právě založeném dokumentu vč. unikátního a neměnného **uuid**, které bylo dokumentu přiřazeno. Tento identifikátor je zásadní pro budoucí určení dokumentu. Je nezbytný pro směřování navazujících API operací (update, delete), které související s právě vytvořeným dokumentem.\n\n## Autorizace:\nUživatel, který odesílá request musí mít právo **WRITE** do cílového umístění definovaného hodnotou parametru **path**, v opačném případě skončí request chybou.\n\n\n## Příklady:\n\n### 1. Minimum pro založení dokumentu\n\n    {\n        \"path\": \"siteId\"\n    }\n\n**Výsledek:**\n* Dokument bude do rootu pracovního prostoru **siteId**.\n* Typ dokumentu není určen a bude nastaven na \"**Základní dokument eDoCat**\" (**\"nodeType\" \"ctbd:baseDoc\"**).\n* Budou automaticky vyplněna systémová metadata (datum vytvoření, tvůrce, velikost...), ale všechna ostatní zůstanou prázdná.\n* Název dokumentu není určen a proto bude jeho název vygenerován dle jeho přiděleného **uuid** a bez koncovky.\n* Dokument nebude mít obsah, půjde o prázdnou Node s mimeType **application/octet-stream**, bez náhledu.\n\n### 2. Založení základního dokumentu a určení hodnoty vlastnosti\n\n    {\n        \"content\": \"GRpVGpc0xjUZmm6ayZrlmuc0x7RoWgu1BF......base64...\",\n        \"name\": \"Document.pdf\",\n        \"path\": \"siteId\",\n        \"props\": {\n            \"description\": \"Dokument založený via eDoCat API\",\n        },\n    }\n\n**Výsledek:**\n* Dokument bude do rootu pracovního prostoru **siteId**, dle prvního záznamu v `path`.\n* Typ dokumentu není určen a bude nastaven na \"**Základní dokument eDoCat**\" (`nodeType` \"ctbd:baseDoc\"**).\n* Budou automaticky vyplněna systémová metadata (datum vytvoření, tvůrce, velikost...), a hodnota description (**`props`: {\"descripiton\": \"...\"}**), ostatní zůstanou prázdná.\n* Název dokumentu je určen, bude uložen jako `name`: \"**Document.pdf**\".\n* Obsah dokumentu bude odpovídat base64 dekódované hodnotě parametru `content`\n* Obsahu bude přidělen `mimeType` odvozený z názvu a obsahu (očekáváný výsledek je PDF), podle tohoto určení zvolí eDoCat metodu pro generování náhledu dokumentuu.\n\n### 3. Založení klasifikovaného dokumentu\n\n    {\n        \"includeContent\": true,\n        \"content\": \"GRpVGpc0xjUZmm6ayZrlmuc0x7RoWgu1BF......base64...\",\n        \"mimeType\": \"application/pdf\",\n        \"name\": \"SoD - eDoCat_DMS_Onlio_as.pdf\",\n        \"nodeType\": \"contract\",\n        \"path\": \"contracts/eDoCat/2024/\",\n        \"props\": {\n            \"contractID\": \"SML-2024-01\",\n            \"contractType\": \"Smlouva o dílo\"\n            \"contractor\": \"Onlio a.s.\",\n            \"supplier\": \"Edocat s.r.o.\"\n            \"subject\": \"Implementace eDoCat DMS\",\n        },\n        \"encoding\": \"UTF-8\"\n    }\n    \n**Výsledek:**\n* Název dokumentu je určen v `name`, bude \"**SoD - eDoCat_DMS_Onlio_as.pdf**\"\n* Dokument bude založen do adresáře **eDoCat/2024** v rámci pracovního prostoru **contracts**, jeho cesta tedy bude \"**/contracts/eDoCat/2024/SoD - eDoCat_DMS_Onlio_as.pdf**\", jak je určeno v `path`.\n* Typ dokumentu `nodeType` je určen jako **contract**, což může odpovídat dokumentovému typu **Smlouva**\n* Budou automaticky vyplněna systémová metadata (datum vytvoření, tvůrce, velikost...) a dále hodnoty vlastností zaslaných v objektu `props`\n* Pokud má dokumentový typ Smlouva nějaké další vlastnosti, po tomto volání zůstanou tyto vlastnosti prázdné\n* Dokument získá obsah odpovídající dekódované base64 hodnotě parametru `content` v kódování UTF-8 a `mimeType` odpovídající PDF\n\n### 4. Založení klasifikovaného dokumentu s přílohami a vazbou na jiný dokument\n\n    {\n        \"includeContent\": true,\n        \"content\": \"GRpVGpc0xjUZmm6ayZrlmuc0x7RoWgu1BF......base64...\",\n        \"mimeType\": \"application/pdf\",\n        \"name\": \"SoD - eDoCat_DMS_Onlio_as.pdf\",\n        \"nodeType\": \"contract\",\n        \"path\": \"contracts/eDoCat/2024/\",\n        \"props\": {\n            \"contractID\": \"SML-2024-01\",\n            \"contractType\": \"Smlouva o dílo\"\n            \"contractor\": \"Onlio a.s.\",\n            \"supplier\": \"Edocat s.r.o.\"\n            \"subject\": \"Implementace eDoCat DMS\",\n        },\n\t\t\"attachment\": [\n\t\t\t{\n\t\t\t\t\"name\": \"Příloha 1.pdf\",\n\t\t\t\t\"mimeType\": \"application/pdf\",\n\t\t\t\t\"content\": \"GRpVGpc0xjUZmm6ayZrlmuc0x7RoWgu1BF......base64...\",\n\t\t\t\t\"encoding\": \"UTF-8\"\n\t\t\t},\n\t\t\t{\n\t\t\t\t\"name\": \"Příloha 2.docx\",\n\t\t\t\t\"mimeType\": \"application/vnd.openxmlformats-officedocument.wordprocessingml.document\",\n\t\t\t\t\"content\": \"GRpVGpc0xjUZmm6ayZrlmuc0x7RoWgu1BF......base64...\",\n\t\t\t\t\"encoding\": \"UTF-8\"\n\t\t    }\n\t\t],\t\t\t\t\n\t\t\"relatedDocs\": [\n    \t\t\"a6d31d80-cee1-4a99-9615-d3cf5352a71e\"\n    \t],\n        \"encoding\": \"UTF-8\"\n    }\n    \n**Výsledek:**\n* Dokument bude založen se všemi parametry jako v příkladu **3. Založení klasifikovaného dokumentu**\n* Dokument bude po úspěšném requestu provázán s již existujícím dokumentem uloženým v DMS pod **uuid: a6d31d80-cee1-4a99-9615-d3cf5352a71e**\n* Spolu s dokumentem budou nahrány dva dokumenty jako přílohy `attachment`. **\"Příloha 1.pdf\"** a **\"Příloha 2.docx\"** \n* Obsah příloh bude odpovídat relevantním parametrům `content` zakódovaným ve formátu base64.\n"
+			},
+			"delete": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["node"],
+				"parameters": [
+					{
+						"name": "uuids",
+						"description": "Kolekce Nodes, které chceme smazat identifikacaných skrze jejich odpovídající hodnotu **uuid**.",
+						"in": "query",
+						"required": false,
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"collectionFormat": "multi"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "successful operation",
+						"schema": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						},
+						"examples": {
+							"application/json": ["string", "string"]
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/ErrorData"
+						},
+						"examples": {
+							"application/json": {
+								"errorCode": 0,
+								"errorMessage": "string"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"operationId": "deleteNodes",
+				"summary": "Odstranění dokumentu",
+				"description": "Metoda pro mazání existujících Nodes (typicky dokumentů). Odstraněné položky nejsou smazány ihned, jsou přesunuty do koše, kde čekají na obnovu/vysypání podobně, jako je tomu u manipulace s daty skrze uživatelské rozhraní systému.\n\nÚspěšný request (200) vrátí pole **uuids** smazaných Nodes.\n\n## Autorizace:\nUživatel, který odesílá request musí mít právo **DELETE** na odeslané entity, v opačném případě skončí request chybou.\n\n## Příklad:\n### Smazání dokumentu\n\n    \n    DEL\thttps://{host}/edocat/api/v1/node?uuids=ac83456e-8b59-489c-bd06-0425ec663d03\n    \n    \n**Výsledek:**\n* Smaže dokument uložený pod `uuid` **ac83456e-8b59-489c-bd06-0425ec663d03**"
+			}
+		},
+		"/api/v1/node/query": {
+			"get": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["query"],
+				"parameters": [
+					{
+						"name": "uuids",
+						"description": "Identifikátory konkrétních Nodes (typicky dokumentů). Pokud jsou zadány, vrátí request pouze ty výsledky, které odpovídají zaslaným **uuid**  a na které má autorizovaný uživatel právo čtení (READ).",
+						"in": "query",
+						"required": false,
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"collectionFormat": "multi"
+					},
+					{
+						"name": "path",
+						"description": "Vrátí všechny Node uloženíé v určené cestě / adresáři a jeho potomcích, na které má autorizovaný uživatel právo alespoň čtení (READ).",
+						"in": "query",
+						"required": false,
+						"type": "string"
+					},
+					{
+						"name": "maxItems",
+						"description": "Určuje maximální počet vrácených výsledků. Hodnota v intervalu [1..100]. Pokud je použit parametr **uuids** tak je ignorováno.",
+						"in": "query",
+						"required": false,
+						"type": "integer",
+						"format": "int32"
+					},
+					{
+						"name": "skipCount",
+						"description": "Parametr podporující funkce stránkování, udává offset vrácených výsledků od prvního výsledku (Node s indexem 0). Pokud není uvedeno, tak:   **\"skipCount\": 0**\n\nPokud je v requestu použit parametr **uuids** tak je tento ignorován.",
+						"in": "query",
+						"required": false,
+						"type": "integer",
+						"format": "int32"
+					},
+					{
+						"name": "includeContent",
+						"description": "Logická hodnota rozhodující zda má být v responseBody requestu zahrnut binární obraz odeslaného souboru v Base64 kódování. Pokud není uvedeno, aplikuje tento parametr jako **false**.",
+						"in": "query",
+						"required": false,
+						"type": "boolean"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Successful operation",
+						"schema": {
+							"$ref": "#/definitions/NodesData"
+						},
+						"examples": {
+							"application/json": {
+								"nodes": [
+									{
+										"content": "base64 (string)",
+										"mimeType": "string",
+										"name": "string",
+										"nodeType": "string",
+										"path": "string",
+										"props": {
+											"key": {}
+										},
+										"tags": ["string", "string"],
+										"uuid": "string",
+										"parentDocument": "string",
+										"attachment": [
+											{
+												"name": "string",
+												"mimeType": "string",
+												"content": "base64 (string)",
+												"externalPath": "string",
+												"uuid": "string",
+												"encoding": "string"
+											},
+											{
+												"name": "string",
+												"mimeType": "string",
+												"content": "base64 (string)",
+												"externalPath": "string",
+												"uuid": "string",
+												"encoding": "string"
+											}
+										],
+										"relatedDocs": ["string", "string"],
+										"evidenceNumber": "string",
+										"encoding": "string"
+									},
+									{
+										"content": "base64 (string)",
+										"mimeType": "string",
+										"name": "string",
+										"nodeType": "string",
+										"path": "string",
+										"props": {
+											"key": {}
+										},
+										"tags": ["string", "string"],
+										"uuid": "string",
+										"parentDocument": "string",
+										"attachment": [
+											{
+												"name": "string",
+												"mimeType": "string",
+												"content": "base64 (string)",
+												"externalPath": "string",
+												"uuid": "string",
+												"encoding": "string"
+											},
+											{
+												"name": "string",
+												"mimeType": "string",
+												"content": "base64 (string)",
+												"externalPath": "string",
+												"uuid": "string",
+												"encoding": "string"
+											}
+										],
+										"relatedDocs": ["string", "string"],
+										"evidenceNumber": "string",
+										"encoding": "string"
+									}
+								],
+								"pagination": {
+									"count": 25,
+									"hasMoreItems": true,
+									"maxItems": {},
+									"skipCount": 99,
+									"totalItems": 49
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/ErrorData"
+						},
+						"examples": {
+							"application/json": {
+								"errorCode": 0,
+								"errorMessage": "string"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"operationId": "simpleQuery",
+				"summary": "Jednoduché hledání dokumentů",
+				"description": "Vrátí kolekci výsledlů odpovídající zadaným parametrům. Pokud je použito více query parametrů, spojují se operátorem **AND**\n\n## Autorizace:\nUživateli, který odesílá request budou vráceny pouze ty výsledky, na které má právo alespoň **READ**, v opačném případě bude daná Node z výsledků vynechána.\n\n## Příklady:\n\n### 1. Zisk všech dokumentů z pracovního prostoru\n\n    GET https://{host}/edocat/api/v1/node/query?path=api\n    \n**Výsledky:**\n* Systém prohledá celou stránku jejíž **id = api**\n* Vrátí uživateli všechny dokumenty uložené kdekoliv v dané stránce, na které má daný uživatel právo alespoň **READ**\n* Ke každému výsledky vrátí všechna dostupná metadata, informace o souvisejících dokumentech, přílohách...\n* Záznamy ale nebudou obsahovat binární obraz dokimentu (a příloh) \n\n### 2. Zisk všech dokumentů v uvedené cestě vč. binárního obrazu\n\n    GET https://{host}/edocat/api/v1/node/query?path=smlouvy%2FOnlio%20a.s%2FSmlouvy%20o%20d%C3%ADlo&includeContent=true\n\n**Výsledky:**\n* Systém vyhledá všechny dokumenty v cestě **smlovy/Onlio a.s/Smlouvy o dílo**\n* Vrátí uživateli všechny záznamy uložené v dané cestě, na které má daný uživatel právo alespoň **READ**\n* Ke každému záznamu vrátí kromě metadat i binární obsah zakódovaný v base64 (parametr `includeContent`)\n\n### 3. Vyzvednutí informací o konkrétním dokumentu\n\n    GET https://{host}/edocat/api/v1/node/query?uuids=ac83456e-8b59-489c-bd06-0425ec663d03\n    \n**Výsledky:**\n* Systém zkusí najít dokument jehož `uuid` = ac83456e-8b59-489c-bd06-0425ec663d03\n* Pokud takový existuje a uživatel na něj má právo alespoň **READ**, systém mu vrátí všechny informace o záznamu bez binárního obsahu\n    \n### 4. Vyzvednutí informací o více konkrétních dokumentech vč. binárních obrazů\n\n    GET https://release.edocat.net/edocat/api/v1/node/query?uuids=ac83456e-8b59-489c-bd06-0425ec663d03&uuids=e15eb8e6-c3b5-45ce-8316-b84cac327a5d&includeContent=true\n    \n**Výsledky:**\n* Výsledek je obdobný s příkladem č. 3, plus...\n* Součástí odpovědi ale bude base64 binární obraz\n* Systém vrátí výsledky pro více než jeden dokument\n"
+			},
+			"post": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["query"],
+				"parameters": [
+					{
+						"name": "body",
+						"description": "Datový model request je popsán v modelu **QueryReqData**.",
+						"schema": {
+							"$ref": "#/definitions/QueryReqData"
+						},
+						"in": "body",
+						"required": false
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Successful operation",
+						"schema": {
+							"$ref": "#/definitions/NodesData"
+						},
+						"examples": {
+							"application/json": {
+								"nodes": [
+									{
+										"content": "base64 (string)",
+										"mimeType": "string",
+										"name": "string",
+										"nodeType": "string",
+										"path": "string",
+										"props": {
+											"key": {}
+										},
+										"tags": ["string", "string"],
+										"uuid": "string",
+										"parentDocument": "string",
+										"attachment": [
+											{
+												"name": "string",
+												"mimeType": "string",
+												"content": "base64 (string)",
+												"externalPath": "string",
+												"uuid": "string",
+												"encoding": "string"
+											},
+											{
+												"name": "string",
+												"mimeType": "string",
+												"content": "base64 (string)",
+												"externalPath": "string",
+												"uuid": "string",
+												"encoding": "string"
+											}
+										],
+										"relatedDocs": ["string", "string"],
+										"evidenceNumber": "string",
+										"encoding": "string"
+									},
+									{
+										"content": "base64 (string)",
+										"mimeType": "string",
+										"name": "string",
+										"nodeType": "string",
+										"path": "string",
+										"props": {
+											"key": {}
+										},
+										"tags": ["string", "string"],
+										"uuid": "string",
+										"parentDocument": "string",
+										"attachment": [
+											{
+												"name": "string",
+												"mimeType": "string",
+												"content": "base64 (string)",
+												"externalPath": "string",
+												"uuid": "string",
+												"encoding": "string"
+											},
+											{
+												"name": "string",
+												"mimeType": "string",
+												"content": "base64 (string)",
+												"externalPath": "string",
+												"uuid": "string",
+												"encoding": "string"
+											}
+										],
+										"relatedDocs": ["string", "string"],
+										"evidenceNumber": "string",
+										"encoding": "string"
+									}
+								],
+								"pagination": {
+									"count": 100,
+									"hasMoreItems": true,
+									"maxItems": 100,
+									"skipCount": 0,
+									"totalItems": 256
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/ErrorData"
+						},
+						"examples": {
+							"application/json": {
+								"errorCode": 40,
+								"errorMessage": "string"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"operationId": "query",
+				"summary": "Hledání dokumentů pomocí Alfresco full text search (FTS)",
+				"description": "Vrátí kolekci výsledlů odpovídající zadaným Query parametrům. Query podporuje FTS parametry a sestavuje se dle pravidel popsaných zde: **https://docs.alfresco.com/search-services/1.4/using/**.\n\n## Autorizace:\nUživateli, který odesílá request budou vráceny pouze ty výsledky, na které má právo alespoň **READ**, v opačném případě bude daná Node z výsledků odstraněna."
+			}
+		},
+		"/api/v1/node/tracker": {
+			"post": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["tracker"],
+				"parameters": [
+					{
+						"name": "body",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/TrackerCreateData"
+							}
+						},
+						"in": "body",
+						"required": false
+					}
+				],
+				"responses": {
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/ErrorData"
+						}
+					}
+				},
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"operationId": "addItems",
+				"summary": "Activity Tracker data",
+				"description": "Metoda přídání záznamu do Activity Trackeru. Tracker je v eDoCat DMS reprezentován v rámci záložky **Historie** v detailu dokumentu. Pomocí této metody lze u dokumentů v DMS evidovat záznamy o akcích, které souvisí s uloženým dokumentem, a které proběhly v systému třetí strany. \n\nNapříklad schválení dokumentu v externím systému, zaůčtování faktury v ERP apod. Model dat je popsán v **EmbedTrackerCreateData**.\n\n## Autorizace:\nUživatel, který odesílá request musí mít právo **WRITE** na cílovou Node (typicky dokument) definovanou hodnotou parametru **uuid**, v opačném případě skončí request chybou.\n\n## Příklad:\n### Schválení dokumentu k zaůčtování v prostředí ERP\n\n    {\n        \"action\": \"UPDATE\",\n        \"comment\": \"Dokument byl schválen v ERP.\",\n        \"externalID\": \"ERP_123\",\n        \"source\": \"ERP\",\n        \"timestamp\": \"2024-05-28T11:25:22+00:00\",\n        \"user\": \"Pan Účetní\"\n        \"uuid\": \"b104468e-e5b8-464b-8b65-02a416cafc9f\"\n    \n    }\n**Výsledek:**\n* Do auditní stopy dokumentu `uuid` b104468e-e5b8-464b-8b65-02a416cafc9f je zapsán záznam o tom, že..:\n* Pan Účetní `user` schválil dokument v ERP `comment`\n* Že se daná akce stala v `timestamp` nehledě na to, kdy byl tento záznam přijat do DMS\n* Že se daná akce stala v ERP `source`"
+			}
+		},
+		"/api/v1/node/search": {
+			"post": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["search"],
+				"parameters": [
+					{
+						"name": "body",
+						"schema": {
+							"$ref": "#/definitions/SearchReqData"
+						},
+						"in": "body",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "successful operation",
+						"schema": {
+							"$ref": "#/definitions/NodesData"
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"schema": {
+							"$ref": "#/definitions/ErrorData"
+						}
+					}
+				},
+				"security": [
+					{
+						"BasicAuth": []
+					}
+				],
+				"operationId": "search",
+				"summary": "Vyhledávání pomocí Alfesco FTS s podporou integrační klíčů eDoCat DMS",
+				"description": "Interně se používá Alfresco Full Text Search, viz: **https://docs.alfresco.com/search-enterprise/concepts/searchsyntax-intro.html**\n\n## Autorizace:\nUživateli, který odesílá request budou vráceny pouze ty výsledky, na které má právo alespoň **READ**, v opačném případě bude daná Node z výsledků vynechána.\n\n## Skladba dotazu:\n* Vyhledání probíhá pomocí složené sady funkcí. \n* Jednotlivé funkce jsou při interpretaci spojované operátorem **AND**.\n* Každá funkce je definovaná jako **pole**.\n* Všechny prvky pole jsou vždy typu **string**.\n* Nultý element je vždy název funkce, která má být aplikována při evaluaci.\n* Ostatní elementy (0+n) představují parametry vyhledávací funkce. \n\n**Příklad konstrukce:**\n\n\t{\n\t\t\"nodeType\": \"nodeTypeKey\",\n\t\t\"query\": [\n\t\t\t[\"someFunction\", \"arg0\"],\n\t\t\t[\"otherFunction\", \"arg0\", \"arg1\", \"argN\"]\n\t\t]\n\t}\n\t\n**Vysvětlivky:**\n* `term` : používáme pro označení hledaného textu/výrazu.\n* `terms...` : označuje 1-n parametrů. Jednotlivé výrazy jsou spojovány operátorem **OR**, pokud není v popisu uvedeno jinak.\n* `fieldName` : integrační klíč vlastnosti v eDoCat DMS (definice je v gesci administrátora systému).\n* `nodeType` : integrační klíč dokumentového typu v eDoCat DMS (definice je v gesci administrátora systému). Pokud není uvedeno hledá se napířč dokumentovými typy bez omezení.\n\n## Dostupné funkce:\n\n### 1. Přesná shoda: **`[\"exact\", \"fieldName\", \"terms...\"]`**\nHodí se třeba na hledání identifikátorů, mail adresy, cizích klíčů apod. Specifikace: https://docs.alfresco.com/search-services/latest/using/#search-for-an-exact-term.\n\n**Příklad:** Hledáme dokumenty typu Faktura přijatá, jejichž hodnota vlastnosti IČO je 26194813 nebo 02270901.\n\n\t{\n\t\t\"nodeType\": \"fakturaPrijata\",\n\t\t\"query\": [\n\t\t\t[\"exact\": \"ico\", \"26194813\", \"02270901\"]\n\t\t]\n\t}\n\n\n### 2. Negovaný Exact: **`[\"not exact\", \"fieldName\", \"terms...\"]`**\n\n**Příklad:** Hledáme dokumenty typu Smlouva, jejichž hodnota vlastnosti dodavatel není \"Onlio a.s.\".\n\n\t{\n\t\t\"nodeType\": \"contract\",\n\t\t\"query\": [\n\t\t\t[\"not exact\": \"dodavatel\", \"Onlio a.s.\"]\n\t\t]\n\t}\n\n\n### 3. Match **`[\"match\", \"fieldName\", \"terms...\"]`**\n**Lucene** vyhledávání dle specifikace https://docs.alfresco.com/search-services/latest/using/#search-for-fuzzy-matching.\n\n**Příklad:** TBD\n\t\n\t{\n\t\tTBD\n\t}\n\n\n### 4. Negovaný **match** **`[\"not match\", \"fieldName\", \"terms...\"]`**\n\n**Příklad:** TBD\n\n\t{\n\t\tTBD\n\t}\n\n### 4. Autorita **`[\"authority\", \"authorityName\", \"terms...\"]`**\nZa autorita je v kontextu eDoCat DMS považován uživatel a nebo uživatelská skupina.\n\nParametr **`authorityName`** je userName uživatele (to kterým se hlásí do systému), nebo ID skupiny. ID skupiny zadáváme včetně přefixu \"**GROUP_**\"\n\n**Příklad:** Hledáme všechny dokumenty, jejichž zadavatelem je uživatel John Doe a schvalovateli jsou uživatelé ze skupiny Management.\n\t\n\t{\n\t\t\"query\": [\n\t\t\t['authority', 'john@doe.com', 'zadavatel']\n\t\t\t['authority', 'GROUP_management', 'schvalovatel']\n\t\t]\n\t}\n\n### 4. Negovaná Autorita **`[\"not authority\", \"authorityName\", \"terms...\"]`**\n**Příklad:** Hledáme všechny dokumenty, které nezaúčtoval John Doe.\n\t\n\t{\n\t\t\"query\": [\n\t\t\t['not authority', 'john@doe.com', 'accountant']\n\t\t]\n\t}\n\n### 5. Položka číselníku **`[\"cbitem\", \"fieldName\", \"terms...\"]`**\nPoložky číselníků jsou v rámci eDoCat DMS reprezentované jako samostatné Nodes s vlastním **uuid** a jako takové tvoří `terms...`. Podle uuid položky probíhá i vyhledávání dokumentů. Pro získání dat o čísleníku slouží /codebook API.\n\n**Příklad:** Hledáme dokumenty, které mají hodnotu čísleníku Dodavatel vyplněnou na \"Onlio a.s.\"\n\t\n\t{\n\t\t\"query\": [\n\t\t\t['cbitem', 'dodavatel', 'e15eb8e6-c3b5-45ce-8316-b84cac327a5d']\n\t\t]\n\t}\n\n### 6. Negovaná položka číselníku **`[\"not cbitem\", \"fieldName\", \"terms...\"]`**\n\n**Příklad:** Hledáme dokumenty, kde hodnota dodovatele není \"Onlio a.s.\"\n\n\t{\n\t\t\"query\": [\n\t\t\t['not cbitem', 'dodavatel', 'e15eb8e6-c3b5-45ce-8316-b84cac327a5d']\n\t\t]\n\t}\n\n### 6. Hledání v rozsahu **`[\"range\", \"fieldName\", \"terms...\"]`**\nHledá v rozsahu dvou hodnot, datumů a nebo čísel. Jde o použití https://docs.alfresco.com/search-services/latest/using/#search-for-ranges.\n\n**Příklad:** Hledáme všechny dokumenty, které byly upravené v posledních dvou dnech.\n\n\t{\n\t\t\"query\": [\n\t\t\t[\"range\", \"modified\", \"[NOW-2DAYS TO NOW]\"]\n\t\t]\n\t}\n \n### 7. Negovaný rozsah **`[\"not range\", \"fieldName\", \"terms...\"]`**\n**Příklad:** Hledáme všechny přijaté faktury, které mají celkovou cenu vyšší než 1000.\n\n\t{\n\t\t\"nodeType\": \"fakturaPrijata\",\n\t\t\"query\": [\n\t\t\t[\"not range\", \"cenaCelkem\", \"[MIN TO 1000]\"]\n\t\t]\n\t}\n\n\n### 8. Štítky **`[\"TAG\", \"terms...\"]`**\nŠtítky jsou specíální globální vlastností dokument, lze je aplikovat na libovolný dokument v rámci DMS.\n\n**Příklad:** Hledáme všechny dokumenty, které mají následující  \"Hory\", \"Zima\", \"Lyžař\".\n\n\t{\n\t\t\"query\": [\n\t\t\t[\"TAG\", \"Hory\", \"Zima\", \"Lyžař\"]\n\t\t]\n\t}\n\n\n### 9. Stránky **`[\"SITE\", \"terms...\"]`**\nOmezení hledání na dokumenty pouze v konrétních siteID.\n\n**Příklad:** Hledáme všechny dokumenty typu Fakutra Přijatá, které jsou uloženy ve stránkách Účetnictvi nebo Archiv.\n\n\t{\n\t\t\"query\": [\n\t\t\t[\"SITE\", \"ucetnictvi\", \"archiv\"]\n\t\t]\n\t}\n\n### 9. Hledání podle rodiče **`[\"PARENT\", \"terms...\"]`**\nOmezení hledání na dokumenty jejiž rodičem je `terms...`. Užitečné při dohledávání příloh konkrétních dokumentů. Do `terms...` je vkládána hodnota **uuid** požadovaných mateřských dokumentů.\n\n**Příklad:** Hledáme přilohy ke dvou konrétním dokumentům (jejich uuids předem známe).\n\n\t{\n\t\t\"query\": [\n\t\t\t[\"PARENT\", \"afd7919a-6cd3-4c11-a8f0-995aa3e282ca\", \"e15eb8e6-c3b5-45ce-8316-b84cac327a5d\"]\n\t\t]\n\t}\n"
+			}
+		}
+	},
+	"definitions": {
+		"ErrorData": {
+			"description": " Návratové hodnoty při zachycení chyby ve volání API.\n \n* **10** \nnevalidní název souboru/adresáře nebo konflikt v názvech\n* **20**\nnevalidní cesta\ncesta musí mít alespoň 1 element -- siteID\n* **30**\nuuid nenalezeno\n* **40**\nsite s daným **siteID** neexistuje\n* **50**\nnevalidní timestamp formát* **60**\nnevalidní *name* \n* **70**\nnevalidní baseDecode64\n* **80**\nnevalidí user nebo skupina\n* **90**\nquery není validní\n* **110**\nnevalidní vstupní JSON -- chyba v JSON samotném, systém nedokáže vstupní JSON interpertovat\n* **409**\nkonflikt při vykonáni transakce -- souběh transakcí nebo soubězná modifikace jednoho dokumentu\n* **423**\nlocked (Uzamčený dokument)",
+			"required": ["errorCode", "errorMessage"],
+			"type": "object",
+			"properties": {
+				"errorCode": {
+					"format": "int32",
+					"description": "Kód chyby, lze napárovat na typ chyby viz popis datového modelu.",
+					"type": "integer",
+					"example": "\"errorCode\": 30"
+				},
+				"errorMessage": {
+					"description": "Popis zachycené chyby.",
+					"type": "string",
+					"example": "\"errorMessage\": \"uuid nenalezeno\""
+				}
+			},
+			"example": {
+				"errorCode": 0,
+				"errorMessage": "string"
+			}
+		},
+		"NodeCreateData": {
+			"description": "Datový model založení nového dokumentu. V rámci body jsou odeslány parametry nově tvořeného dokumentu. Povinným parametrem je umístění dokumentu (path), ostatní parametry jsou nepovinné.",
+			"required": ["path"],
+			"type": "object",
+			"properties": {
+				"autoRename": {
+					"description": "Logikcá hodnota určuje zda bude k **name** souboru v případě konfliktu doplněn číselný index n. Tzn. pokud bude **path** v konfliktu s názvem souboru, bude k názvu adresáře doplněn číselný index typicky\n\n* pokud není vyplněn, aplikuje se hodnota **true**\n* pokud je parametr **\"autoRename: false\"** a vznikne konflikt jména, pak nastane chyba requestu",
+					"type": "boolean",
+					"example": "\"autoRename\": false"
+				},
+				"content": {
+					"description": "Binární obraz souboru v **Base64** kódování.",
+					"type": "string",
+					"example": "\"content\": \"GRpVGpc0xjUZmm6ayZrlmuc0x7RoWgu1BF......base64...\""
+				},
+				"includeContent": {
+					"description": "Logická hodnota rozhodující zda má být v responseBody requestu zahrnut binární obraz odeslaného souboru v Base64 kódování. Pokud není uvedeno, aplikuje tento parametr jako **false**.",
+					"type": "boolean",
+					"example": "\"includeContent\": true"
+				},
+				"mimeType": {
+					"description": "Identifikátor formátu zakládaného dokumentu. Pokud není vyplněn parametr **content** je **mimeType** zcela ignorován. Pakliže **content** existuje a **mimeType** není odeslán bude tato hodnota automaticky odhadnuta z kombinace názvu souboru a base64 obsahu parametru **content**. Určený mimeType rozhoduje m.j. o aplikaci handleru generujícího náhled dokumentu.\n\nAutomatický odhad mimeType funguje většinově spolehlivě pro běžně využívané office formáty jako PDF, DOCX, XLX, PPTX a jim podobné. Pokud přesto dochází k chybě při identifikaci typu obsahu doporučujeme tento parametr v rámci requestu posílat.\n\nPokud není název souboru vyplněn a nebo typ není rozpoznán, je aplikován mimeType **application/octet-stream**. ",
+					"type": "string",
+					"example": "\"mimeType\": \"application/pdf\""
+				},
+				"name": {
+					"description": "Název pod kterým bude nový objekt do DMS uložen -> fileName. Pokud není vyplněn automaticky se vygeneruje po založení dokumentu z přiděleného **UUID**.\n\nV rámci názvu dokumentu nejsou povolené znaky **? * \\ / \" < > | a není povolenou použít tečku na konci názvu**. Při použítí těchto znaků skončí request chybou.",
+					"type": "string",
+					"example": "\"name\": \"API Document.pdf\""
+				},
+				"nodeType": {
+					"description": "Dokumentový typ definovaný v eDoCat DMS. Identifikací custom dokumentového typu je jeho integrační klíč (v gesci administrátora systému). Každá implementace obsahuje dva výchozí typy:\n* **\"ctbd:baseDoc\"**: Základní dokument eDoCat\n* **\"ctfd:baseFolder\"**: Základní složka\n\nPokud není vyplněno, nebo není parametr vůbec poslán, je automaticky aplikován typ: \"**Základní dokument eDoCat**\".",
+					"type": "string",
+					"example": "\"nodeType\": \"contract\""
+				},
+				"path": {
+					"description": "Cesta k dokumentu. Na prvním místě je vždy ID stránky, pracovního prostoru, do kterého má být dokument uložen. Následují informace o adresářích. Adresáře se identifikují pomocí jejích pojmenování. Pokud adresáře v zadané cestě neexistují budou automaticky vytvořeny.\n\n\n**Příklad:**\n**{\"path\": \"/siteID/dir/subDir\"}**\n\n* první element v cestě je **siteID** -- id stránky\n* cesta musí vždy obsahovat alespoň **siteID** element pro validní příjem requestu \n* **/dir/subDir** jsou adresáře v knihovně dokumentů prostoru **siteID** \n* takto založený dokument bude umístěn ve výsledné cestě **/siteID/dir/subDir/api-document.pdf**",
+					"type": "string",
+					"example": "\"path\": \"siteID/dir/subDir\""
+				},
+				"props": {
+					"$ref": "#/definitions/NodePropsData",
+					"description": "Identifikuje hodnoty metadat zakládaného dokumentu. Tyto parametry příjmá v rámci objektu kde \"key\" je integrační klíč dané vlastnosti a \"value\" určuje chtěnou hodnotu dané vlastnoti.\n\nNapříklad pro dokumentový typ baseDoc (Základní dokument eDoCat) existují m.j. následující klíče:\n* **\"name\": \"API Dokument.pdf\"** // název dokumentu\n* **\"title\": \"Dokument Onlio a.s.\"** // titul dokumentu\n* **\"description\": \"Dokument vytvoření skrze API\"** // popis dokumentu\n* ...atd. \n\nVlastnosti, které nejsou v objektu odeslány budou ignorovány a jejich hodnoty nebudou vyplněny. Toto pravidlo lze aplikovat i na vlastnosti, které jsou v rámci uživatelského rozhraní eDoCat DMS povinná.\n\nIntegrační klíče jednotlivých vlastností a dokumentových typů se určují při definici modelů dokumentových typů. Získání jejich seznamu je v gesci Administrátora systému.",
+					"additionalProperties": {
+						"type": "object"
+					},
+					"example": "\"props\": {\n    \"name\": \"API Dokument.pdf\",\n    \"title\": \"Dokument Onlio a.s.\",\n    \"description\": \"Dokument vytvoření skrze API\"\n}"
+				},
+				"tags": {
+					"description": "Štítky/tagy dokumentu. Jde o speciální typ systémového metadata, dostupného pro každý dokumentový typ. Štítky, které jsou v rámci requestu odeslány a neexistují budou automaticky založeny. Štítky nepodporují mezery ve svých názvech.",
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"example": "\"tags\": [\"Tag\",\"Štítek\",\"JinýTag\"]"
+				},
+				"attachment": {
+					"description": "Pole objektů reprezentujících přílohy nahrávaného dokumentu. Datový model odpovídá **AttachmentCreateData**.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/AttachmentCreateData"
+					},
+					"example": "\"attachment\": [\n    {\n        \"name\": \"Příloha 1.pdf\",\n        \"content\":\"content\": \"GRpVGpc0xjUZmm6ayZrlmuc0x7RoWgu1BF......base64...\",\n        \"mimeType\": \"application/pdf\",\n        \"encoding\": \"UTF-8\"\n    }\n]"
+				},
+				"externalPath": {
+					"description": "Externí cesta k uložení dokumentu v systému třetí strany. Slouží primárně pro účely migrace a v běžném provozu eDoCat DMS lze tento parametr zcela ignorovat.",
+					"type": "string",
+					"example": "\"externalPath\": \"//sites/contracts/documentLibrary/2024/\""
+				},
+				"relatedDocs": {
+					"description": "Související dokumenty. Nejde o fyzické přílohy dokumentu (parametr \"attachment\"), ale o oboustranou vazbu mezi dvěma, v eDoCat DMS existujícími, dokumenty. Identifikace vazeb se provádí přes **UUID** souvisejících dokumentů. Odeslané uuids (dokumenty) budou svázány s nově vytvořeným dokumentem, pomocí vazby **relatedTo**.\n",
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"example": "\"relatedDocs\": [\"40d5206e-d260-4d40-897a-a055068d2ac0\"]"
+				},
+				"trackerData": {
+					"description": "Záznam do Activity Trackeru. Tracker je v eDoCat DMS reprezentován v rámci záložky **Historie** v detailu dokumentu. Pomocí tohoto parametru lze k dokumentům v DMS přidávát záznamy o akcích, které souvisí s uloženým dokumentem, a které proběhly mimo prostředí DMS. \n\nNapříklad schválení dokumentu v externím systému, zaůčtování faktury v ERP apod. Model dat je popsán v **EmbedTrackerCreateData**.\n\n",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/EmbedTrackerCreateData"
+					},
+					"example": "\"trackerData\": {\n    \"action\": \"UPDATE\",\n    \"comment\": \"Dokument byl schválen v ERP.\",\n    \"externalID\": \"ERP_123\",\n    \"source\": \"ERP\",\n    \"timestamp\": \"2024-05-28T11:25:22+00:00\",\n    \"user\": \"Pan Účetní\"\n}"
+				},
+				"encoding": {
+					"description": "Kódování souboru. Vhodný zejména pro textové soubory, u kterých lze těžko kódování spolehlivě určit. Pokud není parametr uveden provede eDoCat DMS automatickou detekci kódování dokumentu. Tato detekce bývá většinově spolehlivá v případě běžných office formátů jako PDF, DOCX, XLX, PPTX a jim podobných. Pokud přesto dochází k chybě při identifikaci kódování obsahu doporučujeme tento parametr v rámci requestu posílat.\n\nPokud není vyplněn parametr **content** je **encoding** ignorováno.\n\nSeznam použitelných kódování: **https://docs.oracle.com/javase/8/docs/technotes/guides/intl/encoding.doc.html**\n",
+					"type": "string",
+					"example": "\"encoding\": \"UTF-8\""
+				}
+			},
+			"example": {
+				"autoRename": true,
+				"content": "base64 (string)",
+				"includeContent": true,
+				"mimeType": "string",
+				"name": "string",
+				"nodeType": "string",
+				"path": "string",
+				"props": {
+					"key": "any"
+				},
+				"tags": ["string"],
+				"attachment": [
+					{
+						"name": "string",
+						"mimeType": "string",
+						"content": "base64 (string)",
+						"externalPath": "string",
+						"encoding": "string"
+					}
+				],
+				"externalPath": "string",
+				"relatedDocs": ["string"],
+				"trackerData": [
+					{
+						"action": "READ",
+						"comment": "string",
+						"contentNew": "string",
+						"contentOld": "string",
+						"externalID": "string",
+						"source": "string",
+						"timestamp": "2018-02-10T09:30Z",
+						"user": "string"
+					}
+				],
+				"encoding": "string"
+			}
+		},
+		"NodeData": {
+			"description": "Návratový objekt reprezentující záznam o jedné uložené Node, typicky o jednom dokumentu.",
+			"required": ["mimeType", "name", "nodeType", "props", "tags", "uuid"],
+			"type": "object",
+			"properties": {
+				"content": {
+					"description": "Binární obraz souboru v **Base64** kódování. Nemusí být přítomen, některé metody vrací content na vyžádání.",
+					"type": "string"
+				},
+				"mimeType": {
+					"description": "Mime type dokumentu.",
+					"type": "string"
+				},
+				"name": {
+					"description": "Název, fileName, pod kterým je dokument v DMS uložen.",
+					"type": "string"
+				},
+				"nodeType": {
+					"description": "Dokumentový typ",
+					"type": "string"
+				},
+				"path": {
+					"description": "Cesta k uloženému dokumentu. Pokud jde o přílohu je path *NULL*.",
+					"type": "string"
+				},
+				"props": {
+					"$ref": "#/definitions/NodePropsData",
+					"description": "Objekt vlastností dokumentu.\n\n* key: string\n* value: anyType",
+					"additionalProperties": {
+						"type": "object"
+					},
+					"example": ""
+				},
+				"tags": {
+					"description": "Štítky dokumentu.",
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"uuid": {
+					"description": "Unikátní identifikátor dokumentu.",
+					"type": "string"
+				},
+				"parentDocument": {
+					"description": "ID (**uuid**) mateřského dokumentu. Vrací se pouze pokud se jedná o přílohu. Pokud jde o regulérní dokument, tak *NULL*.",
+					"type": "string"
+				},
+				"attachment": {
+					"description": "Přilohy dokumentu.\n",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/AttachmentData"
+					}
+				},
+				"relatedDocs": {
+					"description": "Související dokumenty. Každý záznam (**uuid**) představuje jeden související dokument.",
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"evidenceNumber": {
+					"description": "Evidenční číslo. Představuje unikátní, ale lidsky čitelný, identifikátor. Využívá se třeba jako součást hezkého URL.\n\nhttps://EDOCAT/share/page/browse/**evidenceNumber**\n",
+					"type": "string"
+				},
+				"encoding": {
+					"description": "Kódování souboru. Seznam použitelných kódování: https://docs.oracle.com/javase/8/docs/technotes/guides/intl/encoding.doc.html\n",
+					"type": "string"
+				}
+			},
+			"example": {
+				"content": "base64 (string)",
+				"mimeType": "string",
+				"name": "string",
+				"nodeType": "string",
+				"path": "string",
+				"props": {},
+				"tags": ["string", "string"],
+				"uuid": "string",
+				"parentDocument": "string",
+				"attachment": [
+					{
+						"name": "string",
+						"mimeType": "string",
+						"content": "base64 (string)",
+						"externalPath": "string",
+						"uuid": "string",
+						"encoding": "string"
+					}
+				],
+				"relatedDocs": ["string", "string"],
+				"evidenceNumber": "string",
+				"encoding": "string"
+			}
+		},
+		"NodesData": {
+			"description": "Kolece **Node** s podporou stránkování. Jde o standardní formát návratu např. výsledků vyhledávání.",
+			"type": "object",
+			"properties": {
+				"nodes": {
+					"description": "Kolekce **NodeData**.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/NodeData"
+					}
+				},
+				"pagination": {
+					"$ref": "#/definitions/PagingData",
+					"description": "Parametry stránkování."
+				}
+			},
+			"example": {
+				"nodes": [
+					{
+						"content": "base64 (string)",
+						"mimeType": "string",
+						"name": "string",
+						"nodeType": "string",
+						"path": "string",
+						"props": {},
+						"tags": ["string", "string"],
+						"uuid": "string",
+						"parentDocument": "string",
+						"attachment": [
+							{
+								"name": "string",
+								"mimeType": "string",
+								"content": "base64 (string)",
+								"externalPath": "string",
+								"uuid": "string",
+								"encoding": "string"
+							},
+							{
+								"name": "string",
+								"mimeType": "string",
+								"content": "base64 (string)",
+								"externalPath": "string",
+								"uuid": "string",
+								"encoding": "string"
+							}
+						],
+						"relatedDocs": ["string", "string"],
+						"evidenceNumber": "string",
+						"encoding": "string"
+					},
+					{
+						"content": "base64 (string)",
+						"mimeType": "string",
+						"name": "string",
+						"nodeType": "string",
+						"path": "string",
+						"props": {},
+						"tags": [],
+						"uuid": "string",
+						"parentDocument": "string",
+						"attachment": [],
+						"relatedDocs": [],
+						"evidenceNumber": "string",
+						"encoding": "string"
+					}
+				],
+				"pagination": {
+					"count": 92,
+					"hasMoreItems": true,
+					"maxItems": {},
+					"skipCount": 25,
+					"totalItems": 68
+				}
+			}
+		},
+		"PagingData": {
+			"description": "Model stránkování výsledků.",
+			"required": ["count", "hasMoreItems", "maxItems", "skipCount"],
+			"type": "object",
+			"properties": {
+				"count": {
+					"format": "int32",
+					"description": "Počet výsledků pro aktuální request.",
+					"type": "integer"
+				},
+				"hasMoreItems": {
+					"description": "Logická hodnota určující zda pro zaslaný request existují i další výsledky, mimo těch aktuálně vrácených.",
+					"type": "boolean"
+				},
+				"maxItems": {
+					"description": "Určuje maximální počet vrácených výsledků. Hodnota v intervalu [1..100]. Číslo omezeno dle použítí, většinou na 100 nebo 1000 výsledků.\n\nPokud není uvedeno, bude aplikována maximální hodnota dané API metody.",
+					"type": "object"
+				},
+				"skipCount": {
+					"format": "int32",
+					"description": "Udává offset vrácených výsledků od prvního výsledku (Node s indexem 0). Pokud není uvedeno, tak: **\"skipCount\": 0**.",
+					"type": "integer"
+				},
+				"totalItems": {
+					"format": "int32",
+					"description": "Celkový počet nalezených položek. Pro některá volání nemusí být tento parametr uveden.",
+					"type": "integer"
+				}
+			},
+			"example": {
+				"count": 100,
+				"hasMoreItems": true,
+				"maxItems": 100,
+				"skipCount": 0,
+				"totalItems": 151
+			}
+		},
+		"PagingReqData": {
+			"description": "Model stránkování výsledků.",
+			"type": "object",
+			"properties": {
+				"maxItems": {
+					"format": "int32",
+					"description": "Určuje maximální počet vrácených výsledků. Hodnota v intervalu [1..100]. Číslo omezeno dle použítí, většinou na 100 nebo 1000 výsledků.\n\nPokud není uvedeno, bude aplikována maximální hodnota dané API metody.",
+					"type": "integer"
+				},
+				"skipCount": {
+					"format": "int32",
+					"description": "Udává offset vrácených výsledků od prvního výsledku (Node s indexem 0). Pokud není uvedeno, tak: **\"skipCount\": 0**.",
+					"type": "integer"
+				}
+			},
+			"example": {
+				"maxItems": 23,
+				"skipCount": 33
+			}
+		},
+		"QueryReqData": {
+			"description": "Model dat vyhledávání pomocí Alfresco FTS.",
+			"required": ["query"],
+			"type": "object",
+			"properties": {
+				"includeContent": {
+					"description": "Logická hodnota rozhodující zda má být v responseBody requestu zahrnut binární obraz odeslaného souboru v Base64 kódování. Pokud není uvedeno, aplikuje tento parametr jako **false**.",
+					"type": "boolean"
+				},
+				"paging": {
+					"$ref": "#/definitions/PagingReqData",
+					"description": "Parametry pro stránkování vrácenýh výsledků. Pokud není uvedeno, tak se použije výchozí stránkování (max výsledků na stránku = 100)."
+				},
+				"query": {
+					"description": "**FTS** search query dle spec: **http://docs.alfresco.com/6.0/concepts/rm-searchsyntax-intro.html**\n",
+					"type": "string"
+				}
+			},
+			"example": {
+				"includeContent": true,
+				"paging": {
+					"maxItems": 100,
+					"skipCount": 0
+				},
+				"query": "string"
+			}
+		},
+		"TrackerCreateData": {
+			"description": "Záznam Activity Trackeru. Tracker je v eDoCat DMS reprezentován v rámci záložky **Historie** v detailu dokumentu. Pomocí tohoto parametru lze k dokumentům v DMS přidávát záznamy o akcích, které souvisí s uloženým dokumentem, a které proběhly mimo prostředí DMS. \n\nNapříklad schválení dokumentu v externím systému, zaůčtování faktury v ERP apod.",
+			"required": ["action", "source"],
+			"type": "object",
+			"properties": {
+				"action": {
+					"description": "ENUM určující o který typ CRUD operace se jedná.\n\n**Povolené hodnoty:**\n* CREATE\n* READ\n* UPDATE\n* DELETE",
+					"enum": ["CREATE", "UPDATE", "DELETE", "READ"],
+					"type": "string",
+					"example": "\"action\": UPDATE"
+				},
+				"comment": {
+					"description": "Komentář akce. Libovolná textová hodnota popisující operaci vykonanou v systému třetí strany.",
+					"type": "string",
+					"example": "\"comment\": \"Dokument byl schválen v ERP.\""
+				},
+				"contentNew": {
+					"description": "Nová hodnota vlastnosti. \n\n**DEPRECATED, bude při aktualizaci API odstraněno. Změny v hodnotách vlastností eviduje eDoCat DMS nativně, není třeba o tom posílat extra záznam.**",
+					"type": "string"
+				},
+				"contentOld": {
+					"description": "Původní hodnota vlastnosti\n\n**DEPRECATED, bude při aktualizaci API odstraněno. Změny v hodnotách vlastností eviduje eDoCat DMS nativně, není třeba o tom posílat extra záznam.**",
+					"type": "string"
+				},
+				"externalID": {
+					"description": "Externí ID operace. Slouží pro možnost zpětné reference na operaci ve třetím systému. Není mandatory, ale pokud je uvedeno, hlídá se unikátnost kombinace **source** a **externalID**. Pokud tato kombinace není v databázi eDoCat DMS shledána jako unikátní, je celý request vrácen jako chybný.",
+					"type": "string",
+					"example": "\"externalID\": \"ERP1\""
+				},
+				"source": {
+					"description": "Textová identifikace systemu třetí strany, ze kterého byl request přijat.",
+					"type": "string",
+					"example": "\"source\": \"ERP\""
+				},
+				"timestamp": {
+					"description": "Identifikace času, kdy událost nastala. Typicky určuje kdy byla vykonána akce v systomju třetí strany a slouží tak k eliminaci zkreslení hodnoty vlivem prodlení v přenosu mezi systémem třetí strany a DMS. Pokud není vyplněno bude automaticky doplněn čas přijetí záznamu v DMS.\n\nPříjmaná hodnota je **date-time ve formátu: https://tools.ietf.org/html/rfc3339#section-5.6**",
+					"type": "string",
+					"example": "\"timestamp\": \"2024-05-28T11:25:22+00:00\""
+				},
+				"user": {
+					"description": "Textová identifikace uživatele, který vykonal akci v systému třetí strany. Nemá žádnou vazbu na konkrétního uživatle DMS.",
+					"type": "string",
+					"example": "\"user\": \"Pan Účetní\""
+				},
+				"uuid": {
+					"description": "Identifikátor Node (typicky dokumentu), ke kterému mý být záznam Trackeru přidán.",
+					"type": "string",
+					"example": "\"uuid\": \"a6d31d80-cee1-4a99-9615-d3cf5352a71e\""
+				}
+			},
+			"example": "{\n    \"action\": \"UPDATE\",\n    \"comment\": \"Dokument byl schválen v ERP.\",\n    \"externalID\": \"ERP_123\",\n    \"source\": \"ERP\",\n    \"timestamp\": \"2024-05-28T11:25:22+00:00\",\n    \"user\": \"Pan Účetní\"\n    \"uuid\": \"b104468e-e5b8-464b-8b65-02a416cafc9f\"\n}"
+		},
+		"AttachmentCreateData": {
+			"description": "Přílohy dokumentu.",
+			"required": ["name"],
+			"type": "object",
+			"properties": {
+				"name": {
+					"description": "Název přílohy\n",
+					"type": "string"
+				},
+				"mimeType": {
+					"description": "pokud není **content** tak ignorováno\npokud není vyplněný odhane se z názvu souboru\n",
+					"type": "string"
+				},
+				"content": {
+					"description": "binární obraz souboru v **Base64** kódování\n",
+					"type": "string"
+				},
+				"externalPath": {
+					"description": "Externí cesta k dokumentu.\nSlouží pouze pro účely migrace!!",
+					"type": "string"
+				},
+				"encoding": {
+					"description": "Kódování souboru.\nVhodné zejména pro textové soubory. Pokud není **content** tak ignorováno.\n\nSeznam použitelných kódování: https://docs.oracle.com/javase/8/docs/technotes/guides/intl/encoding.doc.html\n",
+					"type": "string"
+				}
+			},
+			"example": {
+				"name": "string",
+				"mimeType": "string",
+				"content": "string",
+				"externalPath": "string",
+				"encoding": "string"
+			}
+		},
+		"EmbedTrackerCreateData": {
+			"description": "Záznam Activity Trackeru. Tracker je v eDoCat DMS reprezentován v rámci záložky **Historie** v detailu dokumentu. Pomocí tohoto parametru lze k dokumentům v DMS přidávát záznamy o akcích, které souvisí s uloženým dokumentem, a které proběhly mimo prostředí DMS. \n\nNapříklad schválení dokumentu v externím systému, zaůčtování faktury v ERP apod.",
+			"required": ["action", "source"],
+			"type": "object",
+			"properties": {
+				"action": {
+					"description": "ENUM určující o který typ CRUD operace se jedná.\n\n**Povolené hodnoty:**\n* CREATE\n* READ\n* UPDATE\n* DELETE",
+					"enum": ["CREATE", "UPDATE", "DELETE", "READ"],
+					"type": "string",
+					"example": "\"action\": UPDATE"
+				},
+				"comment": {
+					"description": "Komentář akce. Libovolná textová hodnota popisující operaci vykonanou v systému třetí strany.",
+					"type": "string",
+					"example": "\"comment\": \"Dokument byl schválen v ERP.\""
+				},
+				"contentNew": {
+					"description": "Nová hodnota vlastnosti. \n\n**DEPRECATED, bude při aktualizaci API odstraněno. Změny v hodnotách vlastností eviduje eDoCat DMS nativně, není třeba o tom posílat extra záznam.**",
+					"type": "string"
+				},
+				"contentOld": {
+					"description": "Původní hodnota vlastnosti\n\n**DEPRECATED, bude při aktualizaci API odstraněno. Změny v hodnotách vlastností eviduje eDoCat DMS nativně, není třeba o tom posílat extra záznam.**",
+					"type": "string"
+				},
+				"externalID": {
+					"description": "Externí ID operace. Slouží pro možnost zpětné reference na operaci ve třetím systému. Není mandatory, ale pokud je uvedeno, hlídá se unikátnost kombinace **source** a **externalID**. Pokud tato kombinace není v databázi eDoCat DMS shledána jako unikátní, je celý request vrácen jako chybný.",
+					"type": "string",
+					"example": "\"externalID\": \"ERP1\""
+				},
+				"source": {
+					"description": "Textová identifikace systemu třetí strany, ze kterého byl request přijat.",
+					"type": "string",
+					"example": "\"source\": \"ERP\""
+				},
+				"timestamp": {
+					"format": "date-time",
+					"description": "Identifikace času, kdy událost nastala. Typicky určuje kdy byla vykonána akce v systomju třetí strany a slouží tak k eliminaci zkreslení hodnoty vlivem prodlení v přenosu mezi systémem třetí strany a DMS. Pokud není vyplněno bude automaticky doplněn čas přijetí záznamu v DMS.\n\nPříjmaná hodnota je **date-time ve formátu: https://tools.ietf.org/html/rfc3339#section-5.6**",
+					"type": "string",
+					"example": "\"timestamp\": \"2024-05-28T11:25:22+00:00\""
+				},
+				"user": {
+					"description": "Textová identifikace uživatele, který vykonal akci v systému třetí strany. Nemá žádnou vazbu na konkrétního uživatle DMS.",
+					"type": "string",
+					"example": "\"user\": \"Pan Účetní\""
+				}
+			},
+			"example": {
+				"action": "UPDATE",
+				"comment": "Dokument byl schválen v ERP.",
+				"externalID": "ERP_123",
+				"source": "ERP",
+				"timestamp": "2024-05-28T11:25:22+00:00",
+				"user": "Pan Účetní"
+			}
+		},
+		"SearchReqData": {
+			"description": "",
+			"required": ["query", "nodeType"],
+			"type": "object",
+			"properties": {
+				"includeContent": {
+					"description": "Logická hodnota rozhodující zda má být v responseBody requestu zahrnut binární obraz odeslaného souboru v Base64 kódování. Pokud není uvedeno, aplikuje tento parametr jako **false**.",
+					"type": "boolean"
+				},
+				"nodeType": {
+					"description": "Omezuje query na uvedený dokumentový typ. Pokud není vyplněno, tak je použit **com.onlio.edocat.baseDoc** (Základníé dokument eDoCat).",
+					"type": "string"
+				},
+				"paging": {
+					"$ref": "#/definitions/PagingReqData",
+					"description": "Nastavení stránkování, pokud není uvedeno, použijí se výchozí hodnoty."
+				},
+				"query": {
+					"description": "Parametrizovaný dotaz hledání...Query...",
+					"type": "array",
+					"items": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					}
+				}
+			}
+		},
+		"AttachmentData": {
+			"description": "Přílohy dokumentu.",
+			"required": ["name"],
+			"type": "object",
+			"properties": {
+				"name": {
+					"description": "Název přílohy\n",
+					"type": "string"
+				},
+				"mimeType": {
+					"description": "pokud není **content** tak ignorováno\npokud není vyplněný odhane se z názvu souboru\n",
+					"type": "string"
+				},
+				"content": {
+					"description": "binární obraz souboru v **Base64** kódování.\n\nV update, pokud není vyplněn, tak zůstává beze změn.\n",
+					"type": "string"
+				},
+				"externalPath": {
+					"description": "Externí cesta k dokumentu.\nSlouží pouze pro účely migrace!!",
+					"type": "string"
+				},
+				"uuid": {
+					"description": "unikátní identifikátor dokumentu/přílohy\n\nPokud je vyplněno, tak se edituje existující příloha, pokud je null, tak se vytvoří nová příloha",
+					"type": "string"
+				},
+				"encoding": {
+					"description": "Kódování souboru.\nVhodné zejména pro textové soubory. Pokud není **content** tak ignorováno.\n\nSeznam použitelných kódování: https://docs.oracle.com/javase/8/docs/technotes/guides/intl/encoding.doc.html\n",
+					"type": "string"
+				}
+			},
+			"example": {
+				"name": "string",
+				"mimeType": "string",
+				"content": "string",
+				"externalPath": "string",
+				"uuid": "string",
+				"encoding": "string"
+			}
+		},
+		"NodeUpdateData": {
+			"description": "Datový model aktualizace již existujícího dokumentu. V rámci body jsou odeslány parametry aktualizovaného dokumentu, tento dokument je identifikován prostřednictvím hodnoty parametru **uuid**. Neodeslané parametry budou v rámci aktualizace dokumentu ignorovány, jejich stávající hodnoty nebudou změněny.",
+			"required": ["uuid"],
+			"type": "object",
+			"properties": {
+				"autoRename": {
+					"description": "Logikcá hodnota určuje zda bude k **name** souboru v případě konfliktu doplněn číselný index n. Tzn. pokud bude **path** v konfliktu s názvem souboru, bude k názvu adresáře doplněn číselný index typicky\n\n* pokud není vyplněn, aplikuje se hodnota **true**\n* pokud je parametr **\"autoRename: false\"** a vznikne konflikt jména, pak nastane chyba requestu",
+					"type": "boolean",
+					"example": "\"autoRename\": false"
+				},
+				"content": {
+					"description": "Binární obraz souboru v **Base64** kódování. Pokud není vyplněn, zůstává obsah dokumentu beze změn a nedojde k založení nové verze.\n",
+					"type": "string",
+					"example": "\"content\": \"GRpVGpc0xjUZmm6ayZrlmuc0x7RoWgu1BF......base64...\""
+				},
+				"includeContent": {
+					"description": "Logická hodnota rozhodující zda má být v responseBody requestu zahrnut binární obraz odeslaného souboru v Base64 kódování. Pokud není uvedeno, aplikuje tento parametr jako **false**.",
+					"type": "boolean",
+					"example": "\"includeContent\": true"
+				},
+				"mimeType": {
+					"description": "Identifikátor formátu zakládaného dokumentu. Pokud není vyplněn parametr **content** je **mimeType** zcela ignorován. Pakliže **content** existuje a **mimeType** není odeslán bude tato hodnota automaticky odhadnuta z kombinace názvu souboru a base64 obsahu parametru **content**. Určený mimeType rozhoduje m.j. o aplikaci handleru generujícího náhled dokumentu.\n\nAutomatický odhad mimeType funguje většinově spolehlivě pro běžně využívané office formáty jako PDF, DOCX, XLX, PPTX a jim podobné. Pokud přesto dochází k chybě při identifikaci typu obsahu doporučujeme tento parametr v rámci requestu posílát.\n\nPokud není název souboru vyplněn a nebo typ není rozpoznán, je aplikován mimeType **application/octet-stream**. ",
+					"type": "string",
+					"example": "\"mimeType\": \"application/pdf\""
+				},
+				"name": {
+					"description": "Název pod kterým je objekt v DMS uložen -> fileName. Pokud není vyplněn zůstává beze změn.\n\nV rámci názvu dokumentu nejsou povolené znaky **? * \\ / \" < > | a není povolenou použít tečku na konci názvu**. Při použítí těchto znaků skončí request chybou.",
+					"type": "string",
+					"example": "\"name\": \"API Document.pdf\""
+				},
+				"nodeType": {
+					"description": "Dokumentový typ definovaný v eDoCat DMS. Identifikací custom dokumentového typu je jeho integrační klíč (v gesci administrátora systému). Každá implementace obsahuje dva výchozí typy:\n* **\"ctbd:baseDoc\"**: Základní dokument eDoCat\n* **\"ctfd:baseFolder\"**: Základní složka\n\nPokud není vyplněno, je stávající typ aktualizované Node zachován.",
+					"type": "string",
+					"example": "\"nodeType\": \"contract\""
+				},
+				"path": {
+					"description": "Cesta k dokumentu. Na prvním místě je vždy ID stránky, pracovního prostoru, do kterého má být dokument uložen. Následují informace o adresářích. Adresáře se identifikují pomocí jejích pojmenování. Pokud adresáře v zadané cestě neexistují budou automaticky vytvořeny.\n\n\n**Příklad:**\n**{\"path\": \"/siteID/dir/subDir\"}**\n\n* první element v cestě je **siteID** -- id stránky\n* cesta musí vždy obsahovat alespoň **siteID** element pro validní příjem requestu \n* **/dir/subDir** jsou adresáře v knihovně dokumentů prostoru **siteID** \n* takto založený dokument bude umístěn ve výsledné cestě **/siteID/dir/subDir/api-document.pdf**\n\n\nPokud není cesta vyplněna, tak zůstává beze změn.",
+					"type": "string",
+					"example": "\"path\": \"siteID/dir/subDir\""
+				},
+				"props": {
+					"$ref": "#/definitions/NodePropsData",
+					"description": "Identifikuje hodnoty metadat zakládaného dokumentu. Tyto parametry příjmá v rámci objektu kde \"key\" je integrační klíč dané vlastnosti a \"value\" určuje chtěnou hodnotu dané vlastnoti.\n\nNapříklad pro dokumentový typ baseDoc (Základní dokument eDoCat) existují m.j. následující klíče:\n* **\"name\": \"API Dokument.pdf\"** // název dokumentu\n* **\"title\": \"Dokument Onlio a.s.\"** // titul dokumentu\n* **\"description\": \"Dokument vytvoření skrze API\"** // popis dokumentu\n* ...atd. \n\nVlastnosti, které nejsou v objektu odeslány budou ignorovány a jejich stávající hodnoty budou zachovány. Toto pravidlo lze aplikovat i na vlastnosti, které jsou v rámci uživatelského rozhraní eDoCat DMS povinná.\n\nIntegrační klíče jednotlivých vlastností a dokumentových typů se určují při definici modelů dokumentových typů. Získání jejich seznamu je v gesci Administrátora systému.",
+					"additionalProperties": {
+						"type": "object"
+					},
+					"example": "\"props\": {\n    \"name\": \"API Dokument.pdf\",\n    \"title\": \"Dokument Onlio a.s.\",\n    \"description\": \"Dokument vytvoření skrze API\"\n}"
+				},
+				"tagAdds": {
+					"description": "Přidání štítků k sadě již existujích. Pokud je vyplněn parametr **tags**, je toto ignorováno.",
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"example": "\"tagAdds\": [\"DifferentTag\"]"
+				},
+				"tagRemoves": {
+					"description": "Odebrání existujícího štítku/ů z již existujích. Pokud je vyplněn parametr **tags**, je toto ignorováno.",
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"example": "\"tagRemoves\": [\"Štítek\"]"
+				},
+				"tags": {
+					"description": "Štítky/tagy dokumentu. Jde o speciální typ systémového metadata, dostupného pro každý dokumentový typ. Štítky, které jsou v rámci requestu odeslány a neexistují budou automaticky založeny. Štítky nepodporují mezery ve svých názvech.\n\nPokud je vyplněno, jsou parametry **tagAdds** a **tagRemoves** ignorovány. Úspěšný request nastaví štítky dokumentu na hodnotu tohoto parametru. Existující štítky, které nejsou na vstupu, budou odstraněny.",
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"example": "\"tags\": [\"Tag\",\"Štítek\", \"JinýŠtítek\"]"
+				},
+				"uuid": {
+					"description": "Jednozančný a neměnný identifikátor dokumentu. Povinné pole, nutné pro správné spárování requestu s aktualizovanou Node.",
+					"type": "string",
+					"example": "\"uuid\": \"a6d31d80-cee1-4a99-9615-d3cf5352a71e\""
+				},
+				"attachment": {
+					"description": "Pole objektů reprezentujících přílohy nahrávaného dokumentu. Datový model odpovídá **AttachmentCreateData**. Slouží pro přidání další přílohy, již existující přílohy nebudou ovlivněny.\n\nPokud je součástí requestu informace o příloze již existující **uuid**, dojde k aktualizaci dané přílohy namísto založení nové.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/AttachmentData"
+					},
+					"example": "\"attachment\": [\n    {\n        \"name\": \"Příloha 1.pdf\",\n        \"content\":\"content\": \"GRpVGpc0xjUZmm6ayZrlmuc0x7RoWgu1BF......base64...\",\n        \"mimeType\": \"application/pdf\",\n        \"encoding\": \"UTF-8\",\n        \"uuid\": \"a6d31d80-cee1-4a99-9615-d3cf5352a71e\"\n    }\n]"
+				},
+				"relatedDocAdds": {
+					"description": "Přidá související dokument(y) odpovídající odeslaným **uuid**s. Pokud je vyplněn parametr **relatedDocs** tak je ingnorováno.",
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"example": "\"relatedDocAdds\": [\"a6d31d80-cee1-4a99-9615-d3cf5352a71e\"]"
+				},
+				"relatedDocRemoves": {
+					"description": "Odebere již existující související dokumenty odpovídající odeslaným **uuid**s. Pokud je vyplněn parametr **relatedDocs** tak je ingnorováno.",
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"example": "\"relatedDocRemoves\": [\"40d5206e-d260-4d40-897a-a055068d2ac0\"]"
+				},
+				"relatedDocs": {
+					"description": "Související dokumenty. Nejde o fyzické přílohy dokumentu (parametr \"attachment\"), ale o oboustranou vazbu mezi dvěma, v eDoCat DMS existujícími, dokumenty. Identifikace vazeb se provádí přes **UUID** souvisejících dokumentů. Odeslané uuids (dokumenty) budou svázány s nově vytvořeným dokumentem, pomocí vazby **relatedTo**.\n\nPokud je vyplněno, jsou parametry **relatedDocAdds** a **relatedDocRemoves** ignorovány. Nastaví související dokumenty tak jak jsou v rámci requestu odeslány => existující související dokumenty, které nejsou na vstupu, budou odstraněny.\n\n\n",
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"example": "\"relatedDocs\": [\"40d5206e-d260-4d40-897a-a055068d2ac0\", \"a6d31d80-cee1-4a99-9615-d3cf5352a71e\"]"
+				},
+				"tracker": {
+					"description": "Záznam do Activity Trackeru. Tracker je v eDoCat DMS reprezentován v rámci záložky **Historie** v detailu dokumentu. Pomocí tohoto parametru lze k dokumentům v DMS přidávát záznamy o akcích, které souvisí s uloženým dokumentem, a které proběhly mimo prostředí DMS. \n\nNapříklad schválení dokumentu v externím systému, zaůčtování faktury v ERP apod. Model dat je popsán v **EmbedTrackerCreateData**.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/EmbedTrackerCreateData"
+					},
+					"example": "\"trackerData\": {\n    \"action\": \"UPDATE\",\n    \"comment\": \"Dokument byl schválen v ERP.\",\n    \"externalID\": \"ERP_123\",\n    \"source\": \"ERP\",\n    \"timestamp\": \"2024-05-28T11:25:22+00:00\",\n    \"user\": \"Pan Účetní\"\n}"
+				},
+				"encoding": {
+					"description": "Kódování souboru. Vhodný zejména pro textové soubory, u kterých lze těžko kódování spolehlivě určit. Pokud není parametr uveden provede eDoCat DMS automatickou detekci kódování dokumentu. Tato detekce bývá většinově spolehlivá v případě běžných office formátů jako PDF, DOCX, XLX, PPTX a jim podobných. Pokud přesto dochází k chybě při identifikaci kódování obsahu doporučujeme tento parametr v rámci requestu posílát.\n\nPokud není vyplněn parametr **content** je **encoding** ignorováno.\n\nSeznam použitelných kódování: **https://docs.oracle.com/javase/8/docs/technotes/guides/intl/encoding.doc.html**",
+					"type": "string",
+					"example": "\"encoding\": \"UTF-8\""
+				}
+			},
+			"example": {
+				"autoRename": true,
+				"content": "base64 (string)",
+				"includeContent": true,
+				"mimeType": "string",
+				"name": "string",
+				"nodeType": "string",
+				"path": "string",
+				"props": {},
+				"tagAdds": ["string", "string"],
+				"tagRemoves": ["string", "string"],
+				"tags": ["string", "string"],
+				"uuid": "string",
+				"attachment": [
+					{
+						"name": "string",
+						"mimeType": "string",
+						"content": "base64 (string)",
+						"externalPath": "string",
+						"uuid": "string",
+						"encoding": "string"
+					},
+					{
+						"name": "string",
+						"mimeType": "string",
+						"content": "base64 (string)",
+						"externalPath": "string",
+						"uuid": "string",
+						"encoding": "string"
+					}
+				],
+				"relatedDocAdds": ["string", "string"],
+				"relatedDocRemoves": ["string", "string"],
+				"relatedDocs": ["string", "string"],
+				"tracker": [
+					{
+						"action": "UPDATE",
+						"comment": "string",
+						"contentNew": "string",
+						"contentOld": "string",
+						"externalID": "string",
+						"source": "string",
+						"timestamp": "2024-02-10T09:30Z",
+						"user": "string"
+					}
+				],
+				"encoding": "string"
+			}
+		},
+		"NodePropsData": {
+			"title": "Root Type for NodePropsData",
+			"description": "Objekt vlastností dokumentu, \n\n* **key**:string = integrační klíč vlastnosti (dodá správce systému)\n* **value**:any = hodnota vlastnosti, typ hodnoty je odvislý od datového typu vlastnosti",
+			"type": "object",
+			"properties": {
+				"key": {
+					"description": "Integrační klíč identifikující vlastnost dokumentového typu.",
+					"example": "\"description\": \"Dokument vznikl pomocí eDoCat API.\""
+				}
+			},
+			"example": {
+				"key": "anyValue"
+			}
+		}
+	},
+	"securityDefinitions": {
+		"BasicAuth": {
+			"type": "basic",
+			"description": "Základní autorizace uživatele eDoCat DMS via username:password. Práva na operace v rámci API volání budou kalkulována dle nastavení oprávnění autorizovaného uživatele v DMS."
+		}
+	},
+	"tags": [
+		{
+			"name": "node",
+			"description": "**/node** - Základní endpoint eDoCat CRUD API, zpřístupňuje metody pro vytvoření, aktualizaci a smazání dokumentu.\n* **POST** - Vytvoření nového dokumentu\n* **PUT** - Aktualizace existujícího dokumentu\n* **DELETE** - Smazání dokumentu"
+		},
+		{
+			"name": "search",
+			"description": "**/node/search** - Pokročilé parametrizované vyhledávání dokumentů s plnou podporou integračních klíčů eDoCat DMS.\n\n* **POST** - Alfresco FTS s podporou integračních klíčů eDoCat DMS"
+		},
+		{
+			"name": "query",
+			"description": "**/node/query** - Základní metody vyhledávání.\n\n* **GET** - jednoduché hledání s podporou určení cesty a nebo konkrétní Node\n* **POST** - Pokročilé Alfresco FTS, bez podpory integračních klíčů eDoCat DMS"
+		},
+		{
+			"name": "tracker",
+			"description": "**/node/tracker** - Endpoint pro podporu evidence operací nad dokumenty v DMS, které proběhnou v systémech třetích stran. \n\n* **POST** - přídává záznam do auditní stopy dokumentu"
+		}
+	]
+}

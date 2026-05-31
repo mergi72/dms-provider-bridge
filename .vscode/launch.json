@@ -1,0 +1,42 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "FastAPI: edocat-bridge",
+      "type": "python",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "edocat_bridge.app.server:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8765"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      },
+      "justMyCode": true
+    },
+    {
+      "name": "FastAPI: edocat-bridge (reload)",
+      "type": "python",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "edocat_bridge.app.server:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8765",
+        "--reload"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+      },
+      "justMyCode": true
+    }
+  ]
+}

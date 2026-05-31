@@ -1,0 +1,170 @@
+{
+    "_comment": {
+        "0" : "List of alfresco API",
+        "1" : "Each API has a method (GET, POST, DELETE) and a path.",
+        "2" : "The path may contain parameters enclosed in curly braces.",
+        "3" : "https://api-explorer.alfresco.com/api-explorer/"
+    },
+
+    "auth": {
+    "post": {
+      "login": "/alfresco/api/-default-/public/authentication/versions/1/tickets"
+    },
+    "get": {
+      "validate": "/alfresco/api/-default-/public/authentication/versions/1/tickets/{ticketId}"
+    },
+    "delete": {
+      "logout": "/alfresco/api/-default-/public/authentication/versions/1/tickets/{ticketId}"
+    }
+  },
+
+  "discovery": {
+    "get": {
+      "repoInfo": "/alfresco/api/-default-/public/alfresco/versions/1/discovery"
+    }
+  },
+
+  "nodes": {
+    "get": {
+      "byId": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}",
+      "children": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/children",
+      "parents": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/parents",
+      "content": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/content",
+      "renditions": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/renditions",
+      "renditionContent": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/renditions/{renditionId}/content",
+      "versions": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/versions",
+      "versionById": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/versions/{versionId}",
+      "versionContent": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/versions/{versionId}/content",
+      "aspects": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/aspects",
+      "lock": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/lock",
+      "permissions": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/permissions",
+      "tags": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/tags",
+      "comments": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/comments",
+      "ratings": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/ratings",
+      "favorites": "/alfresco/api/-default-/public/alfresco/versions/1/people/-me-/favorites?where=(targetGuid='{nodeId}')"
+    },
+    "post": {
+      "createChild": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{parentId}/children",
+      "copy": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/copy",
+      "move": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/move",
+      "upload": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{parentId}/children",
+      "content": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/content",
+      "renditionCreate": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/renditions",
+      "lock": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/lock",
+      "permissions": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/permissions",
+      "tags": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/tags",
+      "comments": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/comments",
+      "ratings": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/ratings",
+      "favoriteMe": "/alfresco/api/-default-/public/alfresco/versions/1/people/-me-/favorites"
+    },
+    "put": {
+      "updateMeta": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}",
+      "updateContent": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/content",
+      "addAspects": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/aspects",
+      "permissions": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/permissions"
+    },
+    "delete": {
+      "byId": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}",
+      "content": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/content",
+      "rendition": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/renditions/{renditionId}",
+      "lock": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/lock",
+      "tag": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/tags/{tagId}",
+      "comment": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/comments/{commentId}",
+      "rating": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/ratings/{ratingId}"
+    }
+  },
+
+  "trashcan": {
+    "get": {
+      "list": "/alfresco/api/-default-/public/alfresco/versions/1/deleted-nodes",
+      "byId": "/alfresco/api/-default-/public/alfresco/versions/1/deleted-nodes/{deletedNodeId}",
+      "content": "/alfresco/api/-default-/public/alfresco/versions/1/deleted-nodes/{deletedNodeId}/content"
+    },
+    "post": {
+      "restore": "/alfresco/api/-default-/public/alfresco/versions/1/deleted-nodes/{deletedNodeId}/restore"
+    },
+    "delete": {
+      "purge": "/alfresco/api/-default-/public/alfresco/versions/1/deleted-nodes/{deletedNodeId}"
+    }
+  },
+
+  "tags": {
+    "get": {
+      "forNode": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/tags",
+      "all": "/alfresco/api/-default-/public/alfresco/versions/1/tags"
+    },
+    "post": {
+      "createOnNode": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/tags",
+      "createGlobal": "/alfresco/api/-default-/public/alfresco/versions/1/tags"
+    },
+    "delete": {
+      "fromNode": "/alfresco/api/-default-/public/alfresco/versions/1/nodes/{nodeId}/tags/{tagId}",
+      "global": "/alfresco/api/-default-/public/alfresco/versions/1/tags/{tagId}"
+    }
+  },
+
+  "search": {
+    "get": {
+      "queriesNodes": "/alfresco/api/-default-/public/search/versions/1/queries/nodes",
+      "queriesSites": "/alfresco/api/-default-/public/search/versions/1/queries/sites",
+      "queriesPeople": "/alfresco/api/-default-/public/search/versions/1/queries/people"
+    },
+    "post": {
+      "search": "/alfresco/api/-default-/public/search/versions/1/search"
+    }
+  },
+
+  "people": {
+    "get": {
+      "me": "/alfresco/api/-default-/public/alfresco/versions/1/people/-me-",
+      "byId": "/alfresco/api/-default-/public/alfresco/versions/1/people/{personId}",
+      "groups": "/alfresco/api/-default-/public/alfresco/versions/1/people/{personId}/groups",
+      "favorites": "/alfresco/api/-default-/public/alfresco/versions/1/people/{personId}/favorites"
+    },
+    "post": {
+      "create": "/alfresco/api/-default-/public/alfresco/versions/1/people",
+      "avatar": "/alfresco/api/-default-/public/alfresco/versions/1/people/{personId}/avatar"
+    },
+    "put": {
+      "update": "/alfresco/api/-default-/public/alfresco/versions/1/people/{personId}"
+    },
+    "delete": {
+      "avatar": "/alfresco/api/-default-/public/alfresco/versions/1/people/{personId}/avatar"
+    }
+  },
+
+  "groups": {
+    "get": {
+      "list": "/alfresco/api/-default-/public/alfresco/versions/1/groups",
+      "members": "/alfresco/api/-default-/public/alfresco/versions/1/groups/{groupId}/members"
+    },
+    "post": {
+      "create": "/alfresco/api/-default-/public/alfresco/versions/1/groups",
+      "addMember": "/alfresco/api/-default-/public/alfresco/versions/1/groups/{groupId}/members"
+    },
+    "delete": {
+      "removeMember": "/alfresco/api/-default-/public/alfresco/versions/1/groups/{groupId}/members/{memberId}",
+      "delete": "/alfresco/api/-default-/public/alfresco/versions/1/groups/{groupId}"
+    }
+  },
+
+  "sites": {
+    "get": {
+      "list": "/alfresco/api/-default-/public/alfresco/versions/1/sites",
+      "byId": "/alfresco/api/-default-/public/alfresco/versions/1/sites/{siteId}",
+      "containers": "/alfresco/api/-default-/public/alfresco/versions/1/sites/{siteId}/containers",
+      "members": "/alfresco/api/-default-/public/alfresco/versions/1/sites/{siteId}/members"
+    },
+    "post": {
+      "create": "/alfresco/api/-default-/public/alfresco/versions/1/sites",
+      "addMember": "/alfresco/api/-default-/public/alfresco/versions/1/sites/{siteId}/members"
+    },
+    "put": {
+      "update": "/alfresco/api/-default-/public/alfresco/versions/1/sites/{siteId}"
+    },
+    "delete": {
+      "removeMember": "/alfresco/api/-default-/public/alfresco/versions/1/sites/{siteId}/members/{personId}",
+      "delete": "/alfresco/api/-default-/public/alfresco/versions/1/sites/{siteId}"
+    }
+  }
+}

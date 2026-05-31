@@ -1,0 +1,81 @@
+{
+    "projectInfo": {
+        "name": "eDoCat Helper",
+        "author": "Radomír Merhaut",
+        "email": "radomir.merhaut@gmail.com",
+        "version": "0.0.2",
+        "description": "Alfresco Search configuration for eDoCat Helper",
+        "license": "......"
+    },
+
+    "config.json": {
+        "version": "0.0.1",
+        "lastModified": "2025-12-22T09:30:00Z",
+        "_comment": "Configuration for Alfresco Search API (used instead of eDoCat wrapper search)."
+    },
+
+    "_comment": "Alfresco configuration file used for search and listing operations",
+
+    "key": "alfresco",
+
+    "alfresco": {
+        "base_url": "https://cheminvest.edocat.net/alfresco",
+
+        "api": {
+            "search_root": "/api/-default-/public/search/versions/1",
+            "repo_root": "/api/-default-/public/alfresco/versions/1"
+        },
+
+        "doc_library": "/app:company_home/st:sites",
+
+        "endpoints": {
+            "search": "/search",
+            "nodes": "/nodes",
+            "people_me": "/people/-me-"
+        },
+
+        "search": {
+            "language": "afts",
+
+            "scope": {
+                "document_library": "/cm:documentLibrary",
+                "current_folder": "/*",
+                "current_folder_tree": "//*"
+            },
+
+            "defaults": {
+                "include": ["path", "properties"],
+                "sort": {
+                    "field": "cm:name",
+                    "ascending": true
+                },
+                "paging": {
+                    "maxItems": 200,
+                    "skipCount": 0
+                }
+            }
+        },
+
+        "nodeType": {
+            "file": [
+                "cm:content",
+                "ctbd:baseDoc"
+            ],
+            "folder": [
+                "cm:folder",
+                "ctfd:baseFolder"
+            ],
+            "all": [
+                "cm:content",
+                "cm:folder",
+                "ctbd:baseDoc",
+                "ctfd:baseFolder"
+            ]
+        },
+
+        "credentials": {
+            "mode": "windows",
+            "target": "eDoCatHelper@cheminvest"
+        }
+    }
+}

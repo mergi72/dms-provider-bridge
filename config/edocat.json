@@ -1,0 +1,43 @@
+{
+    "projectInfo": {
+            "name": "eDoCat Helper",
+            "author": "Radomír Merhaut",
+            "email": "radomir.merhaut@gmail.com",
+            "version": "0.0.2",
+            "description": "......",
+            "license": "......"
+    },
+
+    "config.json": {
+        "version": "0.0.4",
+        "lastModified": "2025-12-12T16:45:00Z",
+        "_comment": "This file contains the configuration for the VBA project."
+    },
+
+    "_comment": "List config files used in the project",
+
+    "key": "edocat",
+
+    "edocat": {
+        "base_url": "https://cheminvest.edocat.net",
+        "api": "/edocat/api/v1",
+        "doc_library": "/deals",
+        "endpoints": {
+            "node": "/node",
+            "query": "/node/query",
+            "search": "/node/search",
+            "tracker": "/node/tracker"
+        },
+        "nodeType":{
+            "baseFolder": "com.onlio.edocat.BaseFolder",
+            "baseDoc": "com.onlio.edocat.BaseDoc",
+            "file": "com.onlio.edocat.File"
+        },
+        "credentials": {
+            "mode": "windows",
+            "targetBase": "cheminvest/eDoCat_Helper",
+            "target": "merhautr@cheminvest/eDoCat_Helper"
+        }
+    }
+}
+

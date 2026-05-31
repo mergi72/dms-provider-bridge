@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling>=1.24.2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "edocat-bridge"
+version = "0.1.0"
+description = "Bridge service for Edocat and external DMS providers"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  { name = "edocat-bridge team" }
+]
+dependencies = [
+  "fastapi>=0.116.0",
+  "uvicorn[standard]>=0.35.0",
+  "pydantic>=2.11.0"
+]
+
+[project.scripts]
+edocat-bridge = "edocat_bridge.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/edocat_bridge"]
