@@ -34,6 +34,7 @@ Endpointy (POST):
 - `/bridge/wfx/upload`
 - `/bridge/wfx/resolve-share-url`
 - `/bridge/wfx/browse-share-url`
+- `/bridge/wfx/browse-share-url-validate`
 
 Autentizace (`auth`) je povinná pro každé volání:
 
@@ -81,6 +82,11 @@ One-shot browse přes Share URL:
 - V odpovědi je `data.resolved` (výsledek převodu URL), `data.path_source` (`share_url` nebo `provider_path_override`) a `data.result` (výsledek zvolené operace).
 - Pro `copy|rename` je navíc povinné zadat `destination_path_override` nebo `destination_share_url`; odpověď obsahuje `data.destination`.
 - Pro `upload` je povinné `file_name`; cíl lze zadat přes `destination_path_override`/`destination_share_url`, jinak se použije cesta vyřešená ze `share_url`.
+
+Lightweight validace bez spuštění operace:
+
+- `browse-share-url-validate`: stejné vstupy jako `browse-share-url`, ale bez `auth` a bez `content_base64`.
+- Endpoint vrací vypočtené `source`/`destination` cesty a validační chyby payloadu, bez volání provider operace.
 
 Poznámka k `download` payloadu:
 

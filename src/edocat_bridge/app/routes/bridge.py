@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from edocat_bridge.models.bridge import WfxMoveRequest, WfxPathRequest, WfxShareUrlBrowseRequest, WfxShareUrlRequest, WfxUploadRequest
-from edocat_bridge.services.bridge_service import browse_share_url, copy_path, delete_path, download_path, list_path, mkdir_path, rename_path, resolve_share_url, stat_path, upload_path
+from edocat_bridge.models.bridge import WfxMoveRequest, WfxPathRequest, WfxShareUrlBrowseRequest, WfxShareUrlRequest, WfxShareUrlValidateRequest, WfxUploadRequest
+from edocat_bridge.services.bridge_service import browse_share_url, copy_path, delete_path, download_path, list_path, mkdir_path, rename_path, resolve_share_url, stat_path, upload_path, validate_browse_share_url
 
 router = APIRouter()
 
@@ -72,4 +72,17 @@ def bridge_browse_share_url(payload: WfxShareUrlBrowseRequest) -> dict:
         payload.file_name,
         payload.content_base64,
         payload.overwrite,
+    ).model_dump()
+
+
+@router.post("/browse-share-url-validate")
+def bridge_browse_share_url_validate(payload: WfxShareUrlValidateRequest) -> dict:
+    return validate_browse_share_url(
+        payload.share_url,
+        payload.provider,
+        payload.operation,
+        payload.provider_path_override,
+        payload.destination_share_url,
+        payload.destination_path_override,
+        payload.file_name,
     ).model_dump()

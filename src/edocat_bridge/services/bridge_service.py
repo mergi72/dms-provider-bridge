@@ -331,3 +331,103 @@ def browse_share_url(
     merged_meta = dict(response.metadata or {})
     merged_meta["operation"] = f"browse-share-url:{operation}"
     return _success(data=merged_data, metadata=merged_meta)
+
+
+def validate_browse_share_url(
+    share_url: str,
+    provider: str = "alfresco",
+    operation: str = "list",
+    provider_path_override: str | None = None,
+    destination_share_url: str | None = None,
+    destination_path_override: str | None = None,
+    file_name: str | None = None,
+) -> WfxResponse:
+    resolved = resolve_share_url(share_url, provider)
+    if not resolved.ok:
+        return resolved
+
+    if not isinstance(resolved.data, dict):
+        return _failure(WfxErrorCode.INTERNAL_ERROR, "Resolved share URL payload has invalid format.")
+
+    resolved_payload = dict(resolved.data)
+    source_path = str(resolved_payload.get("path", ""))
+    source_path_source = "share_url"
+    if provider_path_override:
+        normalized_override = unquote(provider_path_override).replace("\\", "/").strip()
+        if not normalized_override:
+            return _failure(WfxErrorCode.BAD_PATH, "provider_path_override is empty.")
+        if not normalized_override.startswith("/"):
+            normalized_override = f"/{normalized_override}"
+        source_path = build_wfx_path(provider, normalized_override)
+        source_path_source = "provider_path_override"
+        resolved_payload["path"] = source_path
+        resolved_payload["share_path"] = normalized_override
+
+    if not source_path:
+        return _failure(WfxErrorCode.BAD_PATH, "Resolved share URL does not contain a source path.")
+
+    supported = {"list", "stat", "download", "copy", "rename", "mkdir", "delete", "upload"}
+    if operation not in supported:
+        return _failure(WfxErrorCode.NOT_SUPPORTED, f"Unsupported operation for share URL validation: {operation}")
+
+    destination_path = None
+    destination_path_source = None
+    if operation in {"copy", "rename", "upload"}:
+        if destination_path_override:
+            normalized_destination = unquote(destination_path_override).replace("\\", "/").strip()
+            if not normalized_destination:
+                return _failure(WfxErrorCode.BAD_PATH, "destination_path_override is empty.")
+            if not normalized_destination.startswith("/"):
+                normalized_destination = f"/{normalized_destination}"
+            destination_path = build_wfx_path(provider, normalized_destination)
+            destination_path_source = "destination_path_override"
+        elif destination_share_url:
+            destination_resolved = resolve_share_url(destination_share_url, provider)
+            if not destination_resolved.ok:
+                return destination_resolved
+            if not isinstance(destination_resolved.data, dict):
+                return _failure(WfxErrorCode.INTERNAL_ERROR, "Resolved destination share URL payload has invalid format.")
+            destination_path = str(destination_resolved.data.get("path", ""))
+            destination_path_source = "destination_share_url"
+        elif operation == "upload":
+            destination_path = source_path
+            destination_path_source = source_path_source
+        else:
+            return _failure(
+                WfxErrorCode.BAD_PATH,
+                "copy/rename requires destination_path_override or destination_share_url.",
+            )
+
+        if not destination_path:
+            return _failure(WfxErrorCode.BAD_PATH, "Destination path is empty.")
+
+    if operation == "upload" and not file_name:
+        return _failure(WfxErrorCode.BAD_PATH, "upload requires file_name.")
+
+    payload: dict[str, object] = {
+        "resolved": resolved_payload,
+        "operation": operation,
+        "source": {
+            "path": source_path,
+            "path_source": source_path_source,
+        },
+        "can_execute": True,
+    }
+    if destination_path and destination_path_source:
+        payload["destination"] = {
+            "path": destination_path,
+            "path_source": destination_path_source,
+        }
+    if operation == "upload":
+        payload["upload"] = {
+            "file_name": file_name,
+            "requires_content_base64": False,
+        }
+
+    return _success(
+        data=payload,
+        metadata={
+            "provider": provider,
+            "operation": f"browse-share-url-validate:{operation}",
+        },
+    )

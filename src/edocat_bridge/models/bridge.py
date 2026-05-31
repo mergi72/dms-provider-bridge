@@ -52,6 +52,16 @@ class WfxShareUrlBrowseRequest(BaseModel):
     overwrite: bool = False
 
 
+class WfxShareUrlValidateRequest(BaseModel):
+    share_url: str = Field(min_length=10, description="Full eDoCat/Alfresco Share URL")
+    provider: Literal["alfresco"] = "alfresco"
+    operation: Literal["list", "stat", "download", "copy", "rename", "mkdir", "delete", "upload"] = "list"
+    provider_path_override: str | None = Field(default=None, description="Optional provider path override in /path format")
+    destination_share_url: str | None = Field(default=None, description="Optional destination Share URL for copy/rename/upload")
+    destination_path_override: str | None = Field(default=None, description="Optional destination path override in /path format")
+    file_name: str | None = Field(default=None, description="File name for upload operation")
+
+
 class WfxResponse(BaseModel):
     ok: bool
     error_code: int = 0
