@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from urllib import error, request
+from urllib import request
 
 
 def _join_url(*parts: str) -> str:
@@ -144,3 +144,36 @@ class AlfrescoClient:
 
     def get_children(self, ticket: str, node_id: str) -> dict:
         return self._request_json("GET", self.node_children_url(node_id), headers=self.auth_headers(ticket))
+
+    def copy_node(self, ticket: str, node_id: str, target_parent_id: str, name: str | None = None) -> dict:
+        payload: dict[str, str] = {"targetParentId": target_parent_id}
+        if name:
+            payload["name"] = name
+        return self._request_json("POST", self.node_copy_url(node_id), headers=self.auth_headers(ticket), payload=payload)
+
+    def move_node(self, ticket: str, node_id: str, target_parent_id: str, name: str | None = None) -> dict:
+        payload: dict[str, str] = {"targetParentId": target_parent_id}
+        if name:
+            payload["name"] = name
+        return self._request_json("POST", self.node_move_url(node_id), headers=self.auth_headers(ticket), payload=payload)
+
+    def create_child_node(
+        self,
+        ticket: str,
+        parent_id: str,
+        name: str,
+        is_folder: bool = False,
+        content_base64: str | None = None,
+    ) -> dict:
+        payload: dict[str, object] = {
+            "name": name,
+            "nodeType": "cm:folder" if is_folder else "cm:content",
+        }
+        if content_base64:
+            payload["properties"] = {"cm:description": "Uploaded via edocat-bridge"}
+        return self._request_json(
+            "POST",
+            self.node_create_child_url(parent_id),
+            headers=self.auth_headers(ticket),
+            payload=payload,
+        )

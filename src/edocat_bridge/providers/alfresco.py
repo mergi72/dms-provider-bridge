@@ -44,6 +44,13 @@ class AlfrescoProvider(Provider):
         except Exception:
             return None
 
+    def _target_parent_and_name(self, destination: str) -> tuple[str, str | None, str]:
+        resolved = self._resolve_path(destination)
+        is_file_like = "." in resolved["name"] and not destination.endswith("/")
+        if is_file_like:
+            return resolved["parent_id"], resolved["name"], resolved["path"]
+        return resolved["node_id"], None, resolved["path"]
+
     def _item_from_entry(self, entry: dict, fallback_path: str | None = None) -> DmsItem:
         props = entry.get("properties", {}) if isinstance(entry, dict) else {}
         name = entry.get("name") or (fallback_path.rstrip("/").split("/")[-1] if fallback_path else "") or "/"
@@ -133,26 +140,44 @@ class AlfrescoProvider(Provider):
 
     def copy_item(self, source: str, destination: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         resolved = self._resolve_path(source)
-        mode = "live" if self._ticket(auth) else "preview"
+        ticket = self._ticket(auth)
+        target_parent_id, target_name, destination_path = self._target_parent_and_name(destination)
+        mode = "preview"
+        message = f"endpoint={self.client.node_copy_url(resolved['node_id'])};mode=preview"
+        if ticket:
+            try:
+                self.client.copy_node(ticket, resolved["node_id"], target_parent_id, target_name)
+                mode = "live"
+                message = f"endpoint={self.client.node_copy_url(resolved['node_id'])};mode=live"
+            except Exception as exc:
+                message = f"endpoint={self.client.node_copy_url(resolved['node_id'])};mode=preview;warning={type(exc).__name__}"
         return OperationResult(
             success=True,
             operation="copy",
             provider=self.name,
             source=source,
-            destination=destination,
-            message=f"endpoint={self.client.node_copy_url(resolved['node_id'])};mode={mode}",
+            destination=destination_path,
+            message=message,
         )
 
     def rename_item(self, source: str, destination: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         resolved = self._resolve_path(source)
-        mode = "live" if self._ticket(auth) else "preview"
+        ticket = self._ticket(auth)
+        target_parent_id, target_name, destination_path = self._target_parent_and_name(destination)
+        message = f"endpoint={self.client.node_move_url(resolved['node_id'])};mode=preview"
+        if ticket:
+            try:
+                self.client.move_node(ticket, resolved["node_id"], target_parent_id, target_name)
+                message = f"endpoint={self.client.node_move_url(resolved['node_id'])};mode=live"
+            except Exception as exc:
+                message = f"endpoint={self.client.node_move_url(resolved['node_id'])};mode=preview;warning={type(exc).__name__}"
         return OperationResult(
             success=True,
             operation="rename",
             provider=self.name,
             source=source,
-            destination=destination,
-            message=f"endpoint={self.client.node_move_url(resolved['node_id'])};mode={mode}",
+            destination=destination_path,
+            message=message,
         )
 
     def delete_item(self, target: str, auth: BridgeAuthContext | None = None) -> OperationResult:
@@ -194,12 +219,19 @@ class AlfrescoProvider(Provider):
         target_destination = f"{resolved['path'].rstrip('/')}/{file_name}" if resolved["path"] != "/" and "." not in resolved["name"] else resolved["path"]
         suffix = "?overwrite=true" if overwrite else ""
         content_state = "inline-base64" if content_base64 else "external-stream"
-        mode = "live" if self._ticket(auth) else "preview"
+        ticket = self._ticket(auth)
+        message = f"endpoint={self.client.node_create_child_url(target_parent_id)}{suffix};content={content_state};mode=preview"
+        if ticket:
+            try:
+                self.client.create_child_node(ticket, target_parent_id, file_name, is_folder=False, content_base64=content_base64)
+                message = f"endpoint={self.client.node_create_child_url(target_parent_id)}{suffix};content={content_state};mode=live"
+            except Exception as exc:
+                message = f"endpoint={self.client.node_create_child_url(target_parent_id)}{suffix};content={content_state};mode=preview;warning={type(exc).__name__}"
         return OperationResult(
             success=True,
             operation="upload",
             provider=self.name,
             source=file_name,
             destination=target_destination,
-            message=f"endpoint={self.client.node_create_child_url(target_parent_id)}{suffix};content={content_state};mode={mode}",
+            message=message,
         )
