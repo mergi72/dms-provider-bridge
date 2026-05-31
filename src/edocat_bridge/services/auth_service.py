@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 
+from edocat_bridge.core.credentials import load_windows_credential
 from edocat_bridge.core.errors import AuthenticationError
 from edocat_bridge.models.bridge import BridgeAuthContext
 
@@ -14,6 +15,23 @@ def validate_bridge_auth(auth: BridgeAuthContext) -> BridgeAuthContext:
             raise AuthenticationError(
                 "credentials mode requires either credential_id or username + password/token."
             )
+
+        if has_credential_ref:
+            credential_id = auth.credential_id
+            if not credential_id:
+                raise AuthenticationError("credentials mode requires credential_id when no inline secret is provided.")
+
+            resolved = load_windows_credential(credential_id)
+            if resolved.username:
+                auth.username = resolved.username
+            if resolved.password:
+                auth.password = resolved.password
+            if resolved.token:
+                auth.token = resolved.token
+            if not (auth.username and (auth.password or auth.token)):
+                raise AuthenticationError(
+                    f"Windows Credential Manager entry '{credential_id}' does not contain usable credentials."
+                )
         return auth
 
     if auth.mode == "winuser":

@@ -105,6 +105,8 @@ Bridge používá jednu vstupní autentizaci pro oba providery. Provider-specifi
   `{ "auth": { "mode": "credentials", "credential_id": "edocat-prod" } }`
   nebo
   `{ "auth": { "mode": "credentials", "username": "user", "password": "secret" } }`
+
+  `credential_id` se čte z Windows Credential Manageru. Pro běžné přihlašovací údaje použij generic credential s `UserName` a tajemstvím v blobu; pokud blob obsahuje JSON, bridge z něj umí vzít i `username`, `password`, `token` a volitelně `base_url`.
 - `winuser`:
   `{ "auth": { "mode": "winuser", "win_user": "DOMAIN\\uzivatel" } }`
 

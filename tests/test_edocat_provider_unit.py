@@ -207,6 +207,29 @@ def test_copy_item_clones_content_and_metadata(monkeypatch: pytest.MonkeyPatch) 
     )
 
 
+def test_download_item_reports_decoded_binary_size(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    client.query_nodes.return_value = {
+        "nodes": [
+            {
+                "uuid": "node-1",
+                "name": "sample.txt",
+                "path": "/deals/folder/sample.txt",
+                "nodeType": "ctbd:baseDoc",
+                "content": "dGVzdA==",
+                "mimeType": "text/plain",
+            }
+        ]
+    }
+    provider = _make_provider(monkeypatch, client)
+
+    result = provider.download_item("/folder/sample.txt", BridgeAuthContext(mode="credentials", username="user", password="pass"))
+
+    assert result.success is True
+    assert result.content_base64 == "dGVzdA=="
+    assert result.size == 4
+
+
 def test_stat_item_prefers_exact_path_over_first_query_result(monkeypatch: pytest.MonkeyPatch) -> None:
     client = FakeClient()
     client.query_nodes.return_value = {

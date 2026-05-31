@@ -289,8 +289,13 @@ class EdocatProvider(Provider):
         if not isinstance(content, str):
             raise ProviderOperationError(f"eDoCat download returned no content for {resolved_path}.")
 
+        try:
+            binary_content = base64.b64decode(content, validate=True)
+        except Exception as exc:
+            raise ProviderOperationError(f"eDoCat download returned invalid base64 content for {resolved_path}: {exc}") from exc
+
         mime_type = str(node.get("mimeType")) if node.get("mimeType") else None
-        size = len(content)
+        size = len(binary_content)
         return OperationResult(
             success=True,
             operation="download",
