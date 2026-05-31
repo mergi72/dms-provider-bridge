@@ -80,6 +80,19 @@ def bridge_browse_share_url(payload: WfxShareUrlBrowseRequest) -> dict:
     "/browse-share-url-validate",
     deprecated=True,
     summary="Deprecated alias for /browse-share-url with execute=false",
+    description=(
+        "Deprecated endpoint. Use /browse-share-url with execute=false instead.\n\n"
+        "Migration example:\n"
+        "{\n"
+        '  "share_url": "https://.../documentlibrary#/03%20.../Upload?page=1",\n'
+        '  "provider": "alfresco",\n'
+        '  "operation": "copy",\n'
+        '  "execute": false,\n'
+        '  "auth": {"mode": "winuser", "win_user": "DOMAIN\\\\user"},\n'
+        '  "provider_path_override": "/source/path.txt",\n'
+        '  "destination_path_override": "/target/path.txt"\n'
+        "}\n"
+    ),
 )
 def bridge_browse_share_url_validate(payload: WfxShareUrlValidateRequest) -> dict:
     return browse_share_url(
