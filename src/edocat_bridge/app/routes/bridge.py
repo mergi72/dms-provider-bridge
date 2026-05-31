@@ -59,7 +59,25 @@ def bridge_resolve_share_url(payload: WfxShareUrlRequest) -> dict:
     return resolve_share_url(payload.share_url, payload.provider).model_dump()
 
 
-@router.post("/browse-share-url")
+@router.post(
+    "/browse-share-url",
+    summary="Canonical Share URL operation endpoint",
+    description=(
+        "Canonical endpoint for Share URL flows. Supports execute=true (real execution) "
+        "and execute=false (dry-run validation).\n\n"
+        "Canonical dry-run example:\n"
+        "{\n"
+        '  "share_url": "https://.../documentlibrary#/03%20.../Upload?page=1",\n'
+        '  "provider": "alfresco",\n'
+        '  "operation": "copy",\n'
+        '  "execute": false,\n'
+        '  "auth": {"mode": "winuser", "win_user": "DOMAIN\\\\user"},\n'
+        '  "provider_path_override": "/source/path.txt",\n'
+        '  "destination_path_override": "/target/path.txt"\n'
+        "}\n\n"
+        "Deprecated alias: /browse-share-url-validate"
+    ),
+)
 def bridge_browse_share_url(payload: WfxShareUrlBrowseRequest) -> dict:
     return browse_share_url(
         payload.share_url,
