@@ -39,6 +39,13 @@ class WfxShareUrlRequest(BaseModel):
     provider: Literal["alfresco"] = "alfresco"
 
 
+class WfxShareUrlBrowseRequest(BaseModel):
+    share_url: str = Field(min_length=10, description="Full eDoCat/Alfresco Share URL")
+    auth: BridgeAuthContext
+    provider: Literal["alfresco"] = "alfresco"
+    operation: Literal["list", "stat"] = "list"
+
+
 class WfxResponse(BaseModel):
     ok: bool
     error_code: int = 0

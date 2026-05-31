@@ -198,3 +198,34 @@ def resolve_share_url(share_url: str, provider: str = "alfresco") -> WfxResponse
         )
     except Exception as exc:
         return _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+
+
+def browse_share_url(share_url: str, auth: BridgeAuthContext, provider: str = "alfresco", operation: str = "list") -> WfxResponse:
+    resolved = resolve_share_url(share_url, provider)
+    if not resolved.ok:
+        return resolved
+
+    if not isinstance(resolved.data, dict):
+        return _failure(WfxErrorCode.INTERNAL_ERROR, "Resolved share URL payload has invalid format.")
+
+    path = str(resolved.data.get("path", ""))
+    if not path:
+        return _failure(WfxErrorCode.BAD_PATH, "Resolved share URL does not contain a target path.")
+
+    if operation == "list":
+        response = list_path(path, auth)
+    elif operation == "stat":
+        response = stat_path(path, auth)
+    else:
+        return _failure(WfxErrorCode.NOT_SUPPORTED, f"Unsupported operation for share URL browse: {operation}")
+
+    if not response.ok:
+        return response
+
+    merged_data = {
+        "resolved": resolved.data,
+        "result": response.data,
+    }
+    merged_meta = dict(response.metadata or {})
+    merged_meta["operation"] = f"browse-share-url:{operation}"
+    return _success(data=merged_data, metadata=merged_meta)
