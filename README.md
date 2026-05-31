@@ -43,6 +43,39 @@ Rychlé spuštění (Bash, např. Git Bash/WSL):
 
 Poznámka: oba skripty hledají interpreter v pořadí `.venv312`, `.venv`, a nakonec systémový `python`/`python3` z PATH.
 
+## Bezpecne Testovani (ENV)
+
+Pro lokalni smoke testy nepouzivej hardcoded hesla v historii shellu. Nastav si je do environment promennych a payload skladat z nich.
+
+PowerShell:
+
+```powershell
+$env:BRIDGE_USER = "user@domain"
+$env:BRIDGE_PASSWORD = "secret"
+
+$body = @{
+  path = "edocat:/deals"
+  auth = @{
+    mode = "credentials"
+    username = $env:BRIDGE_USER
+    password = $env:BRIDGE_PASSWORD
+  }
+} | ConvertTo-Json -Depth 10
+
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8765/bridge/wfx/list -ContentType "application/json" -Body $body
+```
+
+Bash:
+
+```bash
+export BRIDGE_USER='user@domain'
+export BRIDGE_PASSWORD='secret'
+
+curl -sS http://127.0.0.1:8765/bridge/wfx/list \
+  -H 'Content-Type: application/json' \
+  -d "{\"path\":\"edocat:/deals\",\"auth\":{\"mode\":\"credentials\",\"username\":\"$BRIDGE_USER\",\"password\":\"$BRIDGE_PASSWORD\"}}"
+```
+
 ## WFX Bridge API (pro C# plugin)
 
 Formát vzdálené cesty:
@@ -130,6 +163,29 @@ Poznámka k výkonu Alfresco:
 
 - Klient obsahuje in-memory cache pro resolve doc library, lookup child node a resolve cesty.
 - Opakované volání stejné Alfresco cesty je proto výrazně rychlejší než první cold lookup.
+
+## Runbook
+
+Restart lokalniho serveru:
+
+```powershell
+$conn = Get-NetTCPConnection -LocalAddress 127.0.0.1 -LocalPort 8765 -ErrorAction SilentlyContinue | Where-Object { $_.State -eq 'Listen' }
+if ($conn) { Stop-Process -Id $conn.OwningProcess -Force }
+.\.venv312\Scripts\python.exe -m uvicorn edocat_bridge.app.server:app --app-dir src --host 127.0.0.1 --port 8765
+```
+
+Health check:
+
+```powershell
+Invoke-RestMethod -Method Get -Uri http://127.0.0.1:8765/health | ConvertTo-Json -Depth 10
+```
+
+Diagnostika, kdy se vraci stale stejny soubor (typicky "welcome.pdf"):
+
+- Ověr, ze volas `POST /bridge/wfx/list` (ne legacy `GET /listing`).
+- Ověr format provideru: `provider=edocat`, ne `provider=edocat:`.
+- Ověr, ze payload posila spravne `path` s provider prefixem (`edocat:/...` nebo `alfresco:/...`) a `auth`.
+- Pokud jde o Alfresco, prvni volani muze byt pomalejsi; druhe opakovane volani by melo byt rychlejsi (cache warm).
 
 ## Struktura
 
