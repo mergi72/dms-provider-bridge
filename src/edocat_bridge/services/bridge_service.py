@@ -240,6 +240,10 @@ def browse_share_url(
         response = stat_path(path, auth)
     elif operation == "download":
         response = download_path(path, auth)
+    elif operation == "mkdir":
+        response = mkdir_path(path, auth)
+    elif operation == "delete":
+        response = delete_path(path, auth)
     elif operation in {"copy", "rename"}:
         destination_path = ""
         destination_source = ""
