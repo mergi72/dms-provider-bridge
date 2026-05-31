@@ -17,6 +17,16 @@ dependencies = [
   "pydantic>=2.11.0"
 ]
 
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.0",
+  "httpx2>=0.28.1"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
 [project.scripts]
 edocat-bridge = "edocat_bridge.main:main"
 
