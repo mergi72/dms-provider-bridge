@@ -202,7 +202,7 @@ def resolve_share_url(share_url: str, provider: str = "alfresco") -> WfxResponse
 
 def browse_share_url(
     share_url: str,
-    auth: BridgeAuthContext,
+    auth: BridgeAuthContext | None,
     provider: str = "alfresco",
     operation: str = "list",
     execute: bool = True,
@@ -255,6 +255,9 @@ def browse_share_url(
 
     if not path:
         return _failure(WfxErrorCode.BAD_PATH, "Resolved share URL does not contain a target path.")
+
+    if execute and auth is None:
+        return _failure(WfxErrorCode.ACCESS_DENIED, "Auth is required when execute=true.")
 
     destination_path: str | None = None
     destination_source: str | None = None
