@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from edocat_bridge.adapters.commander_api import WfxErrorCode, parse_wfx_path
+from urllib.parse import unquote, urlparse
+
+from edocat_bridge.adapters.commander_api import WfxErrorCode, build_wfx_path, parse_wfx_path
 from edocat_bridge.core.errors import AuthenticationError, ProviderNotFoundError
 from edocat_bridge.models.bridge import BridgeAuthContext, WfxResponse
 from edocat_bridge.services.auth_service import validate_bridge_auth
@@ -161,5 +163,38 @@ def upload_path(destination: str, file_name: str, auth: BridgeAuthContext, conte
         return _failure(WfxErrorCode.BAD_PATH, str(exc))
     except ProviderNotFoundError as exc:
         return _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
+    except Exception as exc:
+        return _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+
+
+def resolve_share_url(share_url: str, provider: str = "alfresco") -> WfxResponse:
+    try:
+        if provider != "alfresco":
+            return _failure(WfxErrorCode.NOT_SUPPORTED, f"Unsupported provider for share URL: {provider}")
+
+        parsed = urlparse(share_url)
+        fragment = parsed.fragment or ""
+        if not fragment:
+            return _failure(WfxErrorCode.BAD_PATH, "Share URL must contain a hash path (fragment).")
+
+        fragment_path = fragment.split("?", 1)[0].strip()
+        if not fragment_path:
+            return _failure(WfxErrorCode.BAD_PATH, "Share URL fragment path is empty.")
+
+        normalized = unquote(fragment_path)
+        normalized = normalized.replace("\\", "/")
+        if not normalized.startswith("/"):
+            normalized = f"/{normalized}"
+
+        wfx_path = build_wfx_path(provider, normalized)
+        return _success(
+            data={
+                "provider": provider,
+                "path": wfx_path,
+                "share_path": normalized,
+                "source_url": share_url,
+            },
+            metadata={"provider": provider, "operation": "resolve-share-url"},
+        )
     except Exception as exc:
         return _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))

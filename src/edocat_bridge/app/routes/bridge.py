@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from edocat_bridge.models.bridge import WfxMoveRequest, WfxPathRequest, WfxUploadRequest
-from edocat_bridge.services.bridge_service import copy_path, delete_path, download_path, list_path, mkdir_path, rename_path, stat_path, upload_path
+from edocat_bridge.models.bridge import WfxMoveRequest, WfxPathRequest, WfxShareUrlRequest, WfxUploadRequest
+from edocat_bridge.services.bridge_service import copy_path, delete_path, download_path, list_path, mkdir_path, rename_path, resolve_share_url, stat_path, upload_path
 
 router = APIRouter()
 
@@ -52,3 +52,8 @@ def bridge_upload(payload: WfxUploadRequest) -> dict:
         content_base64=payload.content_base64,
         overwrite=payload.overwrite,
     ).model_dump()
+
+
+@router.post("/resolve-share-url")
+def bridge_resolve_share_url(payload: WfxShareUrlRequest) -> dict:
+    return resolve_share_url(payload.share_url, payload.provider).model_dump()

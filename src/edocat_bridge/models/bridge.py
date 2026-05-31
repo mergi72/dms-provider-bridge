@@ -34,6 +34,11 @@ class WfxUploadRequest(BaseModel):
     overwrite: bool = False
 
 
+class WfxShareUrlRequest(BaseModel):
+    share_url: str = Field(min_length=10, description="Full eDoCat/Alfresco Share URL")
+    provider: Literal["alfresco"] = "alfresco"
+
+
 class WfxResponse(BaseModel):
     ok: bool
     error_code: int = 0

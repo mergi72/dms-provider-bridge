@@ -32,6 +32,7 @@ Endpointy (POST):
 - `/bridge/wfx/copy`
 - `/bridge/wfx/download`
 - `/bridge/wfx/upload`
+- `/bridge/wfx/resolve-share-url`
 
 Autentizace (`auth`) je povinná pro každé volání:
 
@@ -67,6 +68,11 @@ Přenosové operace:
 
 - `download`: `{ "path": "alfresco:/contracts/sample.txt", "auth": { ... } }`
 - `upload`: `{ "destination": "alfresco:/contracts", "file_name": "upload.txt", "content_base64": "...", "overwrite": true, "auth": { ... } }`
+
+Převod eDoCat Share URL na bridge path:
+
+- `resolve-share-url`: `{ "share_url": "https://.../documentlibrary#/03%20.../Upload?page=1", "provider": "alfresco" }`
+- Odpověď vrací `data.path` ve formátu `alfresco:/...`, který lze použít pro `list/stat/copy/...`.
 
 Poznámka k `download` payloadu:
 
