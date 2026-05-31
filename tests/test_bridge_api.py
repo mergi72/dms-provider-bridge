@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
 from edocat_bridge.app.server import create_app
+
+
+pytestmark = pytest.mark.integration
 
 
 def _auth() -> dict[str, str]:
