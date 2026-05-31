@@ -208,6 +208,9 @@ def browse_share_url(
     provider_path_override: str | None = None,
     destination_share_url: str | None = None,
     destination_path_override: str | None = None,
+    file_name: str | None = None,
+    content_base64: str | None = None,
+    overwrite: bool = False,
 ) -> WfxResponse:
     resolved = resolve_share_url(share_url, provider)
     if not resolved.ok:
@@ -234,6 +237,9 @@ def browse_share_url(
     if not path:
         return _failure(WfxErrorCode.BAD_PATH, "Resolved share URL does not contain a target path.")
 
+    destination_path: str | None = None
+    destination_source: str | None = None
+
     if operation == "list":
         response = list_path(path, auth)
     elif operation == "stat":
@@ -245,8 +251,6 @@ def browse_share_url(
     elif operation == "delete":
         response = delete_path(path, auth)
     elif operation in {"copy", "rename"}:
-        destination_path = ""
-        destination_source = ""
         if destination_path_override:
             normalized_destination = unquote(destination_path_override).replace("\\", "/").strip()
             if not normalized_destination:
@@ -273,6 +277,41 @@ def browse_share_url(
             return _failure(WfxErrorCode.BAD_PATH, "Destination path is empty.")
 
         response = copy_path(path, destination_path, auth) if operation == "copy" else rename_path(path, destination_path, auth)
+    elif operation == "upload":
+        if not file_name:
+            return _failure(WfxErrorCode.BAD_PATH, "upload requires file_name.")
+
+        upload_destination_path = path
+        upload_destination_source = path_source
+        if destination_path_override:
+            normalized_destination = unquote(destination_path_override).replace("\\", "/").strip()
+            if not normalized_destination:
+                return _failure(WfxErrorCode.BAD_PATH, "destination_path_override is empty.")
+            if not normalized_destination.startswith("/"):
+                normalized_destination = f"/{normalized_destination}"
+            upload_destination_path = build_wfx_path(provider, normalized_destination)
+            upload_destination_source = "destination_path_override"
+        elif destination_share_url:
+            destination_resolved = resolve_share_url(destination_share_url, provider)
+            if not destination_resolved.ok:
+                return destination_resolved
+            if not isinstance(destination_resolved.data, dict):
+                return _failure(WfxErrorCode.INTERNAL_ERROR, "Resolved destination share URL payload has invalid format.")
+            upload_destination_path = str(destination_resolved.data.get("path", ""))
+            upload_destination_source = "destination_share_url"
+
+        if not upload_destination_path:
+            return _failure(WfxErrorCode.BAD_PATH, "Upload destination path is empty.")
+
+        response = upload_path(
+            upload_destination_path,
+            file_name,
+            auth,
+            content_base64=content_base64,
+            overwrite=overwrite,
+        )
+        destination_path = upload_destination_path
+        destination_source = upload_destination_source
     else:
         return _failure(WfxErrorCode.NOT_SUPPORTED, f"Unsupported operation for share URL browse: {operation}")
 
@@ -284,7 +323,7 @@ def browse_share_url(
         "path_source": path_source,
         "result": response.data,
     }
-    if operation in {"copy", "rename"}:
+    if operation in {"copy", "rename", "upload"} and destination_path and destination_source:
         merged_data["destination"] = {
             "path": destination_path,
             "path_source": destination_source,

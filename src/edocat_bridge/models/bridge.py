@@ -43,10 +43,13 @@ class WfxShareUrlBrowseRequest(BaseModel):
     share_url: str = Field(min_length=10, description="Full eDoCat/Alfresco Share URL")
     auth: BridgeAuthContext
     provider: Literal["alfresco"] = "alfresco"
-    operation: Literal["list", "stat", "download", "copy", "rename", "mkdir", "delete"] = "list"
+    operation: Literal["list", "stat", "download", "copy", "rename", "mkdir", "delete", "upload"] = "list"
     provider_path_override: str | None = Field(default=None, description="Optional provider path override in /path format")
     destination_share_url: str | None = Field(default=None, description="Optional destination Share URL for copy/rename")
     destination_path_override: str | None = Field(default=None, description="Optional destination path override in /path format")
+    file_name: str | None = Field(default=None, description="File name for upload operation")
+    content_base64: str | None = Field(default=None, description="Inline file content for upload operation")
+    overwrite: bool = False
 
 
 class WfxResponse(BaseModel):
