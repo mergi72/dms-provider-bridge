@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+from edocat_bridge.models.bridge import BridgeAuthContext
 from edocat_bridge.models.item import DmsItem
 from edocat_bridge.models.listing import ListingResult
 from edocat_bridge.models.operation import OperationResult
@@ -12,7 +13,7 @@ class Provider(ABC):
     upstream_auth_scheme: str = "unknown"
 
     @abstractmethod
-    def list_items(self, path: str) -> ListingResult:
+    def list_items(self, path: str, auth: BridgeAuthContext | None = None) -> ListingResult:
         raise NotImplementedError
 
     @abstractmethod
@@ -20,29 +21,29 @@ class Provider(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def stat_item(self, path: str) -> DmsItem | None:
+    def stat_item(self, path: str, auth: BridgeAuthContext | None = None) -> DmsItem | None:
         raise NotImplementedError
 
     @abstractmethod
-    def copy_item(self, source: str, destination: str) -> OperationResult:
+    def copy_item(self, source: str, destination: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         raise NotImplementedError
 
     @abstractmethod
-    def rename_item(self, source: str, destination: str) -> OperationResult:
+    def rename_item(self, source: str, destination: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         raise NotImplementedError
 
     @abstractmethod
-    def delete_item(self, target: str) -> OperationResult:
+    def delete_item(self, target: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         raise NotImplementedError
 
     @abstractmethod
-    def make_dir(self, path: str) -> OperationResult:
+    def make_dir(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         raise NotImplementedError
 
     @abstractmethod
-    def download_item(self, path: str) -> OperationResult:
+    def download_item(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         raise NotImplementedError
 
     @abstractmethod
-    def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, overwrite: bool = False) -> OperationResult:
+    def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, overwrite: bool = False, auth: BridgeAuthContext | None = None) -> OperationResult:
         raise NotImplementedError

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import dataclass
+from urllib import error, request
 
 
 def _join_url(*parts: str) -> str:
@@ -84,3 +86,61 @@ class AlfrescoClient:
 
     def search_nodes_url(self) -> str:
         return self._search_url("search")
+
+    def ticket_login_url(self) -> str:
+        return _join_url(self.base_url, "alfresco/api/-default-/public/authentication/versions/1/tickets")
+
+    def _request_json(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str] | None = None,
+        payload: dict | None = None,
+        timeout: int = 30,
+    ) -> dict:
+        body = None
+        request_headers = {"Accept": "application/json"}
+        if headers:
+            request_headers.update(headers)
+        if payload is not None:
+            body = json.dumps(payload).encode("utf-8")
+            request_headers.setdefault("Content-Type", "application/json")
+        req = request.Request(url=url, data=body, headers=request_headers, method=method)
+        with request.urlopen(req, timeout=timeout) as response:
+            content = response.read().decode("utf-8")
+            return json.loads(content) if content else {}
+
+    def create_ticket(self, username: str, password: str) -> str:
+        response = self._request_json(
+            "POST",
+            self.ticket_login_url(),
+            payload={"userId": username, "password": password},
+        )
+        entry = response.get("entry", {})
+        ticket = entry.get("id")
+        if not ticket:
+            raise ValueError("Alfresco ticket login returned no ticket id.")
+        return str(ticket)
+
+    def auth_headers(self, ticket: str) -> dict[str, str]:
+        return {"Authorization": f"Basic {ticket}"}
+
+    def search_nodes(self, ticket: str, query: str, max_items: int = 200, skip_count: int = 0) -> dict:
+        payload = {
+            "query": {
+                "language": "afts",
+                "query": query,
+            },
+            "paging": {
+                "maxItems": max_items,
+                "skipCount": skip_count,
+            },
+            "include": ["path", "properties"],
+        }
+        return self._request_json("POST", self.search_nodes_url(), headers=self.auth_headers(ticket), payload=payload)
+
+    def get_node(self, ticket: str, node_id: str) -> dict:
+        return self._request_json("GET", self.node_by_id_url(node_id), headers=self.auth_headers(ticket))
+
+    def get_children(self, ticket: str, node_id: str) -> dict:
+        return self._request_json("GET", self.node_children_url(node_id), headers=self.auth_headers(ticket))

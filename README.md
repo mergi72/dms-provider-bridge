@@ -58,6 +58,11 @@ Odpověď má sjednocený tvar:
 - `metadata.upstream_auth_scheme` (např. `basic`, `ticket`)
 - `metadata.upstream_endpoint` (reálný upstream endpoint provideru)
 
+Poznámka k režimu vykonání:
+
+- Pokud bridge získá použitelné upstream credentials/ticket, operace běží v režimu `live`.
+- Pokud credentials/ticket nejsou dostupné, bridge vrací bezpečný `preview` výstup (s přesným endpointem), aby WFX vrstva věděla, co bude voláno.
+
 Přenosové operace:
 
 - `download`: `{ "path": "alfresco:/contracts/sample.txt", "auth": { ... } }`

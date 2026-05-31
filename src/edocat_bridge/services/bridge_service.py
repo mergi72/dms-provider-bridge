@@ -33,7 +33,7 @@ def list_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
     try:
         provider, parsed = _resolve(path)
         validate_bridge_auth(auth)
-        listing = provider.list_items(parsed.path)
+        listing = provider.list_items(parsed.path, auth)
         return _success(data=listing.model_dump(), metadata=_metadata(provider, "list"))
     except AuthenticationError as exc:
         return _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
@@ -49,7 +49,7 @@ def stat_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
     try:
         provider, parsed = _resolve(path)
         validate_bridge_auth(auth)
-        item = provider.stat_item(parsed.path)
+        item = provider.stat_item(parsed.path, auth)
         if item is None:
             return _failure(WfxErrorCode.NOT_FOUND, f"Path not found: {path}")
         return _success(data=item.model_dump(), metadata=_metadata(provider, "stat"))
@@ -67,7 +67,7 @@ def mkdir_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
     try:
         provider, parsed = _resolve(path)
         validate_bridge_auth(auth)
-        result = provider.make_dir(parsed.path)
+        result = provider.make_dir(parsed.path, auth)
         return _success(data=result.model_dump(), metadata=_metadata(provider, "mkdir"))
     except AuthenticationError as exc:
         return _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
@@ -83,7 +83,7 @@ def delete_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
     try:
         provider, parsed = _resolve(path)
         validate_bridge_auth(auth)
-        result = provider.delete_item(parsed.path)
+        result = provider.delete_item(parsed.path, auth)
         return _success(data=result.model_dump(), metadata=_metadata(provider, "delete"))
     except AuthenticationError as exc:
         return _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
@@ -102,7 +102,7 @@ def rename_path(source: str, destination: str, auth: BridgeAuthContext) -> WfxRe
         validate_bridge_auth(auth)
         if src_provider.name != dst_provider.name:
             return _failure(WfxErrorCode.NOT_SUPPORTED, "Cross-provider rename is not supported.")
-        result = src_provider.rename_item(src.path, dst.path)
+        result = src_provider.rename_item(src.path, dst.path, auth)
         return _success(data=result.model_dump(), metadata=_metadata(src_provider, "rename"))
     except AuthenticationError as exc:
         return _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
@@ -121,7 +121,7 @@ def copy_path(source: str, destination: str, auth: BridgeAuthContext) -> WfxResp
         validate_bridge_auth(auth)
         if src_provider.name != dst_provider.name:
             return _failure(WfxErrorCode.NOT_SUPPORTED, "Cross-provider copy is not supported.")
-        result = src_provider.copy_item(src.path, dst.path)
+        result = src_provider.copy_item(src.path, dst.path, auth)
         return _success(data=result.model_dump(), metadata=_metadata(src_provider, "copy"))
     except AuthenticationError as exc:
         return _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
@@ -137,7 +137,7 @@ def download_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
     try:
         provider, parsed = _resolve(path)
         validate_bridge_auth(auth)
-        result = provider.download_item(parsed.path)
+        result = provider.download_item(parsed.path, auth)
         return _success(data=result.model_dump(), metadata=_metadata(provider, "download"))
     except AuthenticationError as exc:
         return _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
@@ -153,7 +153,7 @@ def upload_path(destination: str, file_name: str, auth: BridgeAuthContext, conte
     try:
         provider, parsed = _resolve(destination)
         validate_bridge_auth(auth)
-        result = provider.upload_item(parsed.path, file_name, content_base64=content_base64, overwrite=overwrite)
+        result = provider.upload_item(parsed.path, file_name, content_base64=content_base64, overwrite=overwrite, auth=auth)
         return _success(data=result.model_dump(), metadata=_metadata(provider, "upload"))
     except AuthenticationError as exc:
         return _failure(WfxErrorCode.ACCESS_DENIED, str(exc))

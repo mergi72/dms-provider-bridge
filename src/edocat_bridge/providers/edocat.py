@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from edocat_bridge.clients.edocat_client import EdocatClient
 from edocat_bridge.core.config_loader import load_provider_config
+from edocat_bridge.models.bridge import BridgeAuthContext
 from edocat_bridge.models.item import DmsItem
 from edocat_bridge.models.listing import ListingResult
 from edocat_bridge.models.operation import OperationResult
@@ -16,7 +17,7 @@ class EdocatProvider(Provider):
         self.config = load_provider_config(self.name)
         self.client = EdocatClient.from_config(self.config)
 
-    def list_items(self, path: str) -> ListingResult:
+    def list_items(self, path: str, auth: BridgeAuthContext | None = None) -> ListingResult:
         sample = DmsItem(id="edo-1", name="welcome.pdf", path=f"{path.rstrip('/')}/welcome.pdf")
         return ListingResult(provider=self.name, path=path, total=1, items=[sample])
 
@@ -33,13 +34,13 @@ class EdocatProvider(Provider):
         }
         return mapping.get(operation)
 
-    def stat_item(self, path: str) -> DmsItem | None:
+    def stat_item(self, path: str, auth: BridgeAuthContext | None = None) -> DmsItem | None:
         if path == "/":
             return DmsItem(id="edo-root", name="/", path="/", is_folder=True)
         name = path.rstrip("/").split("/")[-1] or "/"
         return DmsItem(id=f"edo-{name}", name=name, path=path, is_folder=path.endswith("/"))
 
-    def copy_item(self, source: str, destination: str) -> OperationResult:
+    def copy_item(self, source: str, destination: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         return OperationResult(
             success=True,
             operation="copy",
@@ -49,7 +50,7 @@ class EdocatProvider(Provider):
             message=f"endpoint={self.bridge_endpoint_for('copy')}",
         )
 
-    def rename_item(self, source: str, destination: str) -> OperationResult:
+    def rename_item(self, source: str, destination: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         return OperationResult(
             success=True,
             operation="rename",
@@ -59,7 +60,7 @@ class EdocatProvider(Provider):
             message=f"endpoint={self.bridge_endpoint_for('rename')}",
         )
 
-    def delete_item(self, target: str) -> OperationResult:
+    def delete_item(self, target: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         return OperationResult(
             success=True,
             operation="delete",
@@ -68,7 +69,7 @@ class EdocatProvider(Provider):
             message=f"endpoint={self.bridge_endpoint_for('delete')}",
         )
 
-    def make_dir(self, path: str) -> OperationResult:
+    def make_dir(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         return OperationResult(
             success=True,
             operation="mkdir",
@@ -77,7 +78,7 @@ class EdocatProvider(Provider):
             message=f"endpoint={self.bridge_endpoint_for('mkdir')}",
         )
 
-    def download_item(self, path: str) -> OperationResult:
+    def download_item(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         return OperationResult(
             success=True,
             operation="download",
@@ -86,7 +87,7 @@ class EdocatProvider(Provider):
             message=f"endpoint={self.client.endpoint_url('query')}",
         )
 
-    def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, overwrite: bool = False) -> OperationResult:
+    def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, overwrite: bool = False, auth: BridgeAuthContext | None = None) -> OperationResult:
         target = f"{destination.rstrip('/')}/{file_name}" if destination != "/" else f"/{file_name}"
         suffix = ";overwrite=true" if overwrite else ""
         content_state = "inline-base64" if content_base64 else "external-stream"
