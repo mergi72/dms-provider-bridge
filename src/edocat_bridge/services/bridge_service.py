@@ -206,6 +206,8 @@ def browse_share_url(
     provider: str = "alfresco",
     operation: str = "list",
     provider_path_override: str | None = None,
+    destination_share_url: str | None = None,
+    destination_path_override: str | None = None,
 ) -> WfxResponse:
     resolved = resolve_share_url(share_url, provider)
     if not resolved.ok:
@@ -238,6 +240,35 @@ def browse_share_url(
         response = stat_path(path, auth)
     elif operation == "download":
         response = download_path(path, auth)
+    elif operation in {"copy", "rename"}:
+        destination_path = ""
+        destination_source = ""
+        if destination_path_override:
+            normalized_destination = unquote(destination_path_override).replace("\\", "/").strip()
+            if not normalized_destination:
+                return _failure(WfxErrorCode.BAD_PATH, "destination_path_override is empty.")
+            if not normalized_destination.startswith("/"):
+                normalized_destination = f"/{normalized_destination}"
+            destination_path = build_wfx_path(provider, normalized_destination)
+            destination_source = "destination_path_override"
+        elif destination_share_url:
+            destination_resolved = resolve_share_url(destination_share_url, provider)
+            if not destination_resolved.ok:
+                return destination_resolved
+            if not isinstance(destination_resolved.data, dict):
+                return _failure(WfxErrorCode.INTERNAL_ERROR, "Resolved destination share URL payload has invalid format.")
+            destination_path = str(destination_resolved.data.get("path", ""))
+            destination_source = "destination_share_url"
+        else:
+            return _failure(
+                WfxErrorCode.BAD_PATH,
+                "copy/rename requires destination_path_override or destination_share_url.",
+            )
+
+        if not destination_path:
+            return _failure(WfxErrorCode.BAD_PATH, "Destination path is empty.")
+
+        response = copy_path(path, destination_path, auth) if operation == "copy" else rename_path(path, destination_path, auth)
     else:
         return _failure(WfxErrorCode.NOT_SUPPORTED, f"Unsupported operation for share URL browse: {operation}")
 
@@ -249,6 +280,11 @@ def browse_share_url(
         "path_source": path_source,
         "result": response.data,
     }
+    if operation in {"copy", "rename"}:
+        merged_data["destination"] = {
+            "path": destination_path,
+            "path_source": destination_source,
+        }
     merged_meta = dict(response.metadata or {})
     merged_meta["operation"] = f"browse-share-url:{operation}"
     return _success(data=merged_data, metadata=merged_meta)

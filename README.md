@@ -77,8 +77,9 @@ Převod eDoCat Share URL na bridge path:
 
 One-shot browse přes Share URL:
 
-- `browse-share-url`: `{ "share_url": "https://.../documentlibrary#/03%20.../Upload?page=1", "provider": "alfresco", "operation": "list|stat|download", "auth": { ... }, "provider_path_override": "/optional/manual/path" }`
+- `browse-share-url`: `{ "share_url": "https://.../documentlibrary#/03%20.../Upload?page=1", "provider": "alfresco", "operation": "list|stat|download|copy|rename", "auth": { ... }, "provider_path_override": "/optional/manual/path", "destination_share_url": "https://...", "destination_path_override": "/target/path" }`
 - V odpovědi je `data.resolved` (výsledek převodu URL), `data.path_source` (`share_url` nebo `provider_path_override`) a `data.result` (výsledek zvolené operace).
+- Pro `copy|rename` je navíc povinné zadat `destination_path_override` nebo `destination_share_url`; odpověď obsahuje `data.destination`.
 
 Poznámka k `download` payloadu:
 
