@@ -83,7 +83,7 @@ One-shot browse přes Share URL:
 - V odpovědi je `data.resolved` (výsledek převodu URL), `data.path_source` (`share_url` nebo `provider_path_override`) a `data.result` (výsledek zvolené operace).
 - Pro `copy|rename` je navíc povinné zadat `destination_path_override` nebo `destination_share_url`; odpověď obsahuje `data.destination`.
 - Pro `upload` je povinné `file_name`; cíl lze zadat přes `destination_path_override`/`destination_share_url`, jinak se použije cesta vyřešená ze `share_url`.
-- OpenAPI operationId: `bridgeBrowseShareUrl` (canonical), deprecated alias: `bridgeBrowseShareUrlValidateDeprecated`.
+- OpenAPI operationId: `bridgeResolveShareUrl`, `bridgeBrowseShareUrl` (canonical), deprecated alias: `bridgeBrowseShareUrlValidateDeprecated`.
 - Pokud `execute=false`, endpoint nic neprovede a vrátí dry-run validaci stejnou logikou jako `browse-share-url-validate`.
 
 Lightweight validace bez spuštění operace:

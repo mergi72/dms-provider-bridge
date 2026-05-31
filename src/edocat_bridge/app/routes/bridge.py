@@ -54,7 +54,11 @@ def bridge_upload(payload: WfxUploadRequest) -> dict:
     ).model_dump()
 
 
-@router.post("/resolve-share-url")
+@router.post(
+    "/resolve-share-url",
+    tags=["Bridge Share URL"],
+    operation_id="bridgeResolveShareUrl",
+)
 def bridge_resolve_share_url(payload: WfxShareUrlRequest) -> dict:
     return resolve_share_url(payload.share_url, payload.provider).model_dump()
 
