@@ -28,6 +28,8 @@ class EdocatProvider(Provider):
             "rename": self.client.endpoint_url("node"),
             "delete": self.client.endpoint_url("node"),
             "mkdir": self.client.endpoint_url("node"),
+            "download": self.client.endpoint_url("query"),
+            "upload": self.client.endpoint_url("node"),
         }
         return mapping.get(operation)
 
@@ -73,4 +75,26 @@ class EdocatProvider(Provider):
             provider=self.name,
             source=path,
             message=f"endpoint={self.bridge_endpoint_for('mkdir')}",
+        )
+
+    def download_item(self, path: str) -> OperationResult:
+        return OperationResult(
+            success=True,
+            operation="download",
+            provider=self.name,
+            source=path,
+            message=f"endpoint={self.client.endpoint_url('query')}",
+        )
+
+    def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, overwrite: bool = False) -> OperationResult:
+        target = f"{destination.rstrip('/')}/{file_name}" if destination != "/" else f"/{file_name}"
+        suffix = ";overwrite=true" if overwrite else ""
+        content_state = "inline-base64" if content_base64 else "external-stream"
+        return OperationResult(
+            success=True,
+            operation="upload",
+            provider=self.name,
+            source=file_name,
+            destination=target,
+            message=f"endpoint={self.client.endpoint_url('node')}{suffix};content={content_state}",
         )

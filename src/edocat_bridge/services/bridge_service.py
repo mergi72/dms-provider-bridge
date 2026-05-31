@@ -131,3 +131,35 @@ def copy_path(source: str, destination: str, auth: BridgeAuthContext) -> WfxResp
         return _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
     except Exception as exc:
         return _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+
+
+def download_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
+    try:
+        provider, parsed = _resolve(path)
+        validate_bridge_auth(auth)
+        result = provider.download_item(parsed.path)
+        return _success(data=result.model_dump(), metadata=_metadata(provider, "download"))
+    except AuthenticationError as exc:
+        return _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
+    except ValueError as exc:
+        return _failure(WfxErrorCode.BAD_PATH, str(exc))
+    except ProviderNotFoundError as exc:
+        return _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
+    except Exception as exc:
+        return _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+
+
+def upload_path(destination: str, file_name: str, auth: BridgeAuthContext, content_base64: str | None = None, overwrite: bool = False) -> WfxResponse:
+    try:
+        provider, parsed = _resolve(destination)
+        validate_bridge_auth(auth)
+        result = provider.upload_item(parsed.path, file_name, content_base64=content_base64, overwrite=overwrite)
+        return _success(data=result.model_dump(), metadata=_metadata(provider, "upload"))
+    except AuthenticationError as exc:
+        return _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
+    except ValueError as exc:
+        return _failure(WfxErrorCode.BAD_PATH, str(exc))
+    except ProviderNotFoundError as exc:
+        return _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
+    except Exception as exc:
+        return _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))

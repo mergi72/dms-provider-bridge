@@ -33,3 +33,10 @@ class FsoProvider(Provider):
 
     def make_dir(self, path: str) -> OperationResult:
         return OperationResult(success=True, operation="mkdir", provider=self.name, source=path)
+
+    def download_item(self, path: str) -> OperationResult:
+        return OperationResult(success=True, operation="download", provider=self.name, source=path)
+
+    def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, overwrite: bool = False) -> OperationResult:
+        target = f"{destination.rstrip('/')}/{file_name}" if destination != "/" else f"/{file_name}"
+        return OperationResult(success=True, operation="upload", provider=self.name, source=file_name, destination=target)

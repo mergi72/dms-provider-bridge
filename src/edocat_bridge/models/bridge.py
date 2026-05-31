@@ -26,6 +26,14 @@ class WfxMoveRequest(BaseModel):
     auth: BridgeAuthContext
 
 
+class WfxUploadRequest(BaseModel):
+    destination: str = Field(min_length=3, description="Destination folder or file path in format provider:/path")
+    auth: BridgeAuthContext
+    file_name: str = Field(min_length=1)
+    content_base64: str | None = None
+    overwrite: bool = False
+
+
 class WfxResponse(BaseModel):
     ok: bool
     error_code: int = 0

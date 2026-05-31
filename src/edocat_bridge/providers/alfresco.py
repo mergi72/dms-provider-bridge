@@ -60,6 +60,8 @@ class AlfrescoProvider(Provider):
             "rename": self.client.node_move_url("{nodeId}"),
             "delete": self.client.node_delete_url("{nodeId}"),
             "mkdir": self.client.node_create_child_url("{parentId}"),
+            "download": self.client.node_content_url("{nodeId}"),
+            "upload": self.client.node_create_child_url("{parentId}"),
         }
         return mapping.get(operation)
 
@@ -114,4 +116,29 @@ class AlfrescoProvider(Provider):
             provider=self.name,
             source=path,
             message=f"endpoint={self.client.node_create_child_url(resolved['parent_id'])}",
+        )
+
+    def download_item(self, path: str) -> OperationResult:
+        resolved = self._resolve_path(path)
+        return OperationResult(
+            success=True,
+            operation="download",
+            provider=self.name,
+            source=resolved["path"],
+            message=f"endpoint={self.client.node_content_url(resolved['node_id'])}",
+        )
+
+    def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, overwrite: bool = False) -> OperationResult:
+        resolved = self._resolve_path(destination)
+        target_parent_id = resolved["parent_id"] if resolved["path"] != "/" and "." in resolved["name"] else resolved["node_id"]
+        target_destination = f"{resolved['path'].rstrip('/')}/{file_name}" if resolved["path"] != "/" and "." not in resolved["name"] else resolved["path"]
+        suffix = "?overwrite=true" if overwrite else ""
+        content_state = "inline-base64" if content_base64 else "external-stream"
+        return OperationResult(
+            success=True,
+            operation="upload",
+            provider=self.name,
+            source=file_name,
+            destination=target_destination,
+            message=f"endpoint={self.client.node_create_child_url(target_parent_id)}{suffix};content={content_state}",
         )

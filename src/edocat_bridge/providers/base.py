@@ -38,3 +38,11 @@ class Provider(ABC):
     @abstractmethod
     def make_dir(self, path: str) -> OperationResult:
         raise NotImplementedError
+
+    @abstractmethod
+    def download_item(self, path: str) -> OperationResult:
+        raise NotImplementedError
+
+    @abstractmethod
+    def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, overwrite: bool = False) -> OperationResult:
+        raise NotImplementedError

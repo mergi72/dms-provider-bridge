@@ -79,5 +79,8 @@ class AlfrescoClient:
     def node_create_child_url(self, parent_id: str) -> str:
         return self._repo_url(f"nodes/{parent_id}/children")
 
+    def node_content_url(self, node_id: str) -> str:
+        return self._repo_url(f"nodes/{node_id}/content")
+
     def search_nodes_url(self) -> str:
         return self._search_url("search")

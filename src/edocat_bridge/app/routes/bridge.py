@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from edocat_bridge.models.bridge import WfxMoveRequest, WfxPathRequest
-from edocat_bridge.services.bridge_service import copy_path, delete_path, list_path, mkdir_path, rename_path, stat_path
+from edocat_bridge.models.bridge import WfxMoveRequest, WfxPathRequest, WfxUploadRequest
+from edocat_bridge.services.bridge_service import copy_path, delete_path, download_path, list_path, mkdir_path, rename_path, stat_path, upload_path
 
 router = APIRouter()
 
@@ -36,3 +36,19 @@ def bridge_rename(payload: WfxMoveRequest) -> dict:
 @router.post("/copy")
 def bridge_copy(payload: WfxMoveRequest) -> dict:
     return copy_path(payload.source, payload.destination, payload.auth).model_dump()
+
+
+@router.post("/download")
+def bridge_download(payload: WfxPathRequest) -> dict:
+    return download_path(payload.path, payload.auth).model_dump()
+
+
+@router.post("/upload")
+def bridge_upload(payload: WfxUploadRequest) -> dict:
+    return upload_path(
+        payload.destination,
+        payload.file_name,
+        payload.auth,
+        content_base64=payload.content_base64,
+        overwrite=payload.overwrite,
+    ).model_dump()

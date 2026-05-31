@@ -30,6 +30,8 @@ Endpointy (POST):
 - `/bridge/wfx/delete`
 - `/bridge/wfx/rename`
 - `/bridge/wfx/copy`
+- `/bridge/wfx/download`
+- `/bridge/wfx/upload`
 
 Autentizace (`auth`) je povinná pro každé volání:
 
@@ -55,6 +57,11 @@ Odpověď má sjednocený tvar:
 - `metadata.provider` (aktivní provider)
 - `metadata.upstream_auth_scheme` (např. `basic`, `ticket`)
 - `metadata.upstream_endpoint` (reálný upstream endpoint provideru)
+
+Přenosové operace:
+
+- `download`: `{ "path": "alfresco:/contracts/sample.txt", "auth": { ... } }`
+- `upload`: `{ "destination": "alfresco:/contracts", "file_name": "upload.txt", "content_base64": "...", "overwrite": true, "auth": { ... } }`
 
 ## Struktura
 
