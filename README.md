@@ -126,6 +126,11 @@ Poznámka k `download` payloadu:
 - V `live` režimu vrací `data.content_base64`, `data.mime_type` a `data.size`.
 - V `preview` režimu jsou tyto položky `null` a v `data.message` je uveden cílový endpoint.
 
+Poznámka k výkonu Alfresco:
+
+- Klient obsahuje in-memory cache pro resolve doc library, lookup child node a resolve cesty.
+- Opakované volání stejné Alfresco cesty je proto výrazně rychlejší než první cold lookup.
+
 ## Struktura
 
 Projekt je rozdělen na:

@@ -16,8 +16,17 @@ _PROVIDER_REGISTRY: dict[str, Provider] = {
 }
 
 
+def _normalize_provider_name(provider_name: str | None) -> str | None:
+    if provider_name is None:
+        return None
+    normalized = provider_name.strip().lower()
+    if normalized.endswith(":"):
+        normalized = normalized[:-1]
+    return normalized or None
+
+
 def get_provider(provider_name: str | None = None) -> Provider:
-    name = provider_name or os.getenv("EDOCAT_PROVIDER") or "edocat"
+    name = _normalize_provider_name(provider_name) or _normalize_provider_name(os.getenv("EDOCAT_PROVIDER")) or "edocat"
     provider = _PROVIDER_REGISTRY.get(name)
     if provider is None:
         raise ProviderNotFoundError(f"Provider '{name}' is not registered.")

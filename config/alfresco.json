@@ -26,7 +26,7 @@
             "repo_root": "/api/-default-/public/alfresco/versions/1"
         },
 
-        "doc_library": "/app:company_home/st:sites",
+        "doc_library": "/app:company_home/st:sites/cm:deals/cm:documentLibrary/cm:_x0030_3_x0020_zak_x00E1_zky_x0020_v_x0020_realizaci",
 
         "endpoints": {
             "search": "/search",

@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
+import re
 from dataclasses import dataclass
+from dataclasses import field
 from typing import cast
 from urllib.parse import unquote
+from urllib.parse import urlencode
 from urllib import request
 
 
@@ -21,6 +25,10 @@ class AlfrescoClient:
     api_roots: dict[str, str]
     endpoints: dict[str, str]
     doc_library: str
+    _doclib_cache: dict[str, dict] = field(default_factory=dict)
+    _path_cache: dict[str, dict] = field(default_factory=dict)
+    _child_cache: dict[str, dict | None] = field(default_factory=dict)
+    _cache_limit: int = 4096
 
     @classmethod
     def from_config(cls, config: dict) -> "AlfrescoClient":
@@ -33,6 +41,20 @@ class AlfrescoClient:
 
     def ping(self) -> bool:
         return bool(self.base_url)
+
+    def _ticket_key(self, ticket: str) -> str:
+        return hashlib.sha1(ticket.encode("utf-8")).hexdigest()[:16]
+
+    def _cache_get(self, store: dict, key: str):
+        return store.get(key)
+
+    def _cache_set(self, store: dict, key: str, value) -> None:
+        if key in store:
+            store[key] = value
+            return
+        if len(store) >= self._cache_limit:
+            store.pop(next(iter(store)))
+        store[key] = value
 
     def endpoint_url(self, endpoint_key: str, api_root_key: str) -> str:
         root = self.api_roots.get(api_root_key, "")
@@ -90,7 +112,7 @@ class AlfrescoClient:
         return self._search_url("search")
 
     def ticket_login_url(self) -> str:
-        return _join_url(self.base_url, "alfresco/api/-default-/public/authentication/versions/1/tickets")
+        return _join_url(self.base_url, "api/-default-/public/authentication/versions/1/tickets")
 
     def _request_json(
         self,
@@ -143,6 +165,9 @@ class AlfrescoClient:
     def auth_headers(self, ticket: str) -> dict[str, str]:
         return {"Authorization": f"Basic {ticket}"}
 
+    def basic_auth_token(self, username: str, password: str) -> str:
+        return base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
+
     def search_nodes(self, ticket: str, query: str, max_items: int = 200, skip_count: int = 0) -> dict:
         payload = {
             "query": {
@@ -170,38 +195,150 @@ class AlfrescoClient:
     def get_node(self, ticket: str, node_id: str) -> dict:
         return self._request_json("GET", self.node_by_id_url(node_id), headers=self.auth_headers(ticket))
 
-    def get_children(self, ticket: str, node_id: str) -> dict:
-        return self._request_json("GET", self.node_children_url(node_id), headers=self.auth_headers(ticket))
+    def get_children(self, ticket: str, node_id: str, max_items: int = 200, skip_count: int = 0) -> dict:
+        params = urlencode({"maxItems": max_items, "skipCount": skip_count})
+        return self._request_json("GET", f"{self.node_children_url(node_id)}?{params}", headers=self.auth_headers(ticket))
 
     def child_by_name(self, ticket: str, parent_id: str, name: str) -> dict | None:
-        response = self.get_children(ticket, parent_id)
-        entries = response.get("list", {}).get("entries", [])
-        for item in entries:
-            entry = item.get("entry", {}) if isinstance(item, dict) else {}
-            if str(entry.get("name", "")) == name:
-                return entry
-        return None
+        expected = str(name)
+        expected_folded = expected.casefold()
+        cache_key = f"{self._ticket_key(ticket)}|{parent_id}|{expected_folded}"
+        cached = self._cache_get(self._child_cache, cache_key)
+        if cached is not None or cache_key in self._child_cache:
+            return cached
+
+        skip_count = 0
+        max_items = 200
+
+        while True:
+            response = self.get_children(ticket, parent_id, max_items=max_items, skip_count=skip_count)
+            entries = response.get("list", {}).get("entries", [])
+            if not isinstance(entries, list) or not entries:
+                return None
+
+            for item in entries:
+                entry = item.get("entry", {}) if isinstance(item, dict) else {}
+                actual_name = str(entry.get("name", ""))
+                if actual_name == expected or actual_name.casefold() == expected_folded:
+                    self._cache_set(self._child_cache, cache_key, entry)
+                    return entry
+
+            if len(entries) < max_items:
+                self._cache_set(self._child_cache, cache_key, None)
+                return None
+            skip_count += max_items
+
+    def _decode_qname_segment(self, segment: str) -> str:
+        raw = segment.strip()
+        if not raw:
+            return raw
+
+        if ":" in raw:
+            raw = raw.split(":", 1)[1]
+
+        def replace_code(match: re.Match[str]) -> str:
+            value = match.group(1)
+            return chr(int(value, 16))
+
+        return re.sub(r"_x([0-9A-Fa-f]{4})_", replace_code, raw)
+
+    def _doc_library_segment_candidates(self, decoded_segment: str) -> list[str]:
+        segment = decoded_segment.strip()
+        folded = segment.casefold()
+
+        if folded == "company_home":
+            return ["Company Home", "company_home", "company home"]
+        if folded == "sites":
+            return ["Sites", "sites"]
+        if folded == "documentlibrary":
+            return ["documentLibrary", "Document Library", "documentlibrary"]
+        return [segment]
+
+    def _resolve_doc_library_by_walk(self, ticket: str) -> dict | None:
+        raw_path = str(self.doc_library or "").strip()
+        if not raw_path:
+            return None
+
+        segments = [self._decode_qname_segment(part) for part in raw_path.strip("/").split("/") if part]
+        if not segments:
+            return None
+
+        current: dict[str, str] = {"id": "-root-", "name": "/"}
+        for segment in segments:
+            candidates = self._doc_library_segment_candidates(segment)
+            resolved = None
+            for candidate in candidates:
+                resolved = self.child_by_name(ticket, str(current.get("id", "")), candidate)
+                if resolved is not None:
+                    break
+            if resolved is None:
+                return None
+            current = resolved
+        return current
 
     def resolve_doc_library_node(self, ticket: str) -> dict | None:
-        # doc_library is expected in Alfresco PATH format (for example /app:company_home/st:sites).
+        cache_key = f"{self._ticket_key(ticket)}|{self.doc_library}"
+        cached = self._cache_get(self._doclib_cache, cache_key)
+        if cached is not None:
+            return cached
+
+        # Prefer SEARCH API for speed, but some deployments return 500 here.
         query = f'PATH:"{self.doc_library}"'
-        return self.first_search_entry(ticket, query)
+        try:
+            entry = self.first_search_entry(ticket, query)
+            if entry is not None:
+                self._cache_set(self._doclib_cache, cache_key, entry)
+                return entry
+        except Exception:
+            pass
+        fallback = self._resolve_doc_library_by_walk(ticket)
+        if fallback is not None:
+            self._cache_set(self._doclib_cache, cache_key, fallback)
+        return fallback
 
     def resolve_node_by_relative_path(self, ticket: str, relative_path: str) -> dict | None:
         normalized = self.normalize_path(relative_path)
+        path_cache_key = f"{self._ticket_key(ticket)}|{normalized}"
+        cached = self._cache_get(self._path_cache, path_cache_key)
+        if cached is not None:
+            return cached
+
         root = self.resolve_doc_library_node(ticket)
         if not root:
             return None
         current = root
         if normalized == "/":
+            self._cache_set(self._path_cache, path_cache_key, current)
             return current
 
-        for segment in [part for part in normalized.split("/") if part]:
-            child = self.child_by_name(ticket, str(current.get("id", "")), segment)
-            if not child:
-                return None
-            current = child
-        return current
+        def walk(segments: list[str]) -> dict | None:
+            node = root
+            current_path = ""
+            for segment in segments:
+                current_path = f"{current_path}/{segment}"
+                segment_cache_key = f"{self._ticket_key(ticket)}|{current_path}"
+                segment_cached = self._cache_get(self._path_cache, segment_cache_key)
+                if segment_cached is not None:
+                    node = segment_cached
+                    continue
+                child = self.child_by_name(ticket, str(node.get("id", "")), segment)
+                if not child:
+                    return None
+                node = child
+                self._cache_set(self._path_cache, segment_cache_key, node)
+            return node
+
+        segments = [part for part in normalized.split("/") if part]
+        attempts: list[list[str]] = [segments]
+        if len(segments) > 1:
+            attempts.append(segments[1:])
+
+        for candidate in attempts:
+            resolved = walk(candidate)
+            if resolved is not None:
+                self._cache_set(self._path_cache, path_cache_key, resolved)
+                return resolved
+        return None
 
     def copy_node(self, ticket: str, node_id: str, target_parent_id: str, name: str | None = None) -> dict:
         payload: dict[str, str] = {"targetParentId": target_parent_id}
