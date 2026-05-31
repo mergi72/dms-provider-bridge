@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+from typing import cast
 from urllib import request
 
 
@@ -109,6 +110,22 @@ class AlfrescoClient:
         with request.urlopen(req, timeout=timeout) as response:
             content = response.read().decode("utf-8")
             return json.loads(content) if content else {}
+
+    def _request_bytes(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str] | None = None,
+        timeout: int = 30,
+    ) -> tuple[bytes, str | None]:
+        request_headers = {}
+        if headers:
+            request_headers.update(headers)
+        req = request.Request(url=url, headers=request_headers, method=method)
+        with request.urlopen(req, timeout=timeout) as response:
+            data = response.read()
+            mime = cast(str | None, response.headers.get("Content-Type"))
+            return data, mime
 
     def create_ticket(self, username: str, password: str) -> str:
         response = self._request_json(
@@ -217,3 +234,9 @@ class AlfrescoClient:
             headers=self.auth_headers(ticket),
             payload=payload,
         )
+
+    def delete_node(self, ticket: str, node_id: str) -> dict:
+        return self._request_json("DELETE", self.node_delete_url(node_id), headers=self.auth_headers(ticket))
+
+    def download_node_content(self, ticket: str, node_id: str) -> tuple[bytes, str | None]:
+        return self._request_bytes("GET", self.node_content_url(node_id), headers=self.auth_headers(ticket))

@@ -68,6 +68,11 @@ Přenosové operace:
 - `download`: `{ "path": "alfresco:/contracts/sample.txt", "auth": { ... } }`
 - `upload`: `{ "destination": "alfresco:/contracts", "file_name": "upload.txt", "content_base64": "...", "overwrite": true, "auth": { ... } }`
 
+Poznámka k `download` payloadu:
+
+- V `live` režimu vrací `data.content_base64`, `data.mime_type` a `data.size`.
+- V `preview` režimu jsou tyto položky `null` a v `data.message` je uveden cílový endpoint.
+
 ## Struktura
 
 Projekt je rozdělen na:

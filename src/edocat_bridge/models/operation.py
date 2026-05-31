@@ -10,3 +10,6 @@ class OperationResult(BaseModel):
     source: str | None = None
     destination: str | None = None
     message: str | None = None
+    content_base64: str | None = None
+    mime_type: str | None = None
+    size: int | None = None

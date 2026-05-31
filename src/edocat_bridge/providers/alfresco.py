@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+
 from edocat_bridge.clients.alfresco_client import AlfrescoClient
 from edocat_bridge.core.config_loader import load_provider_config
 from edocat_bridge.core.credentials import resolve_alfresco_credentials
@@ -197,37 +199,64 @@ class AlfrescoProvider(Provider):
     def delete_item(self, target: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         ticket = self._ticket(auth)
         resolved = self._resolve_path(target, ticket)
-        mode = "live" if ticket else "preview"
+        message = f"endpoint={self.client.node_delete_url(resolved['node_id'])};mode=preview"
+        if ticket:
+            try:
+                self.client.delete_node(ticket, resolved["node_id"])
+                message = f"endpoint={self.client.node_delete_url(resolved['node_id'])};mode=live"
+            except Exception as exc:
+                message = f"endpoint={self.client.node_delete_url(resolved['node_id'])};mode=preview;warning={type(exc).__name__}"
         return OperationResult(
             success=True,
             operation="delete",
             provider=self.name,
             source=target,
-            message=f"endpoint={self.client.node_delete_url(resolved['node_id'])};mode={mode}",
+            message=message,
         )
 
     def make_dir(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         ticket = self._ticket(auth)
         resolved = self._resolve_path(path, ticket)
-        mode = "live" if ticket else "preview"
+        message = f"endpoint={self.client.node_create_child_url(resolved['parent_id'])};mode=preview"
+        if ticket:
+            try:
+                self.client.create_child_node(ticket, resolved["parent_id"], resolved["name"], is_folder=True)
+                message = f"endpoint={self.client.node_create_child_url(resolved['parent_id'])};mode=live"
+            except Exception as exc:
+                message = f"endpoint={self.client.node_create_child_url(resolved['parent_id'])};mode=preview;warning={type(exc).__name__}"
         return OperationResult(
             success=True,
             operation="mkdir",
             provider=self.name,
             source=path,
-            message=f"endpoint={self.client.node_create_child_url(resolved['parent_id'])};mode={mode}",
+            message=message,
         )
 
     def download_item(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         ticket = self._ticket(auth)
         resolved = self._resolve_path(path, ticket)
-        mode = "live" if ticket else "preview"
+        message = f"endpoint={self.client.node_content_url(resolved['node_id'])};mode=preview"
+        content_base64 = None
+        mime_type = None
+        size = None
+        if ticket:
+            try:
+                raw_content, detected_mime = self.client.download_node_content(ticket, resolved["node_id"])
+                content_base64 = base64.b64encode(raw_content).decode("ascii")
+                mime_type = detected_mime
+                size = len(raw_content)
+                message = f"endpoint={self.client.node_content_url(resolved['node_id'])};mode=live"
+            except Exception as exc:
+                message = f"endpoint={self.client.node_content_url(resolved['node_id'])};mode=preview;warning={type(exc).__name__}"
         return OperationResult(
             success=True,
             operation="download",
             provider=self.name,
             source=resolved["path"],
-            message=f"endpoint={self.client.node_content_url(resolved['node_id'])};mode={mode}",
+            message=message,
+            content_base64=content_base64,
+            mime_type=mime_type,
+            size=size,
         )
 
     def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, overwrite: bool = False, auth: BridgeAuthContext | None = None) -> OperationResult:
