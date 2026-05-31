@@ -1,5 +1,7 @@
 # edocat-bridge
 
+[![CI](https://github.com/mergi72/edocat-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/edocat-bridge/actions/workflows/ci.yml)
+
 `edocat-bridge` je základní skeleton služby pro propojení Edocat a dalších providerů (Alfresco, FSO, ...).
 
 ## Rychlý start
@@ -14,6 +16,22 @@ python -m uvicorn edocat_bridge.app.server:app --host 127.0.0.1 --port 8765
 ## VS Code (Windows)
 
 Workspace má přednastavený interpreter na `.venv312` v souboru `.vscode/settings.json`.
+
+## Testy
+
+Instalace test závislostí:
+
+```bash
+python -m pip install -e .[dev]
+```
+
+Rychlé spuštění (PowerShell):
+
+```powershell
+.\scripts\run-tests.ps1 unit
+.\scripts\run-tests.ps1 integration
+.\scripts\run-tests.ps1 all
+```
 
 ## WFX Bridge API (pro C# plugin)
 
