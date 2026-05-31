@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+# pyright: reportMissingTypeStubs=false
+
 import pytest
 
 from edocat_bridge.clients.alfresco_client import AlfrescoClient
+from edocat_bridge.providers.alfresco import AlfrescoProvider
 
 
 pytestmark = pytest.mark.unit
@@ -90,3 +93,26 @@ def test_resolve_node_by_relative_path_uses_cache(monkeypatch: pytest.MonkeyPatc
     assert first.get("id") == "b-1"
     assert second.get("id") == "b-1"
     assert child_calls["count"] == 2
+
+
+def test_alfresco_stat_missing_file_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = AlfrescoProvider()
+
+    monkeypatch.setattr(provider, "_ticket", lambda auth: "ticket-a")
+    monkeypatch.setattr(provider, "_live_node", lambda path, auth, ticket=None: None)
+    monkeypatch.setattr(
+        provider,
+        "_resolve_path",
+        lambda path, ticket=None, strict=False: {
+            "path": "/deals/folder/welcome.pdf",
+            "node_id": "node-1",
+            "parent_path": "/deals/folder",
+            "parent_id": "parent-1",
+            "name": "welcome.pdf",
+        },
+    )
+    monkeypatch.setattr(AlfrescoClient, "child_by_name", lambda self, ticket, parent_id, name: None)
+
+    result = provider.stat_item("/folder/welcome.pdf")
+
+    assert result is None

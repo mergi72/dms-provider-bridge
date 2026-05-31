@@ -223,3 +223,13 @@ def test_stat_item_prefers_exact_path_over_first_query_result(monkeypatch: pytes
     assert item.id == "target-1"
     assert item.name == "target.pdf"
     assert item.path == "/deals/folder/target.pdf"
+
+
+def test_stat_item_missing_leaf_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    client.query_nodes.return_value = {"nodes": []}
+    provider = _make_provider(monkeypatch, client)
+
+    item = provider.stat_item("/folder/missing.pdf", BridgeAuthContext(mode="credentials", username="user", password="pass"))
+
+    assert item is None

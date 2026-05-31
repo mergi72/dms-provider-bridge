@@ -126,9 +126,24 @@ class AlfrescoProvider(Provider):
 
     def stat_item(self, path: str, auth: BridgeAuthContext | None = None) -> DmsItem | None:
         ticket = self._ticket(auth)
-        live_node = self._live_node(path, auth, ticket)
+        try:
+            live_node = self._live_node(path, auth, ticket)
+        except ProviderOperationError:
+            live_node = None
+
         if live_node and isinstance(live_node.get("entry"), dict):
             return self._item_from_entry(live_node["entry"], self.client.normalize_path(path))
+
+        resolved = self._resolve_path(path, ticket, strict=False)
+        try:
+            parent = self._resolve_path(resolved["parent_path"], ticket, strict=True)
+            child = self.client.child_by_name(ticket, parent["node_id"], resolved["name"])
+        except Exception:
+            child = None
+
+        if child is None:
+            return None
+
         resolved = self._resolve_path(path, ticket, strict=True)
         is_folder = resolved["path"] == "/" or resolved["path"].endswith("/") or "." not in resolved["name"]
         return DmsItem(

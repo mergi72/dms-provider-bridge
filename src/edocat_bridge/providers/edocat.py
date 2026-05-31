@@ -162,8 +162,7 @@ class EdocatProvider(Provider):
 
         if resolved_path == "/":
             return DmsItem(id="edo-root", name="/", path="/", is_folder=True)
-        name = resolved_path.rstrip("/").split("/")[-1] or "/"
-        return DmsItem(id=f"edo-{name}", name=name, path=resolved_path, is_folder=resolved_path.endswith("/"))
+        return None
 
     def copy_item(self, source: str, destination: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         username, password = self._runtime_credentials(auth)
