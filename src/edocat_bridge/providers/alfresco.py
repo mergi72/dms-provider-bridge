@@ -16,61 +16,102 @@ class AlfrescoProvider(Provider):
         self.config = load_provider_config(self.name)
         self.client = AlfrescoClient.from_config(self.config)
 
+    def _resolve_path(self, path: str) -> dict[str, str]:
+        normalized = self.client.normalize_path(path)
+        node_id = self.client.node_id_from_path(normalized)
+        parent_path = self.client.parent_path(normalized)
+        parent_id = self.client.node_id_from_path(parent_path)
+        name = normalized.rstrip("/").split("/")[-1] or "/"
+        return {
+            "path": normalized,
+            "node_id": node_id,
+            "parent_path": parent_path,
+            "parent_id": parent_id,
+            "name": name,
+        }
+
     def list_items(self, path: str) -> ListingResult:
-        sample = DmsItem(id="alf-1", name="sample.txt", path=f"{path.rstrip('/')}/sample.txt")
-        return ListingResult(provider=self.name, path=path, total=1, items=[sample])
+        resolved = self._resolve_path(path)
+        normalized = resolved["path"]
+        folder_path = f"{normalized.rstrip('/')}/documents" if normalized != "/" else "/documents"
+        file_path = f"{normalized.rstrip('/')}/sample.txt" if normalized != "/" else "/sample.txt"
+        items = [
+            DmsItem(
+                id=self.client.node_id_from_path(folder_path),
+                name="documents",
+                path=folder_path,
+                is_folder=True,
+            ),
+            DmsItem(
+                id=self.client.node_id_from_path(file_path),
+                name="sample.txt",
+                path=file_path,
+                is_folder=False,
+                mime_type="text/plain",
+            ),
+        ]
+        return ListingResult(provider=self.name, path=normalized, total=len(items), items=items)
 
     def bridge_endpoint_for(self, operation: str) -> str | None:
         mapping = {
-            "list": self.client.endpoint_url("nodes", "repo_root"),
-            "stat": self.client.endpoint_url("nodes", "repo_root"),
-            "copy": self.client.endpoint_url("nodes", "repo_root"),
-            "rename": self.client.endpoint_url("nodes", "repo_root"),
-            "delete": self.client.endpoint_url("nodes", "repo_root"),
-            "mkdir": self.client.endpoint_url("nodes", "repo_root"),
+            "list": self.client.search_nodes_url(),
+            "stat": self.client.node_by_id_url("{nodeId}"),
+            "copy": self.client.node_copy_url("{nodeId}"),
+            "rename": self.client.node_move_url("{nodeId}"),
+            "delete": self.client.node_delete_url("{nodeId}"),
+            "mkdir": self.client.node_create_child_url("{parentId}"),
         }
         return mapping.get(operation)
 
     def stat_item(self, path: str) -> DmsItem | None:
-        if path == "/":
-            return DmsItem(id="alf-root", name="/", path="/", is_folder=True)
-        name = path.rstrip("/").split("/")[-1] or "/"
-        return DmsItem(id=f"alf-{name}", name=name, path=path, is_folder=path.endswith("/"))
+        resolved = self._resolve_path(path)
+        is_folder = resolved["path"] == "/" or path.endswith("/")
+        return DmsItem(
+            id=resolved["node_id"],
+            name=resolved["name"],
+            path=resolved["path"],
+            is_folder=is_folder,
+            mime_type=None if is_folder else "application/octet-stream",
+        )
 
     def copy_item(self, source: str, destination: str) -> OperationResult:
+        resolved = self._resolve_path(source)
         return OperationResult(
             success=True,
             operation="copy",
             provider=self.name,
             source=source,
             destination=destination,
-            message=f"endpoint={self.bridge_endpoint_for('copy')}",
+            message=f"endpoint={self.client.node_copy_url(resolved['node_id'])}",
         )
 
     def rename_item(self, source: str, destination: str) -> OperationResult:
+        resolved = self._resolve_path(source)
         return OperationResult(
             success=True,
             operation="rename",
             provider=self.name,
             source=source,
             destination=destination,
-            message=f"endpoint={self.bridge_endpoint_for('rename')}",
+            message=f"endpoint={self.client.node_move_url(resolved['node_id'])}",
         )
 
     def delete_item(self, target: str) -> OperationResult:
+        resolved = self._resolve_path(target)
         return OperationResult(
             success=True,
             operation="delete",
             provider=self.name,
             source=target,
-            message=f"endpoint={self.bridge_endpoint_for('delete')}",
+            message=f"endpoint={self.client.node_delete_url(resolved['node_id'])}",
         )
 
     def make_dir(self, path: str) -> OperationResult:
+        resolved = self._resolve_path(path)
         return OperationResult(
             success=True,
             operation="mkdir",
             provider=self.name,
             source=path,
-            message=f"endpoint={self.bridge_endpoint_for('mkdir')}",
+            message=f"endpoint={self.client.node_create_child_url(resolved['parent_id'])}",
         )
