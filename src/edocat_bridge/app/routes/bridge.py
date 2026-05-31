@@ -61,6 +61,8 @@ def bridge_resolve_share_url(payload: WfxShareUrlRequest) -> dict:
 
 @router.post(
     "/browse-share-url",
+    tags=["Bridge Share URL"],
+    operation_id="bridgeBrowseShareUrl",
     summary="Canonical Share URL operation endpoint",
     description=(
         "Canonical endpoint for Share URL flows. Supports execute=true (real execution) "
@@ -96,6 +98,8 @@ def bridge_browse_share_url(payload: WfxShareUrlBrowseRequest) -> dict:
 
 @router.post(
     "/browse-share-url-validate",
+    tags=["Bridge Share URL"],
+    operation_id="bridgeBrowseShareUrlValidateDeprecated",
     deprecated=True,
     summary="Deprecated alias for /browse-share-url with execute=false",
     description=(
