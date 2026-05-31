@@ -33,6 +33,14 @@ Rychlé spuštění (PowerShell):
 .\scripts\run-tests.ps1 all
 ```
 
+Rychlé spuštění (Bash, např. Git Bash/WSL):
+
+```bash
+./scripts/run-tests.sh unit
+./scripts/run-tests.sh integration
+./scripts/run-tests.sh all
+```
+
 ## WFX Bridge API (pro C# plugin)
 
 Formát vzdálené cesty:
