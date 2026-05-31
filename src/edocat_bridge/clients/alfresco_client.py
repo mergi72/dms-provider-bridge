@@ -4,6 +4,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 from typing import cast
+from urllib.parse import unquote
 from urllib import request
 
 
@@ -47,7 +48,7 @@ class AlfrescoClient:
     def normalize_path(self, path: str) -> str:
         if not path or path == "/":
             return "/"
-        normalized = path.replace("\\", "/")
+        normalized = unquote(path).replace("\\", "/")
         if not normalized.startswith("/"):
             normalized = f"/{normalized}"
         return normalized.rstrip("/") or "/"

@@ -147,7 +147,7 @@ class AlfrescoProvider(Provider):
         if live_node and isinstance(live_node.get("entry"), dict):
             return self._item_from_entry(live_node["entry"], self.client.normalize_path(path))
         resolved = self._resolve_path(path, ticket)
-        is_folder = resolved["path"] == "/" or path.endswith("/")
+        is_folder = resolved["path"] == "/" or resolved["path"].endswith("/") or "." not in resolved["name"]
         return DmsItem(
             id=resolved["node_id"],
             name=resolved["name"],
