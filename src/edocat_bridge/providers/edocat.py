@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+from urllib.parse import quote
 
 from edocat_bridge.core.errors import ProviderOperationError
 from edocat_bridge.clients.edocat_client import EdocatClient
@@ -87,6 +88,110 @@ class EdocatProvider(Provider):
             if isinstance(value, int) and value > 0:
                 return value
         return self._copy_max_nodes()
+
+    def _download_max_bytes(self) -> int:
+        download_cfg = self.config.get("download", {})
+        if isinstance(download_cfg, dict):
+            value = download_cfg.get("maxBase64Bytes")
+            if isinstance(value, int) and value > 0:
+                return value
+
+        transfer_cfg = self.config.get("transfer", {})
+        if isinstance(transfer_cfg, dict):
+            value = transfer_cfg.get("maxBase64Bytes")
+            if isinstance(value, int) and value > 0:
+                return value
+        return 20 * 1024 * 1024
+
+    def _download_max_nodes(self) -> int:
+        download_cfg = self.config.get("download", {})
+        if isinstance(download_cfg, dict):
+            value = download_cfg.get("maxNodes")
+            if isinstance(value, int) and value > 0:
+                return value
+
+        transfer_cfg = self.config.get("transfer", {})
+        if isinstance(transfer_cfg, dict):
+            value = transfer_cfg.get("maxNodes")
+            if isinstance(value, int) and value > 0:
+                return value
+        return 500
+
+    def _download_auto_zip_enabled(self) -> bool:
+        download_cfg = self.config.get("download", {})
+        if isinstance(download_cfg, dict):
+            value = download_cfg.get("autoZip")
+            if isinstance(value, bool):
+                return value
+        return False
+
+    def _download_zip_endpoint(self) -> str | None:
+        download_cfg = self.config.get("download", {})
+        if isinstance(download_cfg, dict):
+            endpoint = download_cfg.get("zipEndpoint")
+            if isinstance(endpoint, str) and endpoint.strip():
+                return endpoint.strip()
+
+        endpoints_cfg = self.config.get("endpoints", {})
+        if isinstance(endpoints_cfg, dict):
+            for key in ("zipDownload", "downloadZip"):
+                value = endpoints_cfg.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+        return None
+
+    def _download_zip_method(self) -> str:
+        download_cfg = self.config.get("download", {})
+        if isinstance(download_cfg, dict):
+            method = str(download_cfg.get("zipMethod") or "POST").strip().upper()
+            if method in {"GET", "POST"}:
+                return method
+        return "POST"
+
+    def _download_zip_for_node(self, node_uuid: str, resolved_path: str, auth: BridgeAuthContext | None) -> OperationResult:
+        endpoint = self._download_zip_endpoint()
+        if not endpoint:
+            raise ProviderOperationError(
+                "eDoCat auto-zip download requested but ZIP endpoint is not configured. "
+                "Set download.zipEndpoint in config/edocat.json."
+            )
+
+        method = self._download_zip_method()
+        endpoint_path = endpoint
+        if "{uuid}" in endpoint_path:
+            endpoint_path = endpoint_path.replace("{uuid}", quote(node_uuid, safe=""))
+        if "{path}" in endpoint_path:
+            endpoint_path = endpoint_path.replace("{path}", quote(resolved_path.lstrip("/"), safe=""))
+
+        if endpoint_path.startswith("http://") or endpoint_path.startswith("https://"):
+            url = endpoint_path
+        else:
+            suffix = endpoint_path if endpoint_path.startswith("/") else f"/{endpoint_path}"
+            url = f"{self.client.base_url.rstrip('/')}/{self.client.api_root.strip('/')}{suffix}"
+
+        payload = None
+        if method == "POST" and "{uuid}" not in endpoint and "{path}" not in endpoint:
+            payload = {"uuids": [node_uuid]}
+
+        username, password = self._runtime_credentials(auth)
+        try:
+            raw_zip, content_type = self.client.request_bytes(method, url, username=username, password=password, payload=payload)
+        except Exception as exc:
+            raise ProviderOperationError(f"eDoCat auto-zip download failed for {resolved_path}: {exc}") from exc
+
+        if not raw_zip:
+            raise ProviderOperationError(f"eDoCat auto-zip download failed for {resolved_path}: empty ZIP payload.")
+
+        return OperationResult(
+            success=True,
+            operation="download",
+            provider=self.name,
+            source=resolved_path,
+            message=f"endpoint={url};content=zip;mode=live",
+            content_base64=base64.b64encode(raw_zip).decode("ascii"),
+            mime_type=content_type or "application/zip",
+            size=len(raw_zip),
+        )
 
     def _folder_node_type(self) -> str:
         node_type_cfg = self._node_type_config()
@@ -517,11 +622,37 @@ class EdocatProvider(Provider):
 
     def download_item(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         resolved_path = self._resolve_path(path)
-        node = self._query_single_node(resolved_path, auth, include_content=True)
+        node = self._query_single_node(resolved_path, auth, include_content=False)
         if node is None:
             raise ProviderOperationError(f"eDoCat download found no document for {resolved_path}.")
 
-        content = node.get("content")
+        node_path = self._normalize_node_path(node)
+        if node_path != resolved_path:
+            raise ProviderOperationError(
+                f"eDoCat download failed: path mismatch (requested={resolved_path}, resolved={node_path or 'none'})"
+            )
+
+        if self._is_folder_node(node):
+            total_nodes = self._count_folder_tree_nodes(resolved_path, auth)
+            max_nodes = self._download_max_nodes()
+            if total_nodes > max_nodes:
+                if self._download_auto_zip_enabled():
+                    uuid = self._node_uuid(node)
+                    if not uuid:
+                        raise ProviderOperationError(f"eDoCat download failed: target has no uuid/id: {resolved_path}")
+                    return self._download_zip_for_node(uuid, resolved_path, auth)
+                raise ProviderOperationError(
+                    f"eDoCat download blocked: folder tree has {total_nodes} nodes, safety limit is {max_nodes}."
+                )
+            raise ProviderOperationError(
+                "eDoCat folder download requires server-side ZIP endpoint, which is not configured in this bridge."
+            )
+
+        node_with_content = self._query_single_node(resolved_path, auth, include_content=True)
+        if node_with_content is None:
+            raise ProviderOperationError(f"eDoCat download found no document for {resolved_path}.")
+
+        content = node_with_content.get("content")
         if not isinstance(content, str):
             raise ProviderOperationError(f"eDoCat download returned no content for {resolved_path}.")
 
@@ -530,8 +661,19 @@ class EdocatProvider(Provider):
         except Exception as exc:
             raise ProviderOperationError(f"eDoCat download returned invalid base64 content for {resolved_path}: {exc}") from exc
 
-        mime_type = str(node.get("mimeType")) if node.get("mimeType") else None
+        max_bytes = self._download_max_bytes()
         size = len(binary_content)
+        if size > max_bytes:
+            if self._download_auto_zip_enabled():
+                uuid = self._node_uuid(node)
+                if not uuid:
+                    raise ProviderOperationError(f"eDoCat download failed: target has no uuid/id: {resolved_path}")
+                return self._download_zip_for_node(uuid, resolved_path, auth)
+            raise ProviderOperationError(
+                f"eDoCat download blocked: payload size {size} B exceeds limit {max_bytes} B."
+            )
+
+        mime_type = str(node_with_content.get("mimeType")) if node_with_content.get("mimeType") else None
         return OperationResult(
             success=True,
             operation="download",

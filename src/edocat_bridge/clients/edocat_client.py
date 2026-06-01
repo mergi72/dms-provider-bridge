@@ -57,6 +57,26 @@ class EdocatClient:
             content = response.read().decode("utf-8")
             return json.loads(content) if content else {}
 
+    def _request_bytes(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str] | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> tuple[bytes, str | None]:
+        request_headers = {"Accept": "*/*"}
+        if headers:
+            request_headers.update(headers)
+        body = None
+        if payload is not None:
+            body = json.dumps(payload).encode("utf-8")
+            request_headers.setdefault("Content-Type", "application/json")
+        req = request.Request(url=url, data=body, headers=request_headers, method=method)
+        with request.urlopen(req, timeout=60) as response:
+            content_type = response.headers.get("Content-Type")
+            content = response.read()
+            return content, content_type
+
     def basic_auth_headers(self, username: str | None, password: str | None = None) -> dict[str, str]:
         if not username:
             return {}
@@ -80,3 +100,13 @@ class EdocatClient:
         params = [("uuids", uuid) for uuid in uuids if uuid]
         url = f"{self.endpoint_url('node')}?{urlencode(params)}" if params else self.endpoint_url("node")
         return self._request_json("DELETE", url, headers=self.basic_auth_headers(username, password))
+
+    def request_bytes(
+        self,
+        method: str,
+        url: str,
+        username: str | None = None,
+        password: str | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> tuple[bytes, str | None]:
+        return self._request_bytes(method, url, headers=self.basic_auth_headers(username, password), payload=payload)
