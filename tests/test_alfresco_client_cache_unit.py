@@ -95,6 +95,32 @@ def test_resolve_node_by_relative_path_uses_cache(monkeypatch: pytest.MonkeyPatc
     assert child_calls["count"] == 2
 
 
+def test_create_child_node_uses_configured_node_types(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _client()
+    client.node_types = {"folder": ["custom:folder"], "file": ["custom:file"]}
+
+    captured: dict[str, object] = {}
+
+    def fake_request_json(self: AlfrescoClient, method: str, url: str, headers: dict[str, str] | None = None, payload: dict | None = None, timeout: int = 30) -> dict:
+        captured["method"] = method
+        captured["url"] = url
+        captured["payload"] = payload or {}
+        return {"entry": {"id": "created-1"}}
+
+    monkeypatch.setattr(AlfrescoClient, "_request_json", fake_request_json)
+
+    client.create_child_node("ticket-a", "parent-1", "new-folder", is_folder=True)
+    assert captured["method"] == "POST"
+    folder_payload = captured["payload"]
+    assert isinstance(folder_payload, dict)
+    assert folder_payload["nodeType"] == "custom:folder"
+
+    client.create_child_node("ticket-a", "parent-1", "new-file.txt", is_folder=False)
+    file_payload = captured["payload"]
+    assert isinstance(file_payload, dict)
+    assert file_payload["nodeType"] == "custom:file"
+
+
 def test_alfresco_stat_missing_file_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
     provider = AlfrescoProvider()
 

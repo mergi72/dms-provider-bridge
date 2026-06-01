@@ -25,6 +25,7 @@ class AlfrescoClient:
     api_roots: dict[str, str]
     endpoints: dict[str, str]
     doc_library: str
+    node_types: dict[str, object] = field(default_factory=dict)
     _doclib_cache: dict[str, dict] = field(default_factory=dict)
     _path_cache: dict[str, dict] = field(default_factory=dict)
     _child_cache: dict[str, dict | None] = field(default_factory=dict)
@@ -37,7 +38,18 @@ class AlfrescoClient:
             api_roots=dict(config.get("api", {})),
             endpoints=dict(config.get("endpoints", {})),
             doc_library=str(config.get("doc_library", "/")),
+            node_types=dict(config.get("nodeType", {})),
         )
+
+    def _configured_node_type(self, key: str, fallback: str) -> str:
+        value = self.node_types.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+        if isinstance(value, list):
+            for item in value:
+                if isinstance(item, str) and item.strip():
+                    return item.strip()
+        return fallback
 
     def ping(self) -> bool:
         return bool(self.base_url)
@@ -360,9 +372,11 @@ class AlfrescoClient:
         is_folder: bool = False,
         content_base64: str | None = None,
     ) -> dict:
+        folder_type = self._configured_node_type("folder", "cm:folder")
+        file_type = self._configured_node_type("file", "cm:content")
         payload: dict[str, object] = {
             "name": name,
-            "nodeType": "cm:folder" if is_folder else "cm:content",
+            "nodeType": folder_type if is_folder else file_type,
         }
         if content_base64:
             payload["properties"] = {"cm:description": "Uploaded via edocat-bridge"}
