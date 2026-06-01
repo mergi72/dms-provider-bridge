@@ -80,6 +80,14 @@ class EdocatProvider(Provider):
                 return value
         return 200
 
+    def _delete_max_nodes(self) -> int:
+        delete_cfg = self.config.get("delete", {})
+        if isinstance(delete_cfg, dict):
+            value = delete_cfg.get("maxNodes")
+            if isinstance(value, int) and value > 0:
+                return value
+        return self._copy_max_nodes()
+
     def _folder_node_type(self) -> str:
         node_type_cfg = self._node_type_config()
         return (
@@ -447,11 +455,25 @@ class EdocatProvider(Provider):
         if target_node is None:
             raise ProviderOperationError(f"eDoCat delete failed: target not found: {target_path}")
 
+        target_node_path = self._normalize_node_path(target_node)
+        if target_node_path != target_path:
+            raise ProviderOperationError(
+                f"eDoCat delete failed: target path mismatch (requested={target_path}, resolved={target_node_path or 'none'})"
+            )
+
         uuid = str(target_node.get("uuid") or target_node.get("id") or "")
         try:
             if self._is_folder_node(target_node):
+                total_nodes = self._count_folder_tree_nodes(target_path, auth)
+                max_nodes = self._delete_max_nodes()
+                if total_nodes > max_nodes:
+                    raise ProviderOperationError(
+                        f"eDoCat delete failed: folder tree has {total_nodes} nodes, safety limit is {max_nodes}."
+                    )
                 self._delete_folder_tree(target_path, auth, username, password)
             else:
+                if not uuid:
+                    raise ProviderOperationError(f"eDoCat delete failed: target has no uuid/id: {target_path}")
                 self.client.delete_nodes([uuid], username=username, password=password)
         except Exception as exc:
             raise ProviderOperationError(f"eDoCat delete failed for {target_path}: {exc}") from exc

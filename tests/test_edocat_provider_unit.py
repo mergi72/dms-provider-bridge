@@ -228,6 +228,144 @@ def test_delete_item_uses_delete_nodes(monkeypatch: pytest.MonkeyPatch) -> None:
     client.delete_nodes.assert_called_once_with(["node-2"], username="user", password="pass")
 
 
+def test_delete_item_rejects_path_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    provider = _make_provider(monkeypatch, client)
+    monkeypatch.setattr(
+        provider,
+        "_query_single_node",
+        lambda path, auth, include_content=False: {
+            "uuid": "child-1",
+            "name": "test.json",
+            "path": "/deals/folder/Upload/test.json",
+            "nodeType": "ctbd:baseDoc",
+        },
+    )
+
+    with pytest.raises(Exception, match="target path mismatch"):
+        provider.delete_item(
+            "/folder/Upload",
+            BridgeAuthContext(mode="credentials", username="user", password="pass"),
+        )
+
+    client.delete_nodes.assert_not_called()
+
+
+def test_delete_item_rejects_folder_tree_above_safety_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    provider = _make_provider(
+        monkeypatch,
+        client,
+        config={
+            "doc_library": "/deals",
+            "delete": {"maxNodes": 2},
+            "nodeType": {
+                "baseFolder": "com.onlio.edocat.BaseFolder",
+            },
+        },
+    )
+
+    source_root = {
+        "uuid": "folder-1",
+        "name": "abcd",
+        "path": "/deals/folder/abcd",
+        "nodeType": "com.onlio.edocat.BaseFolder",
+    }
+    source_child_a = {
+        "uuid": "folder-2",
+        "name": "nested-a",
+        "path": "/deals/folder/abcd/nested-a",
+        "nodeType": "com.onlio.edocat.BaseFolder",
+    }
+    source_child_b = {
+        "uuid": "folder-3",
+        "name": "nested-b",
+        "path": "/deals/folder/abcd/nested-b",
+        "nodeType": "com.onlio.edocat.BaseFolder",
+    }
+
+    monkeypatch.setattr(
+        provider,
+        "_query_single_node",
+        lambda path, auth, include_content=False: {"/deals/folder/abcd": source_root}.get(path),
+    )
+    monkeypatch.setattr(
+        provider,
+        "_direct_child_nodes",
+        lambda folder_path, auth, include_content=False: {
+            "/deals/folder/abcd": [source_child_a, source_child_b],
+            "/deals/folder/abcd/nested-a": [],
+            "/deals/folder/abcd/nested-b": [],
+        }.get(provider._resolve_path(folder_path), []),
+    )
+
+    with pytest.raises(Exception, match="folder tree has"):
+        provider.delete_item(
+            "/folder/abcd",
+            BridgeAuthContext(mode="credentials", username="user", password="pass"),
+        )
+
+    client.delete_nodes.assert_not_called()
+
+
+def test_delete_item_deletes_folder_bottom_up(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    provider = _make_provider(
+        monkeypatch,
+        client,
+        config={
+            "doc_library": "/deals",
+            "delete": {"maxNodes": 10},
+        },
+    )
+
+    root = {
+        "uuid": "folder-1",
+        "name": "abcd",
+        "path": "/deals/folder/abcd",
+        "nodeType": "com.onlio.edocat.BaseFolder",
+    }
+    nested = {
+        "uuid": "folder-2",
+        "name": "nested",
+        "path": "/deals/folder/abcd/nested",
+        "nodeType": "com.onlio.edocat.BaseFolder",
+    }
+    nested_file = {
+        "uuid": "file-1",
+        "name": "inside.txt",
+        "path": "/deals/folder/abcd/nested/inside.txt",
+        "nodeType": "ctbd:baseDoc",
+    }
+
+    monkeypatch.setattr(provider, "_count_folder_tree_nodes", lambda folder_path, auth: 3)
+    monkeypatch.setattr(
+        provider,
+        "_query_nodes",
+        lambda path, auth, include_content=False: {
+            "/deals/folder/abcd": [nested],
+            "/deals/folder/abcd/nested": [nested_file],
+        }.get(provider._resolve_path(path), []),
+    )
+    monkeypatch.setattr(
+        provider,
+        "_query_single_node",
+        lambda path, auth, include_content=False: {
+            "/deals/folder/abcd": root,
+            "/deals/folder/abcd/nested": nested,
+            "/deals/folder/abcd/nested/inside.txt": nested_file,
+        }.get(provider._resolve_path(path)),
+    )
+
+    result = provider.delete_item(
+        "/folder/abcd",
+        BridgeAuthContext(mode="credentials", username="user", password="pass"),
+    )
+
+    assert result.success is True
+    assert [call.args[0] for call in client.delete_nodes.call_args_list] == [["file-1"], ["folder-2"], ["folder-1"]]
+
+
 def test_make_dir_sends_folder_node_type(monkeypatch: pytest.MonkeyPatch) -> None:
     client = FakeClient()
     provider = _make_provider(monkeypatch, client)
