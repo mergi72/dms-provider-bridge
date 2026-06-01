@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from base64 import b64decode
+from pathlib import PurePosixPath
+
+from fastapi import APIRouter, Response
+from fastapi.responses import JSONResponse
 
 from edocat_bridge.models.bridge import WfxMoveRequest, WfxPathRequest, WfxShareUrlBrowseRequest, WfxShareUrlRequest, WfxShareUrlValidateRequest, WfxUploadRequest
 from edocat_bridge.services.bridge_service import browse_share_url, copy_path, delete_path, download_path, list_path, mkdir_path, rename_path, resolve_share_url, stat_path, upload_path
@@ -39,8 +43,26 @@ def bridge_copy(payload: WfxMoveRequest) -> dict:
 
 
 @router.post("/download")
-def bridge_download(payload: WfxPathRequest) -> dict:
-    return download_path(payload.path, payload.auth).model_dump()
+def bridge_download(payload: WfxPathRequest):
+    result = download_path(payload.path, payload.auth)
+    if not result.ok:
+        return JSONResponse(content=result.model_dump())
+
+    data = result.data if isinstance(result.data, dict) else {}
+    content_base64 = data.get("content_base64") if isinstance(data, dict) else None
+    if not isinstance(content_base64, str) or not content_base64:
+        return JSONResponse(content=result.model_dump())
+
+    try:
+        raw_content = b64decode(content_base64, validate=True)
+    except Exception:
+        return JSONResponse(content=result.model_dump())
+
+    source = data.get("source") if isinstance(data, dict) else None
+    filename = PurePosixPath(str(source)).name if isinstance(source, str) and source else "download.bin"
+    media_type = data.get("mime_type") if isinstance(data, dict) and isinstance(data.get("mime_type"), str) else "application/octet-stream"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return Response(content=raw_content, media_type=media_type, headers=headers)
 
 
 @router.post("/upload")

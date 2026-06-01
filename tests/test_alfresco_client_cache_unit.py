@@ -121,6 +121,27 @@ def test_create_child_node_uses_configured_node_types(monkeypatch: pytest.Monkey
     assert file_payload["nodeType"] == "custom:file"
 
 
+def test_create_child_node_includes_content_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _client()
+
+    captured: dict[str, object] = {}
+
+    def fake_request_json(self: AlfrescoClient, method: str, url: str, headers: dict[str, str] | None = None, payload: dict | None = None, timeout: int = 30) -> dict:
+        captured["method"] = method
+        captured["url"] = url
+        captured["payload"] = payload or {}
+        return {"entry": {"id": "created-1"}}
+
+    monkeypatch.setattr(AlfrescoClient, "_request_json", fake_request_json)
+
+    client.create_child_node("ticket-a", "parent-1", "new-file.txt", is_folder=False, content_base64="dGVzdA==")
+
+    payload = captured["payload"]
+    assert isinstance(payload, dict)
+    assert payload["content"] == "dGVzdA=="
+    assert payload["properties"] == {"cm:description": "Uploaded via edocat-bridge"}
+
+
 def test_alfresco_stat_missing_file_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
     provider = AlfrescoProvider()
 

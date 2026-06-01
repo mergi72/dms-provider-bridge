@@ -379,6 +379,7 @@ class AlfrescoClient:
             "nodeType": folder_type if is_folder else file_type,
         }
         if content_base64:
+            payload["content"] = content_base64
             payload["properties"] = {"cm:description": "Uploaded via edocat-bridge"}
         return self._request_json(
             "POST",

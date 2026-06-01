@@ -117,27 +117,15 @@ class EdocatProvider(Provider):
                 return value
         return 500
 
-    def _download_auto_zip_enabled(self) -> bool:
-        download_cfg = self.config.get("download", {})
-        if isinstance(download_cfg, dict):
-            value = download_cfg.get("autoZip")
-            if isinstance(value, bool):
-                return value
-        return False
-
     def _download_zip_endpoint(self) -> str | None:
         download_cfg = self.config.get("download", {})
-        if isinstance(download_cfg, dict):
-            endpoint = download_cfg.get("zipEndpoint")
-            if isinstance(endpoint, str) and endpoint.strip():
-                return endpoint.strip()
-
-        endpoints_cfg = self.config.get("endpoints", {})
-        if isinstance(endpoints_cfg, dict):
-            for key in ("zipDownload", "downloadZip"):
-                value = endpoints_cfg.get(key)
-                if isinstance(value, str) and value.strip():
-                    return value.strip()
+        if not isinstance(download_cfg, dict):
+            return None
+        endpoint = download_cfg.get("zipEndpoint")
+        if isinstance(endpoint, str):
+            endpoint = endpoint.strip()
+            if endpoint:
+                return endpoint
         return None
 
     def _download_zip_method(self) -> str:
@@ -148,48 +136,73 @@ class EdocatProvider(Provider):
                 return method
         return "POST"
 
+    def _download_zip_content_type(self) -> str:
+        download_cfg = self.config.get("download", {})
+        if isinstance(download_cfg, dict):
+            content_type = download_cfg.get("zipContentType")
+            if isinstance(content_type, str) and content_type.strip():
+                return content_type.strip()
+        return "application/zip"
+
+    def _download_zip_url(self, endpoint: str) -> str:
+        if endpoint.startswith("http://") or endpoint.startswith("https://"):
+            return endpoint
+        base_url = str(getattr(self.client, "base_url", "") or "").rstrip("/")
+        if not base_url:
+            return endpoint
+        if endpoint.startswith("/"):
+            return f"{base_url}{endpoint}"
+        api_root = str(getattr(self.client, "api_root", "") or "").strip("/")
+        prefix = f"/{api_root}" if api_root else ""
+        return f"{base_url}{prefix}/{endpoint}"
+
+    def _download_zip_payload(self, node_uuid: str) -> dict[str, object]:
+        download_cfg = self.config.get("download", {})
+        if isinstance(download_cfg, dict):
+            payload_mode = str(download_cfg.get("zipPayloadMode") or "uuids").strip().lower()
+            if payload_mode == "uuid":
+                return {"uuid": node_uuid}
+            if payload_mode == "path":
+                return {"path": node_uuid}
+        return {"uuids": [node_uuid]}
+
     def _download_zip_for_node(self, node_uuid: str, resolved_path: str, auth: BridgeAuthContext | None) -> OperationResult:
         endpoint = self._download_zip_endpoint()
         if not endpoint:
             raise ProviderOperationError(
-                "eDoCat auto-zip download requested but ZIP endpoint is not configured. "
-                "Set download.zipEndpoint in config/edocat.json."
+                "eDoCat folder download is not supported by the documented node/query includeContent API. "
+                "Set download.zipEndpoint to enable server-side ZIP download."
             )
 
         method = self._download_zip_method()
-        endpoint_path = endpoint
-        if "{uuid}" in endpoint_path:
-            endpoint_path = endpoint_path.replace("{uuid}", quote(node_uuid, safe=""))
-        if "{path}" in endpoint_path:
-            endpoint_path = endpoint_path.replace("{path}", quote(resolved_path.lstrip("/"), safe=""))
-
-        if endpoint_path.startswith("http://") or endpoint_path.startswith("https://"):
-            url = endpoint_path
-        else:
-            suffix = endpoint_path if endpoint_path.startswith("/") else f"/{endpoint_path}"
-            url = f"{self.client.base_url.rstrip('/')}/{self.client.api_root.strip('/')}{suffix}"
+        request_url = self._download_zip_url(endpoint)
+        if "{uuid}" in request_url:
+            request_url = request_url.replace("{uuid}", quote(node_uuid, safe=""))
+        if "{path}" in request_url:
+            request_url = request_url.replace("{path}", quote(resolved_path.lstrip("/"), safe=""))
 
         payload = None
-        if method == "POST" and "{uuid}" not in endpoint and "{path}" not in endpoint:
-            payload = {"uuids": [node_uuid]}
+        if method == "POST":
+            payload = self._download_zip_payload(node_uuid)
 
         username, password = self._runtime_credentials(auth)
         try:
-            raw_zip, content_type = self.client.request_bytes(method, url, username=username, password=password, payload=payload)
+            raw_zip, content_type = self.client.request_bytes(method, request_url, username=username, password=password, payload=payload)
         except Exception as exc:
-            raise ProviderOperationError(f"eDoCat auto-zip download failed for {resolved_path}: {exc}") from exc
+            raise ProviderOperationError(f"eDoCat ZIP download failed for {resolved_path}: {exc}") from exc
 
         if not raw_zip:
-            raise ProviderOperationError(f"eDoCat auto-zip download failed for {resolved_path}: empty ZIP payload.")
+            raise ProviderOperationError(f"eDoCat ZIP download failed for {resolved_path}: empty ZIP payload.")
 
+        mime_type = content_type or self._download_zip_content_type()
         return OperationResult(
             success=True,
             operation="download",
             provider=self.name,
             source=resolved_path,
-            message=f"endpoint={url};content=zip;mode=live",
+            message=f"endpoint={request_url};content=zip;mode=live",
             content_base64=base64.b64encode(raw_zip).decode("ascii"),
-            mime_type=content_type or "application/zip",
+            mime_type=mime_type,
             size=len(raw_zip),
         )
 
@@ -622,7 +635,7 @@ class EdocatProvider(Provider):
 
     def download_item(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         resolved_path = self._resolve_path(path)
-        node = self._query_single_node(resolved_path, auth, include_content=False)
+        node = self._query_single_node(resolved_path, auth, include_content=True)
         if node is None:
             raise ProviderOperationError(f"eDoCat download found no document for {resolved_path}.")
 
@@ -636,23 +649,15 @@ class EdocatProvider(Provider):
             total_nodes = self._count_folder_tree_nodes(resolved_path, auth)
             max_nodes = self._download_max_nodes()
             if total_nodes > max_nodes:
-                if self._download_auto_zip_enabled():
-                    uuid = self._node_uuid(node)
-                    if not uuid:
-                        raise ProviderOperationError(f"eDoCat download failed: target has no uuid/id: {resolved_path}")
-                    return self._download_zip_for_node(uuid, resolved_path, auth)
                 raise ProviderOperationError(
                     f"eDoCat download blocked: folder tree has {total_nodes} nodes, safety limit is {max_nodes}."
                 )
-            raise ProviderOperationError(
-                "eDoCat folder download requires server-side ZIP endpoint, which is not configured in this bridge."
-            )
+            uuid = self._node_uuid(node)
+            if not uuid:
+                raise ProviderOperationError(f"eDoCat download failed: target has no uuid/id: {resolved_path}")
+            return self._download_zip_for_node(uuid, resolved_path, auth)
 
-        node_with_content = self._query_single_node(resolved_path, auth, include_content=True)
-        if node_with_content is None:
-            raise ProviderOperationError(f"eDoCat download found no document for {resolved_path}.")
-
-        content = node_with_content.get("content")
+        content = node.get("content")
         if not isinstance(content, str):
             raise ProviderOperationError(f"eDoCat download returned no content for {resolved_path}.")
 
@@ -661,19 +666,14 @@ class EdocatProvider(Provider):
         except Exception as exc:
             raise ProviderOperationError(f"eDoCat download returned invalid base64 content for {resolved_path}: {exc}") from exc
 
-        max_bytes = self._download_max_bytes()
         size = len(binary_content)
+        max_bytes = self._download_max_bytes()
         if size > max_bytes:
-            if self._download_auto_zip_enabled():
-                uuid = self._node_uuid(node)
-                if not uuid:
-                    raise ProviderOperationError(f"eDoCat download failed: target has no uuid/id: {resolved_path}")
-                return self._download_zip_for_node(uuid, resolved_path, auth)
             raise ProviderOperationError(
                 f"eDoCat download blocked: payload size {size} B exceeds limit {max_bytes} B."
             )
 
-        mime_type = str(node_with_content.get("mimeType")) if node_with_content.get("mimeType") else None
+        mime_type = str(node.get("mimeType")) if node.get("mimeType") else None
         return OperationResult(
             success=True,
             operation="download",

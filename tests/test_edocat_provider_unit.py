@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # pyright: reportMissingTypeStubs=false
 
+import base64
 import json
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -40,6 +41,7 @@ class FakeClient:
         self.create_node = Mock(return_value={"uuid": "created-uuid"})
         self.update_node = Mock(return_value={"uuid": "updated-uuid"})
         self.delete_nodes = Mock(return_value={"ok": True})
+        self.request_bytes = Mock(return_value=(b"PK\x03\x04", "application/zip"))
 
     def endpoint_url(self, endpoint_key: str) -> str:
         return {
@@ -750,7 +752,7 @@ def test_download_item_folder_rejects_tree_over_limit(monkeypatch: pytest.Monkey
     )
     monkeypatch.setattr(provider, "_count_folder_tree_nodes", lambda folder_path, auth: 3)
 
-    with pytest.raises(Exception, match="folder tree has"):
+    with pytest.raises(Exception, match="folder tree has 3 nodes, safety limit is 2"):
         provider.download_item(
             "/folder",
             BridgeAuthContext(mode="credentials", username="user", password="pass"),
@@ -772,66 +774,25 @@ def test_download_item_folder_requires_zip_endpoint(monkeypatch: pytest.MonkeyPa
     )
     monkeypatch.setattr(provider, "_count_folder_tree_nodes", lambda folder_path, auth: 1)
 
-    with pytest.raises(Exception, match="server-side ZIP endpoint"):
+    with pytest.raises(Exception, match="Set download.zipEndpoint to enable server-side ZIP download"):
         provider.download_item(
             "/folder",
             BridgeAuthContext(mode="credentials", username="user", password="pass"),
         )
 
 
-def test_download_item_payload_over_limit_uses_auto_zip_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_download_item_folder_uses_zip_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
     client = FakeClient()
     provider = _make_provider(
         monkeypatch,
         client,
         config={
             "doc_library": "/deals",
-            "download": {"maxBase64Bytes": 3, "autoZip": True},
-        },
-    )
-    monkeypatch.setattr(
-        provider,
-        "_query_single_node",
-        lambda path, auth, include_content=False: {
-            "uuid": "node-1",
-            "name": "sample.txt",
-            "path": "/deals/folder/sample.txt",
-            "nodeType": "ctbd:baseDoc",
-            "content": "dGVzdA==",
-            "mimeType": "text/plain",
-        },
-    )
-    def _zip_result(node_uuid: str, resolved_path: str, auth: BridgeAuthContext | None) -> OperationResult:
-        return OperationResult(
-            success=True,
-            operation="download",
-            provider="edocat",
-            source=resolved_path,
-            content_base64="UEsDBA==",
-            mime_type="application/zip",
-            size=4,
-        )
-
-    monkeypatch.setattr(provider, "_download_zip_for_node", _zip_result)
-
-    result = provider.download_item(
-        "/folder/sample.txt",
-        BridgeAuthContext(mode="credentials", username="user", password="pass"),
-    )
-
-    assert result.success is True
-    assert result.mime_type == "application/zip"
-    assert result.content_base64 == "UEsDBA=="
-
-
-def test_download_item_folder_over_limit_uses_auto_zip_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
-    client = FakeClient()
-    provider = _make_provider(
-        monkeypatch,
-        client,
-        config={
-            "doc_library": "/deals",
-            "download": {"maxNodes": 2, "autoZip": True},
+            "download": {
+                "maxNodes": 10,
+                "zipEndpoint": "/share/proxy/alfresco/api/internal/downloads?Alfresco-CSRFToken=test",
+                "zipMethod": "POST",
+            },
         },
     )
     monkeypatch.setattr(
@@ -845,19 +806,6 @@ def test_download_item_folder_over_limit_uses_auto_zip_when_enabled(monkeypatch:
         },
     )
     monkeypatch.setattr(provider, "_count_folder_tree_nodes", lambda folder_path, auth: 3)
-    monkeypatch.setattr(
-        provider,
-        "_download_zip_for_node",
-        lambda node_uuid, resolved_path, auth: OperationResult(
-            success=True,
-            operation="download",
-            provider="edocat",
-            source=resolved_path,
-            content_base64="UEsDBA==",
-            mime_type="application/zip",
-            size=4,
-        ),
-    )
 
     result = provider.download_item(
         "/folder",
@@ -866,6 +814,10 @@ def test_download_item_folder_over_limit_uses_auto_zip_when_enabled(monkeypatch:
 
     assert result.success is True
     assert result.mime_type == "application/zip"
+    assert result.content_base64 == base64.b64encode(b"PK\x03\x04").decode("ascii")
+    client.request_bytes.assert_called_once()
+
+
 
 
 def test_stat_item_prefers_exact_path_over_first_query_result(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -41,7 +41,6 @@
             "maxNodes": 500
         },
         "download": {
-            "autoZip": true,
             "maxBase64Bytes": 20971520,
             "maxNodes": 500
         },

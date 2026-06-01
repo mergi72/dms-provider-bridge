@@ -4,6 +4,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from edocat_bridge.app.server import create_app
+from edocat_bridge.app.routes import bridge as bridge_routes
+from edocat_bridge.models.bridge import WfxResponse
 
 
 pytestmark = pytest.mark.integration
@@ -175,8 +177,37 @@ def test_core_wfx_operations_smoke() -> None:
         delete_resp,
         copy_resp,
         rename_resp,
-        download_resp,
         upload_resp,
     ]:
         assert resp.status_code == 200
         assert "ok" in resp.json()
+
+    assert download_resp.status_code == 200
+
+
+def test_download_returns_binary_attachment(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = TestClient(create_app())
+
+    monkeypatch.setattr(
+        bridge_routes,
+        "download_path",
+        lambda path, auth: WfxResponse(
+            ok=True,
+            data={
+                "content_base64": "SGVsbG8=",
+                "mime_type": "text/plain",
+                "source": "/contracts/sample.txt",
+            },
+            metadata={"provider": "alfresco", "operation": "download"},
+        ),
+    )
+
+    response = client.post(
+        "/bridge/wfx/download",
+        json={"path": "alfresco:/contracts/sample.txt", "auth": _auth()},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "text/plain; charset=utf-8"
+    assert response.headers["content-disposition"] == 'attachment; filename="sample.txt"'
+    assert response.content == b"Hello"
