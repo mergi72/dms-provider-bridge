@@ -47,8 +47,13 @@ class FakeClient:
         }[endpoint_key]
 
 
-def _make_provider(monkeypatch: pytest.MonkeyPatch, client: FakeClient | None = None) -> EdocatProvider:
-    monkeypatch.setattr(edocat_provider_module, "load_provider_config", lambda name: {"doc_library": "/deals"})
+def _make_provider(
+    monkeypatch: pytest.MonkeyPatch,
+    client: FakeClient | None = None,
+    config: dict[str, Any] | None = None,
+) -> EdocatProvider:
+    provider_config = config or {"doc_library": "/deals"}
+    monkeypatch.setattr(edocat_provider_module, "load_provider_config", lambda name: provider_config)
     monkeypatch.setattr(edocat_provider_module.EdocatClient, "from_config", lambda config: client or FakeClient())
     return EdocatProvider()
 
@@ -110,7 +115,100 @@ def test_rename_item_uses_update_node(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.operation == "rename"
     assert result.destination == "/deals/folder/new.txt"
     client.update_node.assert_called_once_with(
-        {"uuid": "node-1", "path": "deals/folder", "name": "new.txt"},
+        {"uuid": "node-1", "name": "new.txt"},
+        username="user",
+        password="pass",
+    )
+    client.delete_nodes.assert_not_called()
+
+
+def test_rename_item_move_across_parent_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    client.query_nodes.return_value = {
+        "nodes": [{"uuid": "node-1", "name": "old.txt", "path": "/deals/folder/old.txt", "nodeType": "ctbd:baseDoc"}]
+    }
+    provider = _make_provider(monkeypatch, client)
+
+    with pytest.raises(Exception, match="supports only name/metadata changes"):
+        provider.rename_item(
+            "/folder/old.txt",
+            "/other/new.txt",
+            BridgeAuthContext(mode="credentials", username="user", password="pass"),
+        )
+
+    client.update_node.assert_not_called()
+
+
+def test_rename_item_does_not_perform_delete_side_effects(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    client.query_nodes.return_value = {
+        "nodes": [{"uuid": "node-1", "name": "old-folder", "path": "/deals/folder/old-folder", "nodeType": "ctfd:baseFolder"}]
+    }
+    provider = _make_provider(monkeypatch, client)
+
+    result = provider.rename_item(
+        "/folder/old-folder",
+        "/folder/new-folder",
+        BridgeAuthContext(mode="credentials", username="user", password="pass"),
+    )
+
+    assert result.success is True
+    client.update_node.assert_called_once_with(
+        {"uuid": "node-1", "name": "new-folder"},
+        username="user",
+        password="pass",
+    )
+    client.delete_nodes.assert_not_called()
+
+
+def test_rename_item_rejects_path_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    provider = _make_provider(monkeypatch, client)
+    monkeypatch.setattr(
+        provider,
+        "_query_single_node",
+        lambda path, auth, include_content=False: {"uuid": "child-1", "name": "test.json", "path": "/deals/folder/Upload/test.json", "nodeType": "ctbd:baseDoc"},
+    )
+
+    with pytest.raises(Exception, match="source path mismatch"):
+        provider.rename_item(
+            "/folder/Upload",
+            "/folder/Upload_101",
+            BridgeAuthContext(mode="credentials", username="user", password="pass"),
+        )
+
+    client.update_node.assert_not_called()
+
+
+def test_rename_item_uses_folder_node_when_edocat_path_is_parent_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    client.query_nodes.return_value = {
+        "nodes": [
+            {
+                "uuid": "folder-1",
+                "name": "projekt",
+                "path": "/deals/03 zakázky v realizaci/22 080 - UNI_Novy odolejovac bl. 68/05 Realizace/04 Dokumentace/13 - CHI/Test_DMS",
+                "nodeType": "ctfd:baseFolder",
+            },
+            {
+                "uuid": "file-1",
+                "name": "soubor.txt",
+                "path": "/deals/03 zakázky v realizaci/22 080 - UNI_Novy odolejovac bl. 68/05 Realizace/04 Dokumentace/13 - CHI/Test_DMS/projekt",
+                "nodeType": "ctbd:baseDoc",
+            },
+        ]
+    }
+    provider = _make_provider(monkeypatch, client)
+
+    result = provider.rename_item(
+        "/03 zakázky v realizaci/22 080 - UNI_Novy odolejovac bl. 68/05 Realizace/04 Dokumentace/13 - CHI/Test_DMS/projekt",
+        "/03 zakázky v realizaci/22 080 - UNI_Novy odolejovac bl. 68/05 Realizace/04 Dokumentace/13 - CHI/Test_DMS/bambule",
+        BridgeAuthContext(mode="credentials", username="user", password="pass"),
+    )
+
+    assert result.success is True
+    client.update_node.assert_called_once_with(
+        {"uuid": "folder-1", "name": "bambule"},
         username="user",
         password="pass",
     )
@@ -139,7 +237,7 @@ def test_make_dir_sends_folder_node_type(monkeypatch: pytest.MonkeyPatch) -> Non
     assert result.success is True
     assert result.operation == "mkdir"
     client.create_node.assert_called_once_with(
-        {"path": "deals/folder", "name": "new-folder", "nodeType": "ctfd:baseFolder"},
+        {"path": "deals/folder", "name": "new-folder", "nodeType": "com.onlio.edocat.BaseFolder"},
         username="user",
         password="pass",
     )
@@ -161,6 +259,37 @@ def test_upload_item_sends_inline_content_and_overwrite_flag(monkeypatch: pytest
     assert result.operation == "upload"
     client.create_node.assert_called_once_with(
         {"path": "deals/folder", "name": "upload.txt", "content": "dGVzdA==", "nodeType": "ctbd:baseDoc", "autoRename": False},
+        username="user",
+        password="pass",
+    )
+
+
+def test_upload_item_prefers_file_node_type_from_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    provider = _make_provider(
+        monkeypatch,
+        client,
+        config={
+            "doc_library": "/deals",
+            "nodeType": {
+                "file": "com.onlio.edocat.File",
+                "baseDoc": "com.onlio.edocat.BaseDoc",
+            },
+        },
+    )
+
+    result = provider.upload_item(
+        "/folder",
+        "upload.txt",
+        content_base64="dGVzdA==",
+        overwrite=False,
+        auth=BridgeAuthContext(mode="credentials", username="user", password="pass"),
+    )
+
+    assert result.success is True
+    assert result.operation == "upload"
+    client.create_node.assert_called_once_with(
+        {"path": "deals/folder", "name": "upload.txt", "content": "dGVzdA==", "nodeType": "com.onlio.edocat.File"},
         username="user",
         password="pass",
     )
@@ -256,3 +385,79 @@ def test_stat_item_missing_leaf_returns_none(monkeypatch: pytest.MonkeyPatch) ->
     item = provider.stat_item("/folder/missing.pdf", BridgeAuthContext(mode="credentials", username="user", password="pass"))
 
     assert item is None
+
+
+def test_stat_item_resolves_folder_from_parent_query_when_leaf_query_returns_children(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+
+    def fake_query_nodes(path: str, username: str | None = None, password: str | None = None, include_content: bool = False) -> dict[str, object]:
+        if path == "deals/folder/bambule":
+            return {
+                "nodes": [
+                    {
+                        "uuid": "file-1",
+                        "name": "ptd_final_strom.csv",
+                        "path": "/deals/folder/bambule",
+                        "nodeType": "ctbd:baseDoc",
+                    }
+                ]
+            }
+        if path == "deals/folder":
+            return {
+                "nodes": [
+                    {
+                        "uuid": "folder-1",
+                        "name": "bambule",
+                        "path": "/deals/folder",
+                        "nodeType": "ctfd:baseFolder",
+                    }
+                ]
+            }
+        return {"nodes": []}
+
+    client.query_nodes.side_effect = fake_query_nodes
+    provider = _make_provider(monkeypatch, client)
+
+    item = provider.stat_item("/folder/bambule", BridgeAuthContext(mode="credentials", username="user", password="pass"))
+
+    assert item is not None
+    assert item.id == "folder-1"
+    assert item.name == "bambule"
+    assert item.path == "/deals/folder/bambule"
+    assert item.is_folder is True
+
+
+def test_rename_item_does_not_target_child_with_same_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+
+    def fake_query_nodes(path: str, username: str | None = None, password: str | None = None, include_content: bool = False) -> dict[str, object]:
+        if path == "deals/parent":
+            # Upstream query can return descendants; child has the same name as target node.
+            return {
+                "nodes": [
+                    {"uuid": "child-1", "name": "parent", "path": "/deals/parent/parent", "nodeType": "ctfd:baseFolder"},
+                ]
+            }
+        if path == "deals":
+            return {
+                "nodes": [
+                    {"uuid": "parent-1", "name": "parent", "path": "/deals/parent", "nodeType": "ctfd:baseFolder"},
+                ]
+            }
+        return {"nodes": []}
+
+    client.query_nodes.side_effect = fake_query_nodes
+    provider = _make_provider(monkeypatch, client)
+
+    result = provider.rename_item(
+        "/parent",
+        "/renamed",
+        BridgeAuthContext(mode="credentials", username="user", password="pass"),
+    )
+
+    assert result.success is True
+    client.update_node.assert_called_once_with(
+        {"uuid": "parent-1", "name": "renamed"},
+        username="user",
+        password="pass",
+    )

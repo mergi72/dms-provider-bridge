@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from edocat_bridge.core.errors import AuthenticationError, ProviderNotFoundError, ProviderOperationError
 from edocat_bridge.services.edit_service import delete_item, rename_item
 
 router = APIRouter()
@@ -21,11 +22,21 @@ class DeleteRequest(BaseModel):
 
 @router.post("/rename")
 def edit_rename(payload: RenameRequest) -> dict:
-    result = rename_item(payload.source, payload.destination, provider_name=payload.provider)
-    return result.model_dump()
+    try:
+        result = rename_item(payload.source, payload.destination, provider_name=payload.provider)
+        return result.model_dump()
+    except (ValueError, ProviderOperationError, AuthenticationError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ProviderNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/delete")
 def edit_delete(payload: DeleteRequest) -> dict:
-    result = delete_item(payload.target, provider_name=payload.provider)
-    return result.model_dump()
+    try:
+        result = delete_item(payload.target, provider_name=payload.provider)
+        return result.model_dump()
+    except (ValueError, ProviderOperationError, AuthenticationError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ProviderNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

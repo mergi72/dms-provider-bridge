@@ -60,16 +60,36 @@ class EdocatProvider(Provider):
             return ""
         return content
 
+    def _node_type_config(self) -> dict[str, str]:
+        value = self.config.get("nodeType", {})
+        return value if isinstance(value, dict) else {}
+
     def _normalize_node_path(self, node: dict) -> str:
         node_path = str(node.get("path") or "").strip()
-        if not node_path:
-            return ""
-        if not node_path.startswith("/"):
+        node_name = str(node.get("name") or "").strip()
+
+        if node_path and not node_path.startswith("/"):
             node_path = f"/{node_path}"
-        return node_path.rstrip("/") or "/"
+
+        normalized_path = node_path.rstrip("/") or "/" if node_path else ""
+        if not node_name:
+            return normalized_path
+
+        # eDoCat returns folder/file name separately from the parent path.
+        # If the path already contains the last segment, keep it as-is.
+        if normalized_path:
+            last_segment = normalized_path.split("/")[-1] if normalized_path != "/" else ""
+            if last_segment == node_name:
+                return normalized_path
+            if normalized_path == "/":
+                return f"/{node_name}"
+            return f"{normalized_path}/{node_name}"
+
+        return f"/{node_name}"
 
     def _find_exact_node(self, nodes: list[dict], resolved_path: str) -> dict | None:
         normalized_target = resolved_path.rstrip("/") or "/"
+        target_parent = normalized_target.rsplit("/", 1)[0] or "/"
         target_name = normalized_target.split("/")[-1] or "/"
 
         for node in nodes:
@@ -77,7 +97,11 @@ class EdocatProvider(Provider):
                 return node
 
         for node in nodes:
-            if str(node.get("name") or "") == target_name:
+            if str(node.get("name") or "") != target_name:
+                continue
+            node_path = self._normalize_node_path(node)
+            node_parent = node_path.rsplit("/", 1)[0] or "/" if node_path else ""
+            if node_parent == target_parent:
                 return node
 
         return None
@@ -117,9 +141,7 @@ class EdocatProvider(Provider):
         return self._find_exact_node(parent_nodes, resolved_path)
 
     def _item_from_node(self, node: dict, fallback_path: str) -> DmsItem:
-        node_path = str(node.get("path") or fallback_path)
-        if node_path and not node_path.startswith("/"):
-            node_path = f"/{node_path}"
+        node_path = self._normalize_node_path(node) or fallback_path
         name = str(node.get("name") or node_path.rstrip("/").split("/")[-1] or "/")
         node_type = str(node.get("nodeType") or "")
         is_folder = node_type.lower().endswith("folder") or node_type.lower().endswith("basefolder")
@@ -134,6 +156,50 @@ class EdocatProvider(Provider):
             size=size,
             mime_type=str(node.get("mimeType")) if node.get("mimeType") else None,
         )
+
+    def _node_uuid(self, node: dict | None) -> str:
+        if not isinstance(node, dict):
+            return ""
+        return str(node.get("uuid") or node.get("id") or "")
+
+    def _is_folder_node(self, node: dict | None) -> bool:
+        if not isinstance(node, dict):
+            return False
+        node_type = str(node.get("nodeType") or "").lower()
+        return node_type.endswith("folder") or node_type.endswith("basefolder")
+
+    def _delete_folder_tree(self, folder_path: str, auth: BridgeAuthContext | None, username: str | None, password: str | None, visited: set[str] | None = None) -> None:
+        normalized_folder = self._resolve_path(folder_path).rstrip("/") or "/"
+        seen = visited if visited is not None else set()
+        if normalized_folder in seen:
+            return
+        seen.add(normalized_folder)
+
+        children = self._query_nodes(normalized_folder, auth, include_content=False)
+        descendant_paths: set[str] = set()
+        for child in children:
+            child_path = self._normalize_node_path(child)
+            if not child_path or child_path == normalized_folder:
+                continue
+            if child_path.startswith(f"{normalized_folder}/"):
+                descendant_paths.add(child_path)
+
+        for child_path in sorted(descendant_paths, key=lambda p: p.count("/"), reverse=True):
+            child_node = self._query_single_node(child_path, auth, include_content=False)
+            if child_node is None:
+                continue
+            child_uuid = self._node_uuid(child_node)
+            if not child_uuid:
+                continue
+            if self._is_folder_node(child_node):
+                self._delete_folder_tree(child_path, auth, username, password, seen)
+            else:
+                self.client.delete_nodes([child_uuid], username=username, password=password)
+
+        folder_node = self._query_single_node(normalized_folder, auth, include_content=False)
+        folder_uuid = self._node_uuid(folder_node)
+        if folder_uuid:
+            self.client.delete_nodes([folder_uuid], username=username, password=password)
 
     def list_items(self, path: str, auth: BridgeAuthContext | None = None) -> ListingResult:
         resolved_path = self._resolve_path(path)
@@ -173,10 +239,16 @@ class EdocatProvider(Provider):
             raise ProviderOperationError(f"eDoCat copy failed: source not found: {source_path}")
 
         parent, name = self._parent_and_name(destination_path)
+        node_type_cfg = self._node_type_config()
+        default_file_node_type = (
+            node_type_cfg.get("file")
+            or node_type_cfg.get("baseDoc")
+            or "ctbd:baseDoc"
+        )
         payload: dict[str, object] = {
             "path": parent.lstrip("/"),
             "name": name,
-            "nodeType": source_node.get("nodeType") or "ctbd:baseDoc",
+            "nodeType": source_node.get("nodeType") or default_file_node_type,
             "props": source_node.get("props") or {},
             "tags": source_node.get("tags") or [],
         }
@@ -209,14 +281,34 @@ class EdocatProvider(Provider):
         username, password = self._runtime_credentials(auth)
         source_path = self._resolve_path(source)
         destination_path = self._resolve_path(destination)
+        # 1) Read source node attributes (identity is UUID, path/name are metadata)
         source_node = self._query_single_node(source_path, auth, include_content=False)
         if source_node is None:
             raise ProviderOperationError(f"eDoCat rename failed: source not found: {source_path}")
 
+        source_node_path = self._normalize_node_path(source_node)
+        if source_node_path != source_path:
+            raise ProviderOperationError(
+                f"eDoCat rename failed: source path mismatch (requested={source_path}, resolved={source_node_path or 'none'})"
+            )
+
+        source_uuid = str(source_node.get("uuid") or source_node.get("id") or "")
+        if not source_uuid:
+            raise ProviderOperationError(f"eDoCat rename failed: source has no uuid/id: {source_path}")
+
         parent, name = self._parent_and_name(destination_path)
+        source_parent, _ = self._parent_and_name(source_path)
+        if parent != source_parent:
+            raise ProviderOperationError(
+                f"eDoCat rename supports only name/metadata changes in the same parent "
+                f"(source_parent={source_parent}, destination_parent={parent})"
+            )
+
+        # 2) Update node description metadata (name) on the same UUID
+        # NOTE: do NOT include "path" – eDoCat interprets path in updateNode as
+        # a move/copy operation, not a metadata-only update.
         payload: dict[str, object] = {
-            "uuid": str(source_node.get("uuid") or source_node.get("id") or ""),
-            "path": parent.lstrip("/"),
+            "uuid": source_uuid,
             "name": name,
         }
         try:
@@ -244,7 +336,10 @@ class EdocatProvider(Provider):
 
         uuid = str(target_node.get("uuid") or target_node.get("id") or "")
         try:
-            self.client.delete_nodes([uuid], username=username, password=password)
+            if self._is_folder_node(target_node):
+                self._delete_folder_tree(target_path, auth, username, password)
+            else:
+                self.client.delete_nodes([uuid], username=username, password=password)
         except Exception as exc:
             raise ProviderOperationError(f"eDoCat delete failed for {target_path}: {exc}") from exc
         return OperationResult(
@@ -259,10 +354,16 @@ class EdocatProvider(Provider):
         username, password = self._runtime_credentials(auth)
         resolved_path = self._resolve_path(path)
         parent, name = self._parent_and_name(resolved_path)
+        node_type_cfg = self._node_type_config()
+        folder_node_type = (
+            node_type_cfg.get("folder")
+            or node_type_cfg.get("baseFolder")
+            or "com.onlio.edocat.BaseFolder"
+        )
         payload: dict[str, object] = {
             "path": parent.lstrip("/"),
             "name": name,
-            "nodeType": self.config.get("nodeType", {}).get("folder", "ctfd:baseFolder"),
+            "nodeType": folder_node_type,
         }
         try:
             response = self.client.create_node(payload, username=username, password=password)
@@ -312,11 +413,17 @@ class EdocatProvider(Provider):
         resolved_destination = self._resolve_path(destination)
         target = f"{resolved_destination.rstrip('/')}/{file_name}" if resolved_destination != "/" else f"/{file_name}"
         parent, name = self._parent_and_name(target)
+        node_type_cfg = self._node_type_config()
+        file_node_type = (
+            node_type_cfg.get("file")
+            or node_type_cfg.get("baseDoc")
+            or "ctbd:baseDoc"
+        )
         payload: dict[str, object] = {
             "path": parent.lstrip("/"),
             "name": name,
             "content": self._encode_if_needed(content_base64),
-            "nodeType": "ctbd:baseDoc",
+            "nodeType": file_node_type,
         }
         if overwrite:
             payload["autoRename"] = False
