@@ -199,3 +199,7 @@ Projekt je rozdělen na:
 - `clients/` API klienti
 - `models/` datové modely
 - `core/` konfigurace, logování a utility jádra
+
+## License
+
+Projekt je licencovaný pod MIT licencí. Plný text je v souboru `LICENSE`.
