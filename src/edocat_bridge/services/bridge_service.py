@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import math
 from urllib.parse import unquote, urlparse
 
 from edocat_bridge.adapters.commander_api import WfxErrorCode, build_wfx_path, parse_wfx_path
 from edocat_bridge.core.errors import AuthenticationError, ProviderNotFoundError
 from edocat_bridge.models.bridge import BridgeAuthContext, WfxResponse
+from edocat_bridge.models.operation import OperationResult
 from edocat_bridge.services.auth_service import validate_bridge_auth
 from edocat_bridge.services.provider_service import get_provider
 
@@ -29,6 +31,39 @@ def _metadata(provider, operation: str) -> dict[str, str | None]:
         "upstream_auth_scheme": provider.upstream_auth_scheme,
         "upstream_endpoint": provider.bridge_endpoint_for(operation),
     }
+
+
+def _split_parent_and_name(path: str) -> tuple[str, str]:
+    normalized = (path or "").strip() or "/"
+    if not normalized.startswith("/"):
+        normalized = f"/{normalized}"
+    normalized = normalized.rstrip("/") or "/"
+    if normalized == "/":
+        return "/", ""
+    return normalized.rsplit("/", 1)[0] or "/", normalized.split("/")[-1]
+
+
+def _estimated_binary_size_from_base64(content_base64: str) -> int:
+    payload = content_base64.strip()
+    if not payload:
+        return 0
+    pad = 0
+    if payload.endswith("=="):
+        pad = 2
+    elif payload.endswith("="):
+        pad = 1
+    return max(0, math.floor(len(payload) * 3 / 4) - pad)
+
+
+def _max_cross_provider_upload_bytes(provider) -> int:
+    config = getattr(provider, "config", {})
+    if isinstance(config, dict):
+        transfer_cfg = config.get("transfer", {})
+        if isinstance(transfer_cfg, dict):
+            value = transfer_cfg.get("maxBase64Bytes")
+            if isinstance(value, int) and value > 0:
+                return value
+    return 20 * 1024 * 1024
 
 
 def list_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
@@ -121,10 +156,56 @@ def copy_path(source: str, destination: str, auth: BridgeAuthContext) -> WfxResp
         src_provider, src = _resolve(source)
         dst_provider, dst = _resolve(destination)
         validate_bridge_auth(auth)
-        if src_provider.name != dst_provider.name:
-            return _failure(WfxErrorCode.NOT_SUPPORTED, "Cross-provider copy is not supported.")
-        result = src_provider.copy_item(src.path, dst.path, auth)
-        return _success(data=result.model_dump(), metadata=_metadata(src_provider, "copy"))
+        if src_provider.name == dst_provider.name:
+            result = src_provider.copy_item(src.path, dst.path, auth)
+            return _success(data=result.model_dump(), metadata=_metadata(src_provider, "copy"))
+
+        # First supported cross-provider flow: local file system -> eDoCat.
+        if not (src_provider.name == "fso" and dst_provider.name == "edocat"):
+            return _failure(WfxErrorCode.NOT_SUPPORTED, "Cross-provider copy is supported only for fso -> edocat.")
+
+        source_stat = src_provider.stat_item(src.path, auth)
+        if source_stat is None:
+            return _failure(WfxErrorCode.NOT_FOUND, f"Path not found: {source}")
+        if source_stat.is_folder:
+            return _failure(WfxErrorCode.NOT_SUPPORTED, "Cross-provider folder copy is not supported yet.")
+
+        download_result = src_provider.download_item(src.path, auth)
+        content_base64 = download_result.content_base64 or ""
+        if not content_base64:
+            return _failure(WfxErrorCode.INTERNAL_ERROR, "Cross-provider copy failed: source download returned no content.")
+
+        payload_bytes = download_result.size if isinstance(download_result.size, int) else _estimated_binary_size_from_base64(content_base64)
+        max_bytes = _max_cross_provider_upload_bytes(dst_provider)
+        if payload_bytes > max_bytes:
+            return _failure(
+                WfxErrorCode.INTERNAL_ERROR,
+                f"Cross-provider copy blocked: payload size {payload_bytes} B exceeds limit {max_bytes} B.",
+            )
+
+        destination_parent, destination_name = _split_parent_and_name(dst.path)
+        if not destination_name:
+            return _failure(WfxErrorCode.BAD_PATH, "Destination path must include a target file name.")
+
+        upload_result = dst_provider.upload_item(
+            destination_parent,
+            destination_name,
+            content_base64=content_base64,
+            overwrite=False,
+            auth=auth,
+        )
+
+        result = OperationResult(
+            success=bool(upload_result.success),
+            operation="copy",
+            provider=dst_provider.name,
+            source=src.path,
+            destination=dst.path,
+            message=f"mode=cross-provider;source={src_provider.name};destination={dst_provider.name};{upload_result.message or ''}".rstrip(";"),
+            mime_type=download_result.mime_type,
+            size=payload_bytes,
+        )
+        return _success(data=result.model_dump(), metadata=_metadata(dst_provider, "upload"))
     except AuthenticationError as exc:
         return _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
     except ValueError as exc:

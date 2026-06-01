@@ -36,6 +36,9 @@
         "copy": {
             "maxNodes": 200
         },
+        "transfer": {
+            "maxBase64Bytes": 20971520
+        },
         "credentials": {
             "mode": "windows",
             "targetBase": "cheminvest/eDoCat_Helper",
