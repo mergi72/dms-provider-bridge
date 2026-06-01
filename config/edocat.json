@@ -37,7 +37,8 @@
             "maxNodes": 200
         },
         "transfer": {
-            "maxBase64Bytes": 20971520
+            "maxBase64Bytes": 20971520,
+            "maxNodes": 500
         },
         "credentials": {
             "mode": "windows",
