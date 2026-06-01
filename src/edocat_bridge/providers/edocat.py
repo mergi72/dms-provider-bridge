@@ -64,6 +64,30 @@ class EdocatProvider(Provider):
         value = self.config.get("nodeType", {})
         return value if isinstance(value, dict) else {}
 
+    def _document_node_type(self) -> str:
+        node_type_cfg = self._node_type_config()
+        return (
+            node_type_cfg.get("baseDoc")
+            or node_type_cfg.get("file")
+            or "ctbd:baseDoc"
+        )
+
+    def _copy_max_nodes(self) -> int:
+        copy_cfg = self.config.get("copy", {})
+        if isinstance(copy_cfg, dict):
+            value = copy_cfg.get("maxNodes")
+            if isinstance(value, int) and value > 0:
+                return value
+        return 200
+
+    def _folder_node_type(self) -> str:
+        node_type_cfg = self._node_type_config()
+        return (
+            node_type_cfg.get("folder")
+            or node_type_cfg.get("baseFolder")
+            or "com.onlio.edocat.BaseFolder"
+        )
+
     def _normalize_node_path(self, node: dict) -> str:
         node_path = str(node.get("path") or "").strip()
         node_name = str(node.get("name") or "").strip()
@@ -201,6 +225,92 @@ class EdocatProvider(Provider):
         if folder_uuid:
             self.client.delete_nodes([folder_uuid], username=username, password=password)
 
+    def _direct_child_nodes(self, folder_path: str, auth: BridgeAuthContext | None, include_content: bool = False) -> list[dict]:
+        normalized_folder = self._resolve_path(folder_path).rstrip("/") or "/"
+        nodes = self._query_nodes(normalized_folder, auth, include_content=include_content)
+        direct_children: list[dict] = []
+        seen_paths: set[str] = set()
+        for node in nodes:
+            child_path = self._normalize_node_path(node)
+            if not child_path or child_path == normalized_folder:
+                continue
+            child_parent = child_path.rsplit("/", 1)[0] or "/"
+            if child_parent != normalized_folder or child_path in seen_paths:
+                continue
+            direct_children.append(node)
+            seen_paths.add(child_path)
+        return direct_children
+
+    def _copy_payload(self, source_node: dict, destination_path: str) -> dict[str, object]:
+        parent, name = self._parent_and_name(destination_path)
+        is_folder = self._is_folder_node(source_node)
+        payload: dict[str, object] = {
+            "path": parent.lstrip("/"),
+            "name": name,
+            "nodeType": self._folder_node_type() if is_folder else self._document_node_type(),
+        }
+        if not is_folder:
+            if isinstance(source_node.get("content"), str):
+                payload["content"] = source_node.get("content")
+            if source_node.get("mimeType"):
+                payload["mimeType"] = source_node.get("mimeType")
+        return payload
+
+    def _count_folder_tree_nodes(self, folder_path: str, auth: BridgeAuthContext | None) -> int:
+        total = 1
+        for child_node in self._direct_child_nodes(folder_path, auth, include_content=False):
+            child_source_path = self._normalize_node_path(child_node)
+            if not child_source_path:
+                continue
+            if self._is_folder_node(child_node):
+                total += self._count_folder_tree_nodes(child_source_path, auth)
+            else:
+                total += 1
+        return total
+
+    def _copy_folder_contents(
+        self,
+        source_folder_path: str,
+        destination_folder_path: str,
+        auth: BridgeAuthContext | None,
+        username: str | None,
+        password: str | None,
+    ) -> None:
+        for child_node in self._direct_child_nodes(source_folder_path, auth, include_content=False):
+            child_source_path = self._normalize_node_path(child_node)
+            if not child_source_path:
+                continue
+            child_destination_path = (
+                f"{destination_folder_path.rstrip('/')}/{child_source_path.rsplit('/', 1)[-1]}"
+                if destination_folder_path != "/"
+                else f"/{child_source_path.rsplit('/', 1)[-1]}"
+            )
+
+            if self._is_folder_node(child_node):
+                self.client.create_node(
+                    self._copy_payload(child_node, child_destination_path),
+                    username=username,
+                    password=password,
+                )
+                self._copy_folder_contents(child_source_path, child_destination_path, auth, username, password)
+                continue
+
+            full_child_node = self._query_single_node(child_source_path, auth, include_content=True)
+            if full_child_node is None:
+                raise ProviderOperationError(f"eDoCat copy failed: source child not found: {child_source_path}")
+
+            full_child_path = self._normalize_node_path(full_child_node)
+            if full_child_path != child_source_path:
+                raise ProviderOperationError(
+                    f"eDoCat copy failed: source child path mismatch (requested={child_source_path}, resolved={full_child_path or 'none'})"
+                )
+
+            self.client.create_node(
+                self._copy_payload(full_child_node, child_destination_path),
+                username=username,
+                password=password,
+            )
+
     def list_items(self, path: str, auth: BridgeAuthContext | None = None) -> ListingResult:
         resolved_path = self._resolve_path(path)
         nodes = self._query_nodes(resolved_path, auth, include_content=False)
@@ -238,31 +348,34 @@ class EdocatProvider(Provider):
         if source_node is None:
             raise ProviderOperationError(f"eDoCat copy failed: source not found: {source_path}")
 
-        parent, name = self._parent_and_name(destination_path)
-        node_type_cfg = self._node_type_config()
-        default_file_node_type = (
-            node_type_cfg.get("file")
-            or node_type_cfg.get("baseDoc")
-            or "ctbd:baseDoc"
-        )
-        payload: dict[str, object] = {
-            "path": parent.lstrip("/"),
-            "name": name,
-            "nodeType": source_node.get("nodeType") or default_file_node_type,
-            "props": source_node.get("props") or {},
-            "tags": source_node.get("tags") or [],
-        }
-        if isinstance(source_node.get("content"), str):
-            payload["content"] = source_node.get("content")
-        if source_node.get("mimeType"):
-            payload["mimeType"] = source_node.get("mimeType")
-        if source_node.get("attachment"):
-            payload["attachment"] = source_node.get("attachment")
-        if source_node.get("relatedDocs"):
-            payload["relatedDocs"] = source_node.get("relatedDocs")
+        source_node_path = self._normalize_node_path(source_node)
+        if source_node_path != source_path:
+            raise ProviderOperationError(
+                f"eDoCat copy failed: source path mismatch (requested={source_path}, resolved={source_node_path or 'none'})"
+            )
 
         try:
-            response = self.client.create_node(payload, username=username, password=password)
+            if self._is_folder_node(source_node):
+                total_nodes = self._count_folder_tree_nodes(source_path, auth)
+                max_nodes = self._copy_max_nodes()
+                if total_nodes > max_nodes:
+                    raise ProviderOperationError(
+                        f"eDoCat copy failed: folder tree has {total_nodes} nodes, safety limit is {max_nodes}."
+                    )
+            else:
+                total_nodes = 1
+                max_nodes = self._copy_max_nodes()
+            if total_nodes > max_nodes:
+                raise ProviderOperationError(
+                    f"eDoCat copy failed: folder tree has {total_nodes} nodes, safety limit is {max_nodes}."
+                )
+            response = self.client.create_node(
+                self._copy_payload(source_node, destination_path),
+                username=username,
+                password=password,
+            )
+            if self._is_folder_node(source_node):
+                self._copy_folder_contents(source_path, destination_path, auth, username, password)
         except Exception as exc:
             raise ProviderOperationError(f"eDoCat copy failed for {source_path} -> {destination_path}: {exc}") from exc
 
@@ -413,17 +526,11 @@ class EdocatProvider(Provider):
         resolved_destination = self._resolve_path(destination)
         target = f"{resolved_destination.rstrip('/')}/{file_name}" if resolved_destination != "/" else f"/{file_name}"
         parent, name = self._parent_and_name(target)
-        node_type_cfg = self._node_type_config()
-        file_node_type = (
-            node_type_cfg.get("file")
-            or node_type_cfg.get("baseDoc")
-            or "ctbd:baseDoc"
-        )
         payload: dict[str, object] = {
             "path": parent.lstrip("/"),
             "name": name,
             "content": self._encode_if_needed(content_base64),
-            "nodeType": file_node_type,
+            "nodeType": self._document_node_type(),
         }
         if overwrite:
             payload["autoRename"] = False

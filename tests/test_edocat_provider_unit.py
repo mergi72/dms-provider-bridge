@@ -264,7 +264,7 @@ def test_upload_item_sends_inline_content_and_overwrite_flag(monkeypatch: pytest
     )
 
 
-def test_upload_item_prefers_file_node_type_from_config(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_upload_item_prefers_base_doc_node_type_from_config(monkeypatch: pytest.MonkeyPatch) -> None:
     client = FakeClient()
     provider = _make_provider(
         monkeypatch,
@@ -289,7 +289,7 @@ def test_upload_item_prefers_file_node_type_from_config(monkeypatch: pytest.Monk
     assert result.success is True
     assert result.operation == "upload"
     client.create_node.assert_called_once_with(
-        {"path": "deals/folder", "name": "upload.txt", "content": "dGVzdA==", "nodeType": "com.onlio.edocat.File"},
+        {"path": "deals/folder", "name": "upload.txt", "content": "dGVzdA==", "nodeType": "com.onlio.edocat.BaseDoc"},
         username="user",
         password="pass",
     )
@@ -324,16 +324,216 @@ def test_copy_item_clones_content_and_metadata(monkeypatch: pytest.MonkeyPatch) 
             "path": "deals/folder",
             "name": "copied.txt",
             "nodeType": "ctbd:baseDoc",
-            "props": {"title": "Source"},
-            "tags": ["tag-a"],
             "content": "c291cmNl",
             "mimeType": "text/plain",
-            "attachment": [{"name": "attachment.txt"}],
-            "relatedDocs": ["related-1"],
         },
         username="user",
         password="pass",
     )
+
+
+def test_copy_item_rejects_path_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    provider = _make_provider(monkeypatch, client)
+    monkeypatch.setattr(
+        provider,
+        "_query_single_node",
+        lambda path, auth, include_content=False: {
+            "uuid": "child-1",
+            "name": "test.json",
+            "path": "/deals/folder/Upload/test.json",
+            "nodeType": "ctbd:baseDoc",
+        },
+    )
+
+    with pytest.raises(Exception, match="source path mismatch"):
+        provider.copy_item(
+            "/folder/Upload",
+            "/folder/Upload_copy",
+            BridgeAuthContext(mode="credentials", username="user", password="pass"),
+        )
+
+    client.create_node.assert_not_called()
+
+
+def test_copy_item_uses_folder_node_type_for_folders(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    client.query_nodes.return_value = {
+        "nodes": [
+            {
+                "uuid": "folder-1",
+                "name": "abcd",
+                "path": "/deals/folder/abcd",
+                "nodeType": "com.onlio.edocat.BaseFolder",
+            }
+        ]
+    }
+    provider = _make_provider(
+        monkeypatch,
+        client,
+        config={
+            "doc_library": "/deals",
+            "nodeType": {
+                "baseFolder": "com.onlio.edocat.BaseFolder",
+                "baseDoc": "com.onlio.edocat.BaseDoc",
+            },
+        },
+    )
+
+    result = provider.copy_item(
+        "/folder/abcd",
+        "/folder/abcd_copy",
+        BridgeAuthContext(mode="credentials", username="user", password="pass"),
+    )
+
+    assert result.success is True
+    client.create_node.assert_called_once_with(
+        {
+            "path": "deals/folder",
+            "name": "abcd_copy",
+            "nodeType": "com.onlio.edocat.BaseFolder",
+        },
+        username="user",
+        password="pass",
+    )
+
+
+def test_copy_item_recursively_copies_folder_children(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    provider = _make_provider(
+        monkeypatch,
+        client,
+        config={
+            "doc_library": "/deals",
+            "nodeType": {
+                "baseFolder": "com.onlio.edocat.BaseFolder",
+                "baseDoc": "com.onlio.edocat.BaseDoc",
+            },
+        },
+    )
+
+    source_root = {
+        "uuid": "folder-1",
+        "name": "abcd",
+        "path": "/deals/folder/abcd",
+        "nodeType": "com.onlio.edocat.BaseFolder",
+    }
+    source_nested_folder = {
+        "uuid": "folder-2",
+        "name": "nested",
+        "path": "/deals/folder/abcd/nested",
+        "nodeType": "com.onlio.edocat.BaseFolder",
+    }
+    source_file = {
+        "uuid": "file-1",
+        "name": "inside.txt",
+        "path": "/deals/folder/abcd/nested/inside.txt",
+        "nodeType": "com.onlio.edocat.BaseDoc",
+        "content": "aGVsbG8=",
+        "mimeType": "text/plain",
+    }
+
+    monkeypatch.setattr(
+        provider,
+        "_query_single_node",
+        lambda path, auth, include_content=False: {
+            "/deals/folder/abcd": source_root,
+            "/deals/folder/abcd/nested/inside.txt": source_file,
+        }.get(path),
+    )
+    monkeypatch.setattr(
+        provider,
+        "_direct_child_nodes",
+        lambda folder_path, auth, include_content=False: {
+            "/deals/folder/abcd": [source_nested_folder],
+            "/deals/folder/abcd/nested": [source_file],
+        }.get(provider._resolve_path(folder_path), []),
+    )
+
+    result = provider.copy_item(
+        "/folder/abcd",
+        "/folder/abcd_copy",
+        BridgeAuthContext(mode="credentials", username="user", password="pass"),
+    )
+
+    assert result.success is True
+    assert client.create_node.call_count == 3
+    assert client.create_node.call_args_list[0].args[0] == {
+        "path": "deals/folder",
+        "name": "abcd_copy",
+        "nodeType": "com.onlio.edocat.BaseFolder",
+    }
+    assert client.create_node.call_args_list[1].args[0] == {
+        "path": "deals/folder/abcd_copy",
+        "name": "nested",
+        "nodeType": "com.onlio.edocat.BaseFolder",
+    }
+    assert client.create_node.call_args_list[2].args[0] == {
+        "path": "deals/folder/abcd_copy/nested",
+        "name": "inside.txt",
+        "nodeType": "com.onlio.edocat.BaseDoc",
+        "content": "aGVsbG8=",
+        "mimeType": "text/plain",
+    }
+
+
+def test_copy_item_rejects_folder_tree_above_safety_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    provider = _make_provider(
+        monkeypatch,
+        client,
+        config={
+            "doc_library": "/deals",
+            "copy": {"maxNodes": 2},
+            "nodeType": {
+                "baseFolder": "com.onlio.edocat.BaseFolder",
+                "baseDoc": "com.onlio.edocat.BaseDoc",
+            },
+        },
+    )
+
+    source_root = {
+        "uuid": "folder-1",
+        "name": "abcd",
+        "path": "/deals/folder/abcd",
+        "nodeType": "com.onlio.edocat.BaseFolder",
+    }
+    source_child_a = {
+        "uuid": "folder-2",
+        "name": "nested-a",
+        "path": "/deals/folder/abcd/nested-a",
+        "nodeType": "com.onlio.edocat.BaseFolder",
+    }
+    source_child_b = {
+        "uuid": "folder-3",
+        "name": "nested-b",
+        "path": "/deals/folder/abcd/nested-b",
+        "nodeType": "com.onlio.edocat.BaseFolder",
+    }
+
+    monkeypatch.setattr(
+        provider,
+        "_query_single_node",
+        lambda path, auth, include_content=False: {"/deals/folder/abcd": source_root}.get(path),
+    )
+    monkeypatch.setattr(
+        provider,
+        "_direct_child_nodes",
+        lambda folder_path, auth, include_content=False: {
+            "/deals/folder/abcd": [source_child_a, source_child_b],
+            "/deals/folder/abcd/nested-a": [],
+            "/deals/folder/abcd/nested-b": [],
+        }.get(provider._resolve_path(folder_path), []),
+    )
+
+    with pytest.raises(Exception, match="folder tree has 3 nodes, safety limit is 2"):
+        provider.copy_item(
+            "/folder/abcd",
+            "/folder/abcd_copy",
+            BridgeAuthContext(mode="credentials", username="user", password="pass"),
+        )
+
+    client.create_node.assert_not_called()
 
 
 def test_download_item_reports_decoded_binary_size(monkeypatch: pytest.MonkeyPatch) -> None:

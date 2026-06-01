@@ -33,6 +33,9 @@
             "baseDoc": "com.onlio.edocat.BaseDoc",
             "file": "com.onlio.edocat.File"
         },
+        "copy": {
+            "maxNodes": 200
+        },
         "credentials": {
             "mode": "windows",
             "targetBase": "cheminvest/eDoCat_Helper",
