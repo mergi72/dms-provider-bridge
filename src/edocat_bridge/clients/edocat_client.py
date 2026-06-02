@@ -83,12 +83,92 @@ class EdocatClient:
         token = base64.b64encode(f"{username}:{password or ''}".encode("utf-8")).decode("ascii")
         return {"Authorization": f"Basic {token}"}
 
+    def _extract_page_size(self, response: dict[str, Any], default_size: int) -> int:
+        candidates = (
+            response.get("pageSize"),
+            response.get("size"),
+            response.get("limit"),
+            (response.get("pagination") or {}).get("size") if isinstance(response.get("pagination"), dict) else None,
+            (response.get("page") or {}).get("size") if isinstance(response.get("page"), dict) else None,
+        )
+        for value in candidates:
+            if isinstance(value, int) and value > 0:
+                return value
+        return default_size
+
+    def _extract_total(self, response: dict[str, Any]) -> int | None:
+        candidates = (
+            response.get("total"),
+            response.get("totalCount"),
+            response.get("totalElements"),
+            (response.get("pagination") or {}).get("total") if isinstance(response.get("pagination"), dict) else None,
+            (response.get("page") or {}).get("totalElements") if isinstance(response.get("page"), dict) else None,
+        )
+        for value in candidates:
+            if isinstance(value, int) and value >= 0:
+                return value
+        return None
+
+    def _extract_has_next(self, response: dict[str, Any]) -> bool | None:
+        candidates = (
+            response.get("hasNext"),
+            response.get("hasMore"),
+            (response.get("pagination") or {}).get("hasNext") if isinstance(response.get("pagination"), dict) else None,
+            (response.get("page") or {}).get("hasNext") if isinstance(response.get("page"), dict) else None,
+        )
+        for value in candidates:
+            if isinstance(value, bool):
+                return value
+        return None
+
     def query_nodes(self, path: str, username: str | None = None, password: str | None = None, include_content: bool = False) -> dict[str, Any]:
-        params: dict[str, str] = {"path": path}
-        if include_content:
-            params["includeContent"] = "true"
-        url = f"{self.endpoint_url('query')}?{urlencode(params)}"
-        return self._request_json("GET", url, headers=self.basic_auth_headers(username, password))
+        headers = self.basic_auth_headers(username, password)
+        endpoint = self.endpoint_url("query")
+        page = 0
+        page_size = 100
+        max_pages = 1000
+        aggregated_nodes: list[dict[str, Any]] = []
+        first_response: dict[str, Any] | None = None
+
+        while page < max_pages:
+            params: dict[str, str] = {
+                "path": path,
+                "page": str(page),
+                "size": str(page_size),
+            }
+            if include_content:
+                params["includeContent"] = "true"
+
+            url = f"{endpoint}?{urlencode(params)}"
+            response = self._request_json("GET", url, headers=headers)
+            if first_response is None:
+                first_response = response
+
+            nodes = response.get("nodes", [])
+            if not isinstance(nodes, list):
+                break
+
+            aggregated_nodes.extend(node for node in nodes if isinstance(node, dict))
+            has_next = self._extract_has_next(response)
+            total = self._extract_total(response)
+            effective_size = self._extract_page_size(response, page_size)
+
+            if has_next is False:
+                break
+            if total is not None and len(aggregated_nodes) >= total:
+                break
+            if len(nodes) < effective_size:
+                break
+
+            page += 1
+            page_size = effective_size
+
+        if first_response is None:
+            return {"nodes": []}
+
+        merged = dict(first_response)
+        merged["nodes"] = aggregated_nodes
+        return merged
 
     def create_node(self, payload: dict[str, Any], username: str | None = None, password: str | None = None) -> dict[str, Any]:
         return self._request_json("POST", self.endpoint_url("node"), headers=self.basic_auth_headers(username, password), payload=payload)
