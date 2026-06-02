@@ -1,6 +1,8 @@
 {
   "key": "fso",
   "fso": {
-    "allowedRoots": []
+    "allowedRoots": [
+      "C:/Users/merhautr/python_projects"
+    ]
   }
 }

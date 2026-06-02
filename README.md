@@ -92,6 +92,7 @@ Endpointy (POST):
 - `/bridge/wfx/rename`
 - `/bridge/wfx/copy`
 - `/bridge/wfx/download`
+- `/bridge/wfx/download-raw`
 - `/bridge/wfx/upload`
 - `/bridge/wfx/resolve-share-url`
 - `/bridge/wfx/browse-share-url`
@@ -158,8 +159,27 @@ Lightweight validace bez spuštění operace:
 
 Poznámka k `download` payloadu:
 
-- V `live` režimu vrací `data.content_base64`, `data.mime_type` a `data.size`.
+- `/bridge/wfx/download` vrací vždy JSON kontrakt (včetně `ok`, `error_code`, `data`).
+- `/bridge/wfx/download-raw` vrací binární stream souboru (`Content-Disposition` + `Content-Type`).
+- V `live` režimu JSON `download` vrací `data.content_base64`, `data.mime_type` a `data.size`.
 - V `preview` režimu jsou tyto položky `null` a v `data.message` je uveden cílový endpoint.
+
+Poznámka k FSO bezpečnosti:
+
+- FSO provider podporuje omezení lokálních cest přes `allowedRoots` v `config/fso.json`.
+- Operace mimo tyto kořeny jsou blokované (`ProviderOperationError`).
+- Pro lokální prostředí nastav vlastní absolutní cesty (Windows příklad):
+
+```json
+{
+  "key": "fso",
+  "fso": {
+    "allowedRoots": [
+      "C:/Users/merhautr/python_projects"
+    ]
+  }
+}
+```
 
 Poznámka k výkonu Alfresco:
 

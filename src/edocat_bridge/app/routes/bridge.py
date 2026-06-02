@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from base64 import b64decode
 from pathlib import PurePosixPath
+from urllib.parse import quote
 
 from fastapi import APIRouter, Response
 from fastapi.responses import JSONResponse
@@ -11,6 +12,14 @@ from edocat_bridge.services.bridge_service import browse_share_url, copy_path, d
 
 router = APIRouter()
 share_url_router = APIRouter()
+
+
+def _build_content_disposition(filename: str) -> str:
+    safe_ascii = "".join(ch if 32 <= ord(ch) < 127 and ch not in {'"', '\\'} else "_" for ch in filename)
+    if not safe_ascii:
+        safe_ascii = "download.bin"
+    encoded = quote(filename, safe="")
+    return f"attachment; filename=\"{safe_ascii}\"; filename*=UTF-8''{encoded}"
 
 
 @router.post("/list")
@@ -67,7 +76,7 @@ def bridge_download_raw(payload: WfxPathRequest):
     source = data.get("source") if isinstance(data, dict) else None
     filename = PurePosixPath(str(source)).name if isinstance(source, str) and source else "download.bin"
     media_type = data.get("mime_type") if isinstance(data, dict) and isinstance(data.get("mime_type"), str) else "application/octet-stream"
-    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    headers = {"Content-Disposition": _build_content_disposition(filename)}
     return Response(content=raw_content, media_type=media_type, headers=headers)
 
 

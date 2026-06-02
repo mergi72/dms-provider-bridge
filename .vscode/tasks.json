@@ -4,20 +4,20 @@
     {
       "label": "Start Bridge Server",
       "type": "shell",
-      "command": ".\\.venv312\\Scripts\\python.exe -m uvicorn edocat_bridge.app.server:app --app-dir src --host 127.0.0.1 --port 8765",
+      "command": "$listenPids = @(Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique); if ($listenPids.Count -gt 0) { Write-Host 'Bridge server already running on port 8765.' } else { .\\.venv312\\Scripts\\python.exe -m uvicorn edocat_bridge.app.server:app --app-dir src --host 127.0.0.1 --port 8765 }",
       "isBackground": true,
       "problemMatcher": []
     },
     {
       "label": "Stop Bridge Server",
       "type": "shell",
-      "command": "$listenPid = (Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess); if ($listenPid) { Stop-Process -Id $listenPid -Force }",
+      "command": "$listenPids = @(Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique); foreach ($procId in $listenPids) { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue }",
       "problemMatcher": []
     },
     {
       "label": "Restart Bridge Server",
       "type": "shell",
-      "command": "$listenPid = (Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess); if ($listenPid) { Stop-Process -Id $listenPid -Force }; .\\.venv312\\Scripts\\python.exe -m uvicorn edocat_bridge.app.server:app --app-dir src --host 127.0.0.1 --port 8765",
+      "command": "$listenPids = @(Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique); foreach ($procId in $listenPids) { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue }; .\\.venv312\\Scripts\\python.exe -m uvicorn edocat_bridge.app.server:app --app-dir src --host 127.0.0.1 --port 8765",
       "isBackground": true,
       "problemMatcher": []
     }

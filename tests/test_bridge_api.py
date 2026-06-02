@@ -243,5 +243,33 @@ def test_download_raw_returns_binary_attachment(monkeypatch: pytest.MonkeyPatch)
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "text/plain; charset=utf-8"
-    assert response.headers["content-disposition"] == 'attachment; filename="sample.txt"'
+    assert response.headers["content-disposition"] == 'attachment; filename="sample.txt"; filename*=UTF-8\'\'sample.txt'
     assert response.content == b"Hello"
+
+
+def test_download_raw_uses_rfc5987_for_unicode_filename(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = TestClient(create_app())
+
+    monkeypatch.setattr(
+        bridge_routes,
+        "download_path",
+        lambda path, auth: WfxResponse(
+            ok=True,
+            data={
+                "content_base64": "SGVsbG8=",
+                "mime_type": "text/plain",
+                "source": "/contracts/Příliš žluťoučký.txt",
+            },
+            metadata={"provider": "alfresco", "operation": "download"},
+        ),
+    )
+
+    response = client.post(
+        "/bridge/wfx/download-raw",
+        json={"path": "alfresco:/contracts/unicode.txt", "auth": _auth()},
+    )
+
+    assert response.status_code == 200
+    header = response.headers["content-disposition"]
+    assert header.startswith("attachment; filename=")
+    assert "filename*=UTF-8''P%C5%99%C3%ADli%C5%A1%20%C5%BElu%C5%A5ou%C4%8Dk%C3%BD.txt" in header

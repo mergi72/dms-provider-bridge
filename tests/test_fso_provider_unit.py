@@ -18,7 +18,7 @@ def _fso_path(path: Path) -> str:
 
 
 def test_fso_download_and_upload_roundtrip(tmp_path: Path) -> None:
-    provider = FsoProvider()
+    provider = FsoProvider(config={"allowedRoots": [str(tmp_path)]})
 
     source = tmp_path / "source.txt"
     source.write_text("hello", encoding="utf-8")
@@ -36,7 +36,7 @@ def test_fso_download_and_upload_roundtrip(tmp_path: Path) -> None:
 
 
 def test_fso_list_and_stat(tmp_path: Path) -> None:
-    provider = FsoProvider()
+    provider = FsoProvider(config={"allowedRoots": [str(tmp_path)]})
     folder = tmp_path / "folder"
     folder.mkdir()
     file_path = folder / "a.txt"
@@ -53,7 +53,7 @@ def test_fso_list_and_stat(tmp_path: Path) -> None:
 
 
 def test_fso_copy_folder(tmp_path: Path) -> None:
-    provider = FsoProvider()
+    provider = FsoProvider(config={"allowedRoots": [str(tmp_path)]})
     src = tmp_path / "src"
     src.mkdir()
     (src / "a.txt").write_text("abc", encoding="utf-8")
