@@ -1,3 +1,27 @@
 {
-  "python.defaultInterpreterPath": "${workspaceFolder}\\.venv312\\Scripts\\python.exe"
+  "python.defaultInterpreterPath": "${workspaceFolder}\\.venv312\\Scripts\\python.exe",
+  "VsCodeTaskButtons.showCounter": false,
+  "VsCodeTaskButtons.tasks": [
+    {
+      "label": "$(debug-start) Start Bridge",
+      "task": "Start Bridge Server",
+      "tooltip": "Start dms-provider-bridge on 127.0.0.1:8765",
+      "alignment": "left",
+      "color": "default"
+    },
+    {
+      "label": "$(debug-stop) Stop Bridge",
+      "task": "Stop Bridge Server",
+      "tooltip": "Stop dms-provider-bridge on 127.0.0.1:8765",
+      "alignment": "left",
+      "color": "error"
+    },
+    {
+      "label": "$(debug-restart) Restart Bridge",
+      "task": "Restart Bridge Server",
+      "tooltip": "Restart dms-provider-bridge on 127.0.0.1:8765",
+      "alignment": "left",
+      "color": "warning"
+    }
+  ]
 }

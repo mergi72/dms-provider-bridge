@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start Bridge Server",
+      "type": "shell",
+      "command": ".\\.venv312\\Scripts\\python.exe -m uvicorn edocat_bridge.app.server:app --app-dir src --host 127.0.0.1 --port 8765",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Stop Bridge Server",
+      "type": "shell",
+      "command": "$listenPid = (Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess); if ($listenPid) { Stop-Process -Id $listenPid -Force }",
+      "problemMatcher": []
+    },
+    {
+      "label": "Restart Bridge Server",
+      "type": "shell",
+      "command": "$listenPid = (Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess); if ($listenPid) { Stop-Process -Id $listenPid -Force }; .\\.venv312\\Scripts\\python.exe -m uvicorn edocat_bridge.app.server:app --app-dir src --host 127.0.0.1 --port 8765",
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
+}
