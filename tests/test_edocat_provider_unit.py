@@ -313,6 +313,45 @@ def test_delete_item_rejects_folder_tree_above_safety_limit(monkeypatch: pytest.
     client.delete_nodes.assert_not_called()
 
 
+def test_list_items_returns_only_direct_children(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    client.query_nodes.return_value = {
+        "nodes": [
+            {
+                "uuid": "parent",
+                "name": "folder",
+                "path": "/deals/folder",
+                "nodeType": "com.onlio.edocat.BaseFolder",
+            },
+            {
+                "uuid": "direct-folder",
+                "name": "sub",
+                "path": "/deals/folder",
+                "nodeType": "com.onlio.edocat.BaseFolder",
+            },
+            {
+                "uuid": "direct-file",
+                "name": "a.txt",
+                "path": "/deals/folder",
+                "nodeType": "com.onlio.edocat.BaseDoc",
+            },
+            {
+                "uuid": "nested-file",
+                "name": "deep.txt",
+                "path": "/deals/folder/sub",
+                "nodeType": "com.onlio.edocat.BaseDoc",
+            },
+        ]
+    }
+    provider = _make_provider(monkeypatch, client)
+
+    listing = provider.list_items("/folder", BridgeAuthContext(mode="credentials", username="user", password="pass"))
+
+    assert listing.path == "/deals/folder"
+    assert listing.total == 2
+    assert [item.name for item in listing.items] == ["sub", "a.txt"]
+
+
 def test_delete_item_deletes_folder_bottom_up(monkeypatch: pytest.MonkeyPatch) -> None:
     client = FakeClient()
     provider = _make_provider(

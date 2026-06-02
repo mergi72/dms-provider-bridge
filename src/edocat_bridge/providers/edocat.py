@@ -438,7 +438,7 @@ class EdocatProvider(Provider):
 
     def list_items(self, path: str, auth: BridgeAuthContext | None = None) -> ListingResult:
         resolved_path = self._resolve_path(path)
-        nodes = self._query_nodes(resolved_path, auth, include_content=False)
+        nodes = self._direct_child_nodes(resolved_path, auth, include_content=False)
         items = [self._item_from_node(node, resolved_path) for node in nodes if isinstance(node, dict)]
         return ListingResult(provider=self.name, path=resolved_path, total=len(items), items=items)
 
