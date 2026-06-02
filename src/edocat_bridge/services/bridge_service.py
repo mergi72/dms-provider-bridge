@@ -6,7 +6,7 @@ from edocat_bridge.adapters.commander_api import WfxErrorCode, build_wfx_path, p
 from edocat_bridge.core.errors import AuthenticationError, ProviderNotFoundError
 from edocat_bridge.models.bridge import BridgeAuthContext, WfxResponse
 from edocat_bridge.services.auth_service import validate_bridge_auth
-from edocat_bridge.services.provider_service import get_provider
+from edocat_bridge.services.provider_service import get_default_provider_name, get_provider, list_registered_providers
 from edocat_bridge.services.bridge_transfer_ops import TransferNotFoundError, TransferPrecheckError, copy_fso_to_edocat, upload_with_preflight
 
 
@@ -30,6 +30,18 @@ def _metadata(provider, operation: str) -> dict[str, str | None]:
         "upstream_auth_scheme": provider.upstream_auth_scheme,
         "upstream_endpoint": provider.bridge_endpoint_for(operation),
     }
+
+
+def providers_path() -> WfxResponse:
+    providers = list_registered_providers()
+    default_provider = get_default_provider_name()
+    return _success(
+        data={
+            "providers": providers,
+            "default_provider": default_provider,
+        },
+        metadata={"operation": "providers"},
+    )
 
 
 def list_path(path: str, auth: BridgeAuthContext) -> WfxResponse:

@@ -23,6 +23,28 @@ def test_get_provider_accepts_trailing_colon() -> None:
     assert provider.name == "edocat"
 
 
+def test_list_registered_providers_contains_known() -> None:
+    providers = provider_service_module.list_registered_providers()
+
+    assert set(providers) >= {"edocat", "alfresco", "fso"}
+
+
+def test_get_default_provider_name_uses_env_when_registered(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("EDOCAT_PROVIDER", "alfresco")
+
+    default_provider = provider_service_module.get_default_provider_name()
+
+    assert default_provider == "alfresco"
+
+
+def test_get_default_provider_name_falls_back_to_edocat(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("EDOCAT_PROVIDER", "unknown")
+
+    default_provider = provider_service_module.get_default_provider_name()
+
+    assert default_provider == "edocat"
+
+
 def test_listing_service_parses_wfx_path_when_provider_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     dummy = _DummyProvider()
 

@@ -31,3 +31,14 @@ def get_provider(provider_name: str | None = None) -> Provider:
     if provider is None:
         raise ProviderNotFoundError(f"Provider '{name}' is not registered.")
     return provider
+
+
+def list_registered_providers() -> list[str]:
+    return sorted(_PROVIDER_REGISTRY.keys())
+
+
+def get_default_provider_name() -> str:
+    configured = _normalize_provider_name(os.getenv("EDOCAT_PROVIDER"))
+    if configured and configured in _PROVIDER_REGISTRY:
+        return configured
+    return "edocat"

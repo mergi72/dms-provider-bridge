@@ -52,6 +52,17 @@ def test_health() -> None:
     assert data["status"] == "ok"
 
 
+def test_bridge_providers() -> None:
+    client = TestClient(create_app())
+    response = client.get("/bridge/wfx/providers")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert set(body["data"]["providers"]) >= {"edocat", "alfresco", "fso"}
+    assert body["data"]["default_provider"] in body["data"]["providers"]
+
+
 def test_resolve_share_url() -> None:
     client = TestClient(create_app())
     payload = {"share_url": _share_url(), "provider": "alfresco"}

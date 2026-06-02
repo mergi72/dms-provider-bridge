@@ -8,7 +8,7 @@ from fastapi import APIRouter, Response
 from fastapi.responses import JSONResponse
 
 from edocat_bridge.models.bridge import WfxMoveRequest, WfxPathRequest, WfxShareUrlBrowseRequest, WfxShareUrlRequest, WfxShareUrlValidateRequest, WfxUploadRequest
-from edocat_bridge.services.bridge_service import browse_share_url, copy_path, delete_path, download_path, list_path, mkdir_path, rename_path, resolve_share_url, stat_path, upload_path
+from edocat_bridge.services.bridge_service import browse_share_url, copy_path, delete_path, download_path, list_path, mkdir_path, providers_path, rename_path, resolve_share_url, stat_path, upload_path
 
 router = APIRouter()
 share_url_router = APIRouter()
@@ -89,6 +89,11 @@ def bridge_upload(payload: WfxUploadRequest) -> dict:
         content_base64=payload.content_base64,
         overwrite=payload.overwrite,
     ).model_dump()
+
+
+@router.get("/providers")
+def bridge_providers() -> dict:
+    return providers_path().model_dump()
 
 
 @share_url_router.post(
