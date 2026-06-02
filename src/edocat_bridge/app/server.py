@@ -10,7 +10,7 @@ from edocat_bridge.app.routes.transfer import router as transfer_router
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="edocat-bridge", version="0.1.0")
+    app = FastAPI(title="dms-provider-bridge", version="0.1.0")
     app.include_router(health_router, prefix="/health", tags=["health"])
     app.include_router(listing_router, prefix="/listing", tags=["listing"])
     app.include_router(transfer_router, prefix="/transfer", tags=["transfer"])

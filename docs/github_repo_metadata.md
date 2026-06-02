@@ -2,7 +2,7 @@
 
 Suggested description:
 
-Python bridge service for Total Commander WFX access to eDoCat and Alfresco repositories.
+Python DMS provider bridge service for Total Commander WFX access to eDoCat, Alfresco, and local filesystem repositories.
 
 Suggested topics:
 

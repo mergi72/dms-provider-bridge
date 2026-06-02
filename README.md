@@ -1,8 +1,8 @@
-# edocat-bridge
+# dms-provider-bridge
 
 [![CI](https://github.com/mergi72/edocat-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/edocat-bridge/actions/workflows/ci.yml)
 
-`edocat-bridge` je základní skeleton služby pro propojení Edocat a dalších providerů (Alfresco, FSO, ...).
+`dms-provider-bridge` (repo: `edocat-bridge`) je základní skeleton služby pro propojení více DMS providerů (eDoCat, Alfresco, FSO, ...).
 
 ## Rychlý start
 
