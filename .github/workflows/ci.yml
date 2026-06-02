@@ -23,6 +23,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e .[dev]
 
+      - name: Run bridge smoke contract
+        run: python scripts/run_smoke.py
+
       - name: Run unit tests
         run: python -m pytest -q -m unit
 

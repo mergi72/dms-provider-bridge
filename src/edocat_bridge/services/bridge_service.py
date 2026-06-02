@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import time
 from urllib.parse import unquote, urlparse
 
 from edocat_bridge.adapters.commander_api import WfxErrorCode, build_wfx_path, parse_wfx_path
+from edocat_bridge.core.logging import get_logger
 from edocat_bridge.core.errors import AuthenticationError, ProviderNotFoundError
 from edocat_bridge.models.bridge import BridgeAuthContext, WfxResponse
 from edocat_bridge.services.auth_service import validate_bridge_auth
 from edocat_bridge.services.provider_service import get_default_provider_name, get_provider, list_registered_providers
 from edocat_bridge.services.bridge_transfer_ops import TransferNotFoundError, TransferPrecheckError, copy_fso_to_edocat, upload_with_preflight
+
+
+_LOGGER = get_logger(__name__)
 
 
 def _success(data: object = None, message: str | None = None, metadata: dict | None = None) -> WfxResponse:
@@ -32,166 +37,278 @@ def _metadata(provider, operation: str) -> dict[str, str | None]:
     }
 
 
+def _log_and_return(
+    operation: str,
+    provider: str | None,
+    path: str,
+    started_at: float,
+    response: WfxResponse,
+    error: str | None = None,
+) -> WfxResponse:
+    duration_ms = int((time.perf_counter() - started_at) * 1000)
+    provider_value = provider or "-"
+    error_value = error or response.message or ""
+    level_method = _LOGGER.info if response.ok else _LOGGER.warning
+    level_method(
+        "bridge_operation operation=%s provider=%s path=%s error=%s duration_ms=%d",
+        operation,
+        provider_value,
+        path,
+        error_value,
+        duration_ms,
+    )
+    return response
+
+
 def providers_path() -> WfxResponse:
+    started_at = time.perf_counter()
     providers = list_registered_providers()
     default_provider = get_default_provider_name()
-    return _success(
+    response = _success(
         data={
             "providers": providers,
             "default_provider": default_provider,
         },
         metadata={"operation": "providers"},
     )
+    return _log_and_return("providers", None, "/", started_at, response)
 
 
 def list_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
+    started_at = time.perf_counter()
+    provider_name: str | None = None
+    resolved_path = path
     try:
         provider, parsed = _resolve(path)
+        provider_name = provider.name
+        resolved_path = parsed.path
         validate_bridge_auth(auth)
         listing = provider.list_items(parsed.path, auth)
-        return _success(data=listing.model_dump(), metadata=_metadata(provider, "list"))
+        response = _success(data=listing.model_dump(), metadata=_metadata(provider, "list"))
+        return _log_and_return("list", provider_name, resolved_path, started_at, response)
     except AuthenticationError as exc:
-        return _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
+        response = _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
+        return _log_and_return("list", provider_name, resolved_path, started_at, response, str(exc))
     except ValueError as exc:
-        return _failure(WfxErrorCode.BAD_PATH, str(exc))
+        response = _failure(WfxErrorCode.BAD_PATH, str(exc))
+        return _log_and_return("list", provider_name, resolved_path, started_at, response, str(exc))
     except ProviderNotFoundError as exc:
-        return _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
+        response = _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
+        return _log_and_return("list", provider_name, resolved_path, started_at, response, str(exc))
     except Exception as exc:
-        return _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+        response = _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+        return _log_and_return("list", provider_name, resolved_path, started_at, response, str(exc))
 
 
 def stat_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
+    started_at = time.perf_counter()
+    provider_name: str | None = None
+    resolved_path = path
     try:
         provider, parsed = _resolve(path)
+        provider_name = provider.name
+        resolved_path = parsed.path
         validate_bridge_auth(auth)
         item = provider.stat_item(parsed.path, auth)
         if item is None:
-            return _failure(WfxErrorCode.NOT_FOUND, f"Path not found: {path}")
-        return _success(data=item.model_dump(), metadata=_metadata(provider, "stat"))
+            response = _failure(WfxErrorCode.NOT_FOUND, f"Path not found: {path}")
+            return _log_and_return("stat", provider_name, resolved_path, started_at, response, response.message)
+        response = _success(data=item.model_dump(), metadata=_metadata(provider, "stat"))
+        return _log_and_return("stat", provider_name, resolved_path, started_at, response)
     except AuthenticationError as exc:
-        return _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
+        response = _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
+        return _log_and_return("stat", provider_name, resolved_path, started_at, response, str(exc))
     except ValueError as exc:
-        return _failure(WfxErrorCode.BAD_PATH, str(exc))
+        response = _failure(WfxErrorCode.BAD_PATH, str(exc))
+        return _log_and_return("stat", provider_name, resolved_path, started_at, response, str(exc))
     except ProviderNotFoundError as exc:
-        return _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
+        response = _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
+        return _log_and_return("stat", provider_name, resolved_path, started_at, response, str(exc))
     except Exception as exc:
-        return _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+        response = _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+        return _log_and_return("stat", provider_name, resolved_path, started_at, response, str(exc))
 
 
 def mkdir_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
+    started_at = time.perf_counter()
+    provider_name: str | None = None
+    resolved_path = path
     try:
         provider, parsed = _resolve(path)
+        provider_name = provider.name
+        resolved_path = parsed.path
         validate_bridge_auth(auth)
         result = provider.make_dir(parsed.path, auth)
-        return _success(data=result.model_dump(), metadata=_metadata(provider, "mkdir"))
+        response = _success(data=result.model_dump(), metadata=_metadata(provider, "mkdir"))
+        return _log_and_return("mkdir", provider_name, resolved_path, started_at, response)
     except AuthenticationError as exc:
-        return _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
+        response = _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
+        return _log_and_return("mkdir", provider_name, resolved_path, started_at, response, str(exc))
     except ValueError as exc:
-        return _failure(WfxErrorCode.BAD_PATH, str(exc))
+        response = _failure(WfxErrorCode.BAD_PATH, str(exc))
+        return _log_and_return("mkdir", provider_name, resolved_path, started_at, response, str(exc))
     except ProviderNotFoundError as exc:
-        return _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
+        response = _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
+        return _log_and_return("mkdir", provider_name, resolved_path, started_at, response, str(exc))
     except Exception as exc:
-        return _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+        response = _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+        return _log_and_return("mkdir", provider_name, resolved_path, started_at, response, str(exc))
 
 
 def delete_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
+    started_at = time.perf_counter()
+    provider_name: str | None = None
+    resolved_path = path
     try:
         provider, parsed = _resolve(path)
+        provider_name = provider.name
+        resolved_path = parsed.path
         validate_bridge_auth(auth)
         result = provider.delete_item(parsed.path, auth)
-        return _success(data=result.model_dump(), metadata=_metadata(provider, "delete"))
+        response = _success(data=result.model_dump(), metadata=_metadata(provider, "delete"))
+        return _log_and_return("delete", provider_name, resolved_path, started_at, response)
     except AuthenticationError as exc:
-        return _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
+        response = _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
+        return _log_and_return("delete", provider_name, resolved_path, started_at, response, str(exc))
     except ValueError as exc:
-        return _failure(WfxErrorCode.BAD_PATH, str(exc))
+        response = _failure(WfxErrorCode.BAD_PATH, str(exc))
+        return _log_and_return("delete", provider_name, resolved_path, started_at, response, str(exc))
     except ProviderNotFoundError as exc:
-        return _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
+        response = _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
+        return _log_and_return("delete", provider_name, resolved_path, started_at, response, str(exc))
     except Exception as exc:
-        return _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+        response = _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+        return _log_and_return("delete", provider_name, resolved_path, started_at, response, str(exc))
 
 
 def rename_path(source: str, destination: str, auth: BridgeAuthContext) -> WfxResponse:
+    started_at = time.perf_counter()
+    provider_name: str | None = None
+    operation_path = f"{source} -> {destination}"
     try:
         src_provider, src = _resolve(source)
         dst_provider, dst = _resolve(destination)
+        provider_name = src_provider.name
+        operation_path = f"{src.path} -> {dst.path}"
         validate_bridge_auth(auth)
         if src_provider.name != dst_provider.name:
-            return _failure(WfxErrorCode.NOT_SUPPORTED, "Cross-provider rename is not supported.")
+            response = _failure(WfxErrorCode.NOT_SUPPORTED, "Cross-provider rename is not supported.")
+            return _log_and_return("rename", provider_name, operation_path, started_at, response, response.message)
         result = src_provider.rename_item(src.path, dst.path, auth)
-        return _success(data=result.model_dump(), metadata=_metadata(src_provider, "rename"))
+        response = _success(data=result.model_dump(), metadata=_metadata(src_provider, "rename"))
+        return _log_and_return("rename", provider_name, operation_path, started_at, response)
     except AuthenticationError as exc:
-        return _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
+        response = _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
+        return _log_and_return("rename", provider_name, operation_path, started_at, response, str(exc))
     except ValueError as exc:
-        return _failure(WfxErrorCode.BAD_PATH, str(exc))
+        response = _failure(WfxErrorCode.BAD_PATH, str(exc))
+        return _log_and_return("rename", provider_name, operation_path, started_at, response, str(exc))
     except ProviderNotFoundError as exc:
-        return _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
+        response = _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
+        return _log_and_return("rename", provider_name, operation_path, started_at, response, str(exc))
     except Exception as exc:
-        return _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+        response = _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+        return _log_and_return("rename", provider_name, operation_path, started_at, response, str(exc))
 
 
 def copy_path(source: str, destination: str, auth: BridgeAuthContext) -> WfxResponse:
+    started_at = time.perf_counter()
+    provider_name: str | None = None
+    operation_path = f"{source} -> {destination}"
     try:
         src_provider, src = _resolve(source)
         dst_provider, dst = _resolve(destination)
+        provider_name = f"{src_provider.name}->{dst_provider.name}"
+        operation_path = f"{src.path} -> {dst.path}"
         validate_bridge_auth(auth)
         if src_provider.name == dst_provider.name:
             result = src_provider.copy_item(src.path, dst.path, auth)
-            return _success(data=result.model_dump(), metadata=_metadata(src_provider, "copy"))
+            response = _success(data=result.model_dump(), metadata=_metadata(src_provider, "copy"))
+            return _log_and_return("copy", provider_name, operation_path, started_at, response)
 
         # First supported cross-provider flow: local file system -> eDoCat.
         if not (src_provider.name == "fso" and dst_provider.name == "edocat"):
-            return _failure(WfxErrorCode.NOT_SUPPORTED, "Cross-provider copy is supported only for fso -> edocat.")
+            response = _failure(WfxErrorCode.NOT_SUPPORTED, "Cross-provider copy is supported only for fso -> edocat.")
+            return _log_and_return("copy", provider_name, operation_path, started_at, response, response.message)
 
         try:
             result = copy_fso_to_edocat(src_provider, dst_provider, src.path, dst.path, auth)
         except TransferNotFoundError:
-            return _failure(WfxErrorCode.NOT_FOUND, f"Path not found: {source}")
+            response = _failure(WfxErrorCode.NOT_FOUND, f"Path not found: {source}")
+            return _log_and_return("copy", provider_name, operation_path, started_at, response, response.message)
         except TransferPrecheckError as exc:
-            return _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
-        return _success(data=result.model_dump(), metadata=_metadata(dst_provider, "upload"))
+            response = _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+            return _log_and_return("copy", provider_name, operation_path, started_at, response, str(exc))
+        response = _success(data=result.model_dump(), metadata=_metadata(dst_provider, "upload"))
+        return _log_and_return("copy", provider_name, operation_path, started_at, response)
     except AuthenticationError as exc:
-        return _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
+        response = _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
+        return _log_and_return("copy", provider_name, operation_path, started_at, response, str(exc))
     except ValueError as exc:
-        return _failure(WfxErrorCode.BAD_PATH, str(exc))
+        response = _failure(WfxErrorCode.BAD_PATH, str(exc))
+        return _log_and_return("copy", provider_name, operation_path, started_at, response, str(exc))
     except ProviderNotFoundError as exc:
-        return _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
+        response = _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
+        return _log_and_return("copy", provider_name, operation_path, started_at, response, str(exc))
     except Exception as exc:
-        return _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+        response = _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+        return _log_and_return("copy", provider_name, operation_path, started_at, response, str(exc))
 
 
 def download_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
+    started_at = time.perf_counter()
+    provider_name: str | None = None
+    resolved_path = path
     try:
         provider, parsed = _resolve(path)
+        provider_name = provider.name
+        resolved_path = parsed.path
         validate_bridge_auth(auth)
         result = provider.download_item(parsed.path, auth)
-        return _success(data=result.model_dump(), metadata=_metadata(provider, "download"))
+        response = _success(data=result.model_dump(), metadata=_metadata(provider, "download"))
+        return _log_and_return("download", provider_name, resolved_path, started_at, response)
     except AuthenticationError as exc:
-        return _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
+        response = _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
+        return _log_and_return("download", provider_name, resolved_path, started_at, response, str(exc))
     except ValueError as exc:
-        return _failure(WfxErrorCode.BAD_PATH, str(exc))
+        response = _failure(WfxErrorCode.BAD_PATH, str(exc))
+        return _log_and_return("download", provider_name, resolved_path, started_at, response, str(exc))
     except ProviderNotFoundError as exc:
-        return _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
+        response = _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
+        return _log_and_return("download", provider_name, resolved_path, started_at, response, str(exc))
     except Exception as exc:
-        return _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+        response = _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+        return _log_and_return("download", provider_name, resolved_path, started_at, response, str(exc))
 
 
 def upload_path(destination: str, file_name: str, auth: BridgeAuthContext, content_base64: str | None = None, overwrite: bool = False) -> WfxResponse:
+    started_at = time.perf_counter()
+    provider_name: str | None = None
+    resolved_path = destination
     try:
         provider, parsed = _resolve(destination)
+        provider_name = provider.name
+        resolved_path = parsed.path
         validate_bridge_auth(auth)
         try:
             result = upload_with_preflight(provider, parsed.path, file_name, auth, content_base64=content_base64, overwrite=overwrite)
         except TransferPrecheckError as exc:
-            return _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
-        return _success(data=result.model_dump(), metadata=_metadata(provider, "upload"))
+            response = _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+            return _log_and_return("upload", provider_name, resolved_path, started_at, response, str(exc))
+        response = _success(data=result.model_dump(), metadata=_metadata(provider, "upload"))
+        return _log_and_return("upload", provider_name, resolved_path, started_at, response)
     except AuthenticationError as exc:
-        return _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
+        response = _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
+        return _log_and_return("upload", provider_name, resolved_path, started_at, response, str(exc))
     except ValueError as exc:
-        return _failure(WfxErrorCode.BAD_PATH, str(exc))
+        response = _failure(WfxErrorCode.BAD_PATH, str(exc))
+        return _log_and_return("upload", provider_name, resolved_path, started_at, response, str(exc))
     except ProviderNotFoundError as exc:
-        return _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
+        response = _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
+        return _log_and_return("upload", provider_name, resolved_path, started_at, response, str(exc))
     except Exception as exc:
-        return _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+        response = _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+        return _log_and_return("upload", provider_name, resolved_path, started_at, response, str(exc))
 
 
 def resolve_share_url(share_url: str, provider: str = "alfresco") -> WfxResponse:
