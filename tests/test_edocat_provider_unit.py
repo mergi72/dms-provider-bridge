@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 from typing import Any
+from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse
 from unittest.mock import Mock
 
@@ -13,6 +14,7 @@ import pytest
 import edocat_bridge.clients.edocat_client as edocat_client_module  # type: ignore[import-untyped]
 import edocat_bridge.providers.edocat as edocat_provider_module  # type: ignore[import-untyped]
 from edocat_bridge.clients.edocat_client import EdocatClient  # type: ignore[import-untyped]
+from edocat_bridge.core.errors import AuthenticationError, ProviderOperationError  # type: ignore[import-untyped]
 from edocat_bridge.models.bridge import BridgeAuthContext  # type: ignore[import-untyped]
 from edocat_bridge.models.operation import OperationResult  # type: ignore[import-untyped]
 from edocat_bridge.providers.edocat import EdocatProvider  # type: ignore[import-untyped]
@@ -846,6 +848,30 @@ def test_stat_item_missing_leaf_returns_none(monkeypatch: pytest.MonkeyPatch) ->
     item = provider.stat_item("/folder/missing.pdf", BridgeAuthContext(mode="credentials", username="user", password="pass"))
 
     assert item is None
+
+
+def test_stat_item_propagates_upstream_query_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    client.query_nodes.side_effect = Exception("upstream timeout")
+    provider = _make_provider(monkeypatch, client)
+
+    with pytest.raises(ProviderOperationError, match="query failed"):
+        provider.stat_item("/folder/file.txt", BridgeAuthContext(mode="credentials", username="user", password="pass"))
+
+
+def test_stat_item_maps_http_401_to_authentication_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    client.query_nodes.side_effect = HTTPError(
+        url="https://example.test/api/v1/node/query",
+        code=401,
+        msg="Unauthorized",
+        hdrs=None,
+        fp=None,
+    )
+    provider = _make_provider(monkeypatch, client)
+
+    with pytest.raises(AuthenticationError, match="access denied"):
+        provider.stat_item("/folder/file.txt", BridgeAuthContext(mode="credentials", username="user", password="pass"))
 
 
 def test_stat_item_resolves_folder_from_parent_query_when_leaf_query_returns_children(monkeypatch: pytest.MonkeyPatch) -> None:

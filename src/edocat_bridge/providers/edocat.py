@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import base64
+from urllib.error import HTTPError
 from urllib.parse import quote
 
-from edocat_bridge.core.errors import ProviderOperationError
+from edocat_bridge.core.errors import AuthenticationError, ProviderOperationError
 from edocat_bridge.clients.edocat_client import EdocatClient
 from edocat_bridge.core.config_loader import load_provider_config
 from edocat_bridge.models.bridge import BridgeAuthContext
@@ -261,6 +262,10 @@ class EdocatProvider(Provider):
         username, password = self._runtime_credentials(auth)
         try:
             response = self.client.query_nodes(query_path, username=username, password=password, include_content=include_content)
+        except HTTPError as exc:
+            if exc.code in {401, 403}:
+                raise AuthenticationError(f"eDoCat access denied for {path}: HTTP {exc.code}.") from exc
+            raise ProviderOperationError(f"eDoCat query failed for {path}: HTTP {exc.code}.") from exc
         except Exception as exc:
             raise ProviderOperationError(f"eDoCat query failed for {path}: {exc}") from exc
 
@@ -271,22 +276,16 @@ class EdocatProvider(Provider):
 
     def _query_single_node(self, path: str, auth: BridgeAuthContext | None, include_content: bool = False) -> dict | None:
         resolved_path = self._resolve_path(path)
-        try:
-            nodes = self._query_nodes(path, auth, include_content=include_content)
-            exact = self._find_exact_node(nodes, resolved_path)
-            if exact is not None:
-                return exact
-        except ProviderOperationError:
-            pass
+        nodes = self._query_nodes(path, auth, include_content=include_content)
+        exact = self._find_exact_node(nodes, resolved_path)
+        if exact is not None:
+            return exact
 
         if resolved_path == "/":
             return None
 
         parent_path = resolved_path.rsplit("/", 1)[0] or "/"
-        try:
-            parent_nodes = self._query_nodes(parent_path, auth, include_content=include_content)
-        except ProviderOperationError:
-            return None
+        parent_nodes = self._query_nodes(parent_path, auth, include_content=include_content)
 
         return self._find_exact_node(parent_nodes, resolved_path)
 

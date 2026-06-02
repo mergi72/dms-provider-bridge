@@ -5,6 +5,7 @@ from unittest.mock import Mock
 import pytest
 
 import edocat_bridge.services.bridge_service as bridge_service_module
+from edocat_bridge.core.errors import AuthenticationError, ProviderOperationError
 from edocat_bridge.models.bridge import BridgeAuthContext
 from edocat_bridge.models.item import DmsItem
 from edocat_bridge.models.listing import ListingResult
@@ -323,6 +324,34 @@ def test_upload_path_rejects_payload_over_limit_without_operations(monkeypatch: 
     assert "exceeds limit" in (response.message or "")
     provider.make_dir.assert_not_called()
     provider.upload_item.assert_not_called()
+
+
+def test_stat_path_maps_provider_authentication_error_to_access_denied(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = DummyProvider("edocat")
+    provider.stat_item.side_effect = AuthenticationError("eDoCat access denied for /folder: HTTP 401.")
+
+    monkeypatch.setattr(bridge_service_module, "validate_bridge_auth", lambda auth: None)
+    monkeypatch.setattr(bridge_service_module, "_resolve", lambda path: (provider, type("P", (), {"path": "/folder"})()))
+
+    response = bridge_service_module.stat_path("edocat:/folder", _auth())
+
+    assert response.ok is False
+    assert response.error_code == bridge_service_module.WfxErrorCode.ACCESS_DENIED
+    assert "access denied" in (response.message or "").lower()
+
+
+def test_stat_path_maps_provider_operation_error_to_internal_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = DummyProvider("edocat")
+    provider.stat_item.side_effect = ProviderOperationError("eDoCat query failed for /folder: HTTP 500.")
+
+    monkeypatch.setattr(bridge_service_module, "validate_bridge_auth", lambda auth: None)
+    monkeypatch.setattr(bridge_service_module, "_resolve", lambda path: (provider, type("P", (), {"path": "/folder"})()))
+
+    response = bridge_service_module.stat_path("edocat:/folder", _auth())
+
+    assert response.ok is False
+    assert response.error_code == bridge_service_module.WfxErrorCode.INTERNAL_ERROR
+    assert "query failed" in (response.message or "").lower()
 
 
 def test_copy_path_cross_provider_fso_folder_rejects_file_over_limit_without_operations(monkeypatch: pytest.MonkeyPatch) -> None:
