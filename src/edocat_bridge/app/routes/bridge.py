@@ -86,7 +86,6 @@ def bridge_upload(payload: WfxUploadRequest) -> dict:
     "/resolve-share-url",
     operation_id="bridgeResolveShareUrl",
     summary="Resolve Share URL",
-    description="Resolve an Alfresco Share URL to canonical provider path format `provider:/path`.",
 )
 def bridge_resolve_share_url(payload: WfxShareUrlRequest) -> dict:
     return resolve_share_url(payload.share_url, payload.provider).model_dump()
@@ -96,23 +95,6 @@ def bridge_resolve_share_url(payload: WfxShareUrlRequest) -> dict:
     "/browse-share-url",
     operation_id="bridgeBrowseShareUrl",
     summary="Execute Share URL Operation",
-    description=(
-        "Canonical endpoint for Share URL flows. Supports execute=true (real execution) "
-        "and execute=false (dry-run validation).\n\n"
-        "Canonical dry-run example:\n"
-        "```json\n"
-        "{\n"
-        '  "share_url": "https://.../documentlibrary#/03%20.../Upload?page=1",\n'
-        '  "provider": "alfresco",\n'
-        '  "operation": "copy",\n'
-        '  "execute": false,\n'
-        '  "auth": {"mode": "winuser", "win_user": "DOMAIN\\\\user"},\n'
-        '  "provider_path_override": "/source/path.txt",\n'
-        '  "destination_path_override": "/target/path.txt"\n'
-        "}\n"
-        "```\n\n"
-        "Deprecated alias: /browse-share-url-validate"
-    ),
 )
 def bridge_browse_share_url(payload: WfxShareUrlBrowseRequest) -> dict:
     return browse_share_url(
@@ -135,21 +117,6 @@ def bridge_browse_share_url(payload: WfxShareUrlBrowseRequest) -> dict:
     operation_id="bridgeBrowseShareUrlValidateDeprecated",
     deprecated=True,
     summary="Deprecated Validate Alias",
-    description=(
-        "Deprecated endpoint. Use /browse-share-url with execute=false instead.\n\n"
-        "Migration example:\n"
-        "```json\n"
-        "{\n"
-        '  "share_url": "https://.../documentlibrary#/03%20.../Upload?page=1",\n'
-        '  "provider": "alfresco",\n'
-        '  "operation": "copy",\n'
-        '  "execute": false,\n'
-        '  "auth": {"mode": "winuser", "win_user": "DOMAIN\\\\user"},\n'
-        '  "provider_path_override": "/source/path.txt",\n'
-        '  "destination_path_override": "/target/path.txt"\n'
-        "}\n"
-        "```\n"
-    ),
 )
 def bridge_browse_share_url_validate(payload: WfxShareUrlValidateRequest) -> dict:
     return browse_share_url(
