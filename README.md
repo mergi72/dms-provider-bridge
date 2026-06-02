@@ -85,6 +85,8 @@ Formát vzdálené cesty:
 
 Endpointy (POST):
 
+- `GET /bridge/wfx/providers` (provider discovery pro root listing ve WFX pluginu)
+
 - `/bridge/wfx/list`
 - `/bridge/wfx/stat`
 - `/bridge/wfx/mkdir`
