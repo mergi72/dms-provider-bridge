@@ -10,6 +10,7 @@ from edocat_bridge.models.bridge import WfxMoveRequest, WfxPathRequest, WfxShare
 from edocat_bridge.services.bridge_service import browse_share_url, copy_path, delete_path, download_path, list_path, mkdir_path, rename_path, resolve_share_url, stat_path, upload_path
 
 router = APIRouter()
+share_url_router = APIRouter()
 
 
 @router.post("/list")
@@ -81,24 +82,25 @@ def bridge_upload(payload: WfxUploadRequest) -> dict:
     ).model_dump()
 
 
-@router.post(
+@share_url_router.post(
     "/resolve-share-url",
-    tags=["Bridge Share URL"],
     operation_id="bridgeResolveShareUrl",
+    summary="Resolve Share URL",
+    description="Resolve an Alfresco Share URL to canonical provider path format `provider:/path`.",
 )
 def bridge_resolve_share_url(payload: WfxShareUrlRequest) -> dict:
     return resolve_share_url(payload.share_url, payload.provider).model_dump()
 
 
-@router.post(
+@share_url_router.post(
     "/browse-share-url",
-    tags=["Bridge Share URL"],
     operation_id="bridgeBrowseShareUrl",
-    summary="Canonical Share URL operation endpoint",
+    summary="Execute Share URL Operation",
     description=(
         "Canonical endpoint for Share URL flows. Supports execute=true (real execution) "
         "and execute=false (dry-run validation).\n\n"
         "Canonical dry-run example:\n"
+        "```json\n"
         "{\n"
         '  "share_url": "https://.../documentlibrary#/03%20.../Upload?page=1",\n'
         '  "provider": "alfresco",\n'
@@ -107,7 +109,8 @@ def bridge_resolve_share_url(payload: WfxShareUrlRequest) -> dict:
         '  "auth": {"mode": "winuser", "win_user": "DOMAIN\\\\user"},\n'
         '  "provider_path_override": "/source/path.txt",\n'
         '  "destination_path_override": "/target/path.txt"\n'
-        "}\n\n"
+        "}\n"
+        "```\n\n"
         "Deprecated alias: /browse-share-url-validate"
     ),
 )
@@ -127,15 +130,15 @@ def bridge_browse_share_url(payload: WfxShareUrlBrowseRequest) -> dict:
     ).model_dump()
 
 
-@router.post(
+@share_url_router.post(
     "/browse-share-url-validate",
-    tags=["Bridge Share URL"],
     operation_id="bridgeBrowseShareUrlValidateDeprecated",
     deprecated=True,
-    summary="Deprecated alias for /browse-share-url with execute=false",
+    summary="Deprecated Validate Alias",
     description=(
         "Deprecated endpoint. Use /browse-share-url with execute=false instead.\n\n"
         "Migration example:\n"
+        "```json\n"
         "{\n"
         '  "share_url": "https://.../documentlibrary#/03%20.../Upload?page=1",\n'
         '  "provider": "alfresco",\n'
@@ -145,6 +148,7 @@ def bridge_browse_share_url(payload: WfxShareUrlBrowseRequest) -> dict:
         '  "provider_path_override": "/source/path.txt",\n'
         '  "destination_path_override": "/target/path.txt"\n'
         "}\n"
+        "```\n"
     ),
 )
 def bridge_browse_share_url_validate(payload: WfxShareUrlValidateRequest) -> dict:
