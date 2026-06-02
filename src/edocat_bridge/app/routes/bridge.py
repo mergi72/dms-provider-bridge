@@ -43,7 +43,12 @@ def bridge_copy(payload: WfxMoveRequest) -> dict:
 
 
 @router.post("/download")
-def bridge_download(payload: WfxPathRequest):
+def bridge_download(payload: WfxPathRequest) -> dict:
+    return download_path(payload.path, payload.auth).model_dump()
+
+
+@router.post("/download-raw")
+def bridge_download_raw(payload: WfxPathRequest):
     result = download_path(payload.path, payload.auth)
     if not result.ok:
         return JSONResponse(content=result.model_dump())

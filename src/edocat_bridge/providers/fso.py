@@ -5,6 +5,7 @@ import mimetypes
 import os
 import shutil
 
+from edocat_bridge.core.config_loader import load_provider_config
 from edocat_bridge.core.errors import ProviderOperationError
 from edocat_bridge.models.bridge import BridgeAuthContext
 from edocat_bridge.models.item import DmsItem
@@ -17,6 +18,10 @@ class FsoProvider(Provider):
     name = "fso"
     upstream_auth_scheme = "none"
 
+    def __init__(self, config: dict | None = None) -> None:
+        self.config = config if isinstance(config, dict) else load_provider_config(self.name)
+        self.allowed_roots = self._parse_allowed_roots(self.config)
+
     def _normalize_virtual_path(self, path: str) -> str:
         raw = (path or "").strip() or "/"
         normalized = raw.replace("\\", "/")
@@ -28,7 +33,44 @@ class FsoProvider(Provider):
         normalized = self._normalize_virtual_path(path)
         if os.name == "nt" and len(normalized) >= 3 and normalized[0] == "/" and normalized[2] == ":":
             normalized = normalized[1:]
-        return os.path.normpath(normalized)
+        return os.path.abspath(os.path.normpath(normalized))
+
+    def _parse_allowed_roots(self, config: dict) -> list[str]:
+        raw_roots = config.get("allowed_roots")
+        if raw_roots is None:
+            raw_roots = config.get("allowedRoots")
+        if not isinstance(raw_roots, list):
+            return []
+
+        roots: list[str] = []
+        for value in raw_roots:
+            if not isinstance(value, str):
+                continue
+            cleaned = value.strip()
+            if not cleaned:
+                continue
+            roots.append(self._to_local_path(cleaned))
+        return roots
+
+    def _is_under_allowed_roots(self, local_path: str) -> bool:
+        if not self.allowed_roots:
+            return True
+        target = os.path.abspath(local_path)
+        for root in self.allowed_roots:
+            try:
+                if os.path.commonpath([target, root]) == root:
+                    return True
+            except ValueError:
+                continue
+        return False
+
+    def _ensure_allowed(self, local_path: str, operation: str, virtual_path: str) -> None:
+        if self._is_under_allowed_roots(local_path):
+            return
+        roots = ", ".join(self.allowed_roots)
+        raise ProviderOperationError(
+            f"FSO {operation} failed: path '{virtual_path}' is outside allowed roots ({roots})."
+        )
 
     def _child_virtual_path(self, parent: str, name: str) -> str:
         normalized_parent = self._normalize_virtual_path(parent).rstrip("/") or "/"
@@ -37,6 +79,7 @@ class FsoProvider(Provider):
     def list_items(self, path: str, auth: BridgeAuthContext | None = None) -> ListingResult:
         virtual_path = self._normalize_virtual_path(path)
         local_path = self._to_local_path(virtual_path)
+        self._ensure_allowed(local_path, "list", virtual_path)
         if not os.path.isdir(local_path):
             return ListingResult(provider=self.name, path=virtual_path, total=0, items=[])
 
@@ -74,6 +117,7 @@ class FsoProvider(Provider):
             return DmsItem(id="fso-root", name="/", path="/", is_folder=True)
 
         local_path = self._to_local_path(virtual_path)
+        self._ensure_allowed(local_path, "stat", virtual_path)
         if not os.path.exists(local_path):
             return None
 
@@ -88,6 +132,8 @@ class FsoProvider(Provider):
         dst_virtual = self._normalize_virtual_path(destination)
         src_local = self._to_local_path(src_virtual)
         dst_local = self._to_local_path(dst_virtual)
+        self._ensure_allowed(src_local, "copy", src_virtual)
+        self._ensure_allowed(dst_local, "copy", dst_virtual)
 
         if not os.path.exists(src_local):
             raise ProviderOperationError(f"FSO copy failed: source not found: {src_virtual}")
@@ -105,6 +151,8 @@ class FsoProvider(Provider):
         dst_virtual = self._normalize_virtual_path(destination)
         src_local = self._to_local_path(src_virtual)
         dst_local = self._to_local_path(dst_virtual)
+        self._ensure_allowed(src_local, "rename", src_virtual)
+        self._ensure_allowed(dst_local, "rename", dst_virtual)
         if not os.path.exists(src_local):
             raise ProviderOperationError(f"FSO rename failed: source not found: {src_virtual}")
         os.makedirs(os.path.dirname(dst_local) or ".", exist_ok=True)
@@ -114,6 +162,7 @@ class FsoProvider(Provider):
     def delete_item(self, target: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         target_virtual = self._normalize_virtual_path(target)
         target_local = self._to_local_path(target_virtual)
+        self._ensure_allowed(target_local, "delete", target_virtual)
         if not os.path.exists(target_local):
             raise ProviderOperationError(f"FSO delete failed: target not found: {target_virtual}")
         if os.path.isdir(target_local):
@@ -125,12 +174,14 @@ class FsoProvider(Provider):
     def make_dir(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         virtual_path = self._normalize_virtual_path(path)
         local_path = self._to_local_path(virtual_path)
+        self._ensure_allowed(local_path, "mkdir", virtual_path)
         os.makedirs(local_path, exist_ok=True)
         return OperationResult(success=True, operation="mkdir", provider=self.name, source=virtual_path)
 
     def download_item(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         virtual_path = self._normalize_virtual_path(path)
         local_path = self._to_local_path(virtual_path)
+        self._ensure_allowed(local_path, "download", virtual_path)
         if not os.path.exists(local_path) or os.path.isdir(local_path):
             raise ProviderOperationError(f"FSO download failed: file not found: {virtual_path}")
         with open(local_path, "rb") as handle:
@@ -148,8 +199,10 @@ class FsoProvider(Provider):
     def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, overwrite: bool = False, auth: BridgeAuthContext | None = None) -> OperationResult:
         destination_virtual = self._normalize_virtual_path(destination)
         destination_local = self._to_local_path(destination_virtual)
+        self._ensure_allowed(destination_local, "upload", destination_virtual)
         os.makedirs(destination_local, exist_ok=True)
         target_local = os.path.join(destination_local, file_name)
+        self._ensure_allowed(target_local, "upload", self._child_virtual_path(destination_virtual, file_name))
         if os.path.exists(target_local) and not overwrite:
             raise ProviderOperationError(f"FSO upload failed: target exists and overwrite is false: {target_local}")
 

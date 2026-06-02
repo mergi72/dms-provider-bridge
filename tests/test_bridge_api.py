@@ -159,6 +159,10 @@ def test_core_wfx_operations_smoke() -> None:
         "/bridge/wfx/download",
         json={"path": "alfresco:/contracts/sample.txt", "auth": auth},
     )
+    download_raw_resp = client.post(
+        "/bridge/wfx/download-raw",
+        json={"path": "alfresco:/contracts/sample.txt", "auth": auth},
+    )
     upload_resp = client.post(
         "/bridge/wfx/upload",
         json={
@@ -183,9 +187,11 @@ def test_core_wfx_operations_smoke() -> None:
         assert "ok" in resp.json()
 
     assert download_resp.status_code == 200
+    assert "ok" in download_resp.json()
+    assert download_raw_resp.status_code == 200
 
 
-def test_download_returns_binary_attachment(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_download_returns_json_contract(monkeypatch: pytest.MonkeyPatch) -> None:
     client = TestClient(create_app())
 
     monkeypatch.setattr(
@@ -204,6 +210,34 @@ def test_download_returns_binary_attachment(monkeypatch: pytest.MonkeyPatch) -> 
 
     response = client.post(
         "/bridge/wfx/download",
+        json={"path": "alfresco:/contracts/sample.txt", "auth": _auth()},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["data"]["content_base64"] == "SGVsbG8="
+
+
+def test_download_raw_returns_binary_attachment(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = TestClient(create_app())
+
+    monkeypatch.setattr(
+        bridge_routes,
+        "download_path",
+        lambda path, auth: WfxResponse(
+            ok=True,
+            data={
+                "content_base64": "SGVsbG8=",
+                "mime_type": "text/plain",
+                "source": "/contracts/sample.txt",
+            },
+            metadata={"provider": "alfresco", "operation": "download"},
+        ),
+    )
+
+    response = client.post(
+        "/bridge/wfx/download-raw",
         json={"path": "alfresco:/contracts/sample.txt", "auth": _auth()},
     )
 

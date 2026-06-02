@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from edocat_bridge.core.errors import ProviderOperationError
 from edocat_bridge.providers.fso import FsoProvider
 
 
@@ -62,3 +63,33 @@ def test_fso_copy_folder(tmp_path: Path) -> None:
 
     assert result.success is True
     assert (dst / "a.txt").read_text(encoding="utf-8") == "abc"
+
+
+def test_fso_delete_rejects_path_outside_allowed_roots(tmp_path: Path) -> None:
+    allowed_root = tmp_path / "allowed"
+    allowed_root.mkdir()
+    outside_root = tmp_path / "outside"
+    outside_root.mkdir()
+    target = outside_root / "danger.txt"
+    target.write_text("x", encoding="utf-8")
+
+    provider = FsoProvider(config={"allowedRoots": [str(allowed_root)]})
+
+    with pytest.raises(ProviderOperationError, match="outside allowed roots"):
+        provider.delete_item(_fso_path(target))
+
+
+def test_fso_upload_allows_path_inside_allowed_roots(tmp_path: Path) -> None:
+    allowed_root = tmp_path / "allowed"
+    allowed_root.mkdir()
+    provider = FsoProvider(config={"allowedRoots": [str(allowed_root)]})
+
+    result = provider.upload_item(
+        _fso_path(allowed_root),
+        "inside.txt",
+        content_base64="aGVsbG8=",
+        overwrite=False,
+    )
+
+    assert result.success is True
+    assert (allowed_root / "inside.txt").read_text(encoding="utf-8") == "hello"
