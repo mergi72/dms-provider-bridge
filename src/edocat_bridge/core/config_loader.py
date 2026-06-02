@@ -10,7 +10,8 @@ from edocat_bridge.core.paths import CONFIG_DIR
 def _read_json(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
-    with path.open("r", encoding="utf-8") as handle:
+    # Accept UTF-8 with optional BOM to avoid startup failures on externally rewritten config files.
+    with path.open("r", encoding="utf-8-sig") as handle:
         return json.load(handle)
 
 
