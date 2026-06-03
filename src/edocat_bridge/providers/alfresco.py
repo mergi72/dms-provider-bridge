@@ -25,6 +25,21 @@ class AlfrescoProvider(Provider):
         credentials = resolve_alfresco_credentials(auth, self.client.base_url)
         return credentials.username, credentials.password, credentials.token
 
+    def _download_max_bytes(self) -> int:
+        download_cfg = self.config.get("download", {})
+        if isinstance(download_cfg, dict):
+            value = download_cfg.get("maxBase64Bytes")
+            if isinstance(value, int) and value > 0:
+                return value
+
+        transfer_cfg = self.config.get("transfer", {})
+        if isinstance(transfer_cfg, dict):
+            value = transfer_cfg.get("maxBase64Bytes")
+            if isinstance(value, int) and value > 0:
+                return value
+
+        return 20 * 1024 * 1024
+
     def _ticket(self, auth: BridgeAuthContext | None) -> str:
         username, password, token = self._runtime_credentials(auth)
         if username and password:
@@ -221,8 +236,9 @@ class AlfrescoProvider(Provider):
     def download_item(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         ticket = self._ticket(auth)
         resolved = self._resolve_path(path, ticket, strict=True)
+        max_bytes = self._download_max_bytes()
         try:
-            raw_content, detected_mime = self.client.download_node_content(ticket, resolved["node_id"])
+            raw_content, detected_mime = self.client.download_node_content(ticket, resolved["node_id"], max_bytes=max_bytes)
         except Exception as exc:
             raise ProviderOperationError(f"Alfresco download failed for {resolved['path']}: {exc}") from exc
         return OperationResult(

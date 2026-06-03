@@ -17,6 +17,7 @@ pytestmark = pytest.mark.unit
 class FakeClient:
     def __init__(self) -> None:
         self.create_child_node_calls: list[dict[str, Any]] = []
+        self.download_node_content_calls: list[dict[str, Any]] = []
 
     def node_create_child_url(self, parent_id: str) -> str:
         return f"https://example.test/repo/nodes/{parent_id}/children"
@@ -36,11 +37,35 @@ class FakeClient:
         )
         return {"entry": {"id": "created-1"}}
 
+    def node_content_url(self, node_id: str) -> str:
+        return f"https://example.test/repo/nodes/{node_id}/content"
+
+    def download_node_content(self, ticket: str, node_id: str, max_bytes: int | None = None) -> tuple[bytes, str | None]:
+        self.download_node_content_calls.append(
+            {
+                "ticket": ticket,
+                "node_id": node_id,
+                "max_bytes": max_bytes,
+            }
+        )
+        if isinstance(max_bytes, int) and max_bytes < 4:
+            raise ValueError("Alfresco download payload exceeds limit")
+        return (b"test", "application/octet-stream")
+
 
 def _provider(monkeypatch: pytest.MonkeyPatch, client: FakeClient | None = None) -> AlfrescoProvider:
     fake_client = client or FakeClient()
     monkeypatch.setattr(alfresco_provider_module, "load_provider_config", lambda name: {"doc_library": "/deals"})
     monkeypatch.setattr(alfresco_provider_module.AlfrescoClient, "from_config", lambda config: fake_client)
+    provider = AlfrescoProvider()
+    provider.client = fake_client  # type: ignore[assignment]
+    return provider
+
+
+def _provider_with_config(monkeypatch: pytest.MonkeyPatch, config: dict[str, Any], client: FakeClient | None = None) -> AlfrescoProvider:
+    fake_client = client or FakeClient()
+    monkeypatch.setattr(alfresco_provider_module, "load_provider_config", lambda name: config)
+    monkeypatch.setattr(alfresco_provider_module.AlfrescoClient, "from_config", lambda cfg: fake_client)
     provider = AlfrescoProvider()
     provider.client = fake_client  # type: ignore[assignment]
     return provider
@@ -82,3 +107,60 @@ def test_upload_item_passes_content_base64_to_client(monkeypatch: pytest.MonkeyP
             "content_base64": "dGVzdA==",
         }
     ]
+
+
+def test_download_item_passes_max_bytes_and_returns_content(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    provider = _provider_with_config(monkeypatch, {"doc_library": "/deals", "download": {"maxBase64Bytes": 8}}, client)
+
+    monkeypatch.setattr(provider, "_ticket", lambda auth: "ticket-a")
+    monkeypatch.setattr(
+        provider,
+        "_resolve_path",
+        lambda path, ticket=None, strict=False: {
+            "path": "/deals/contracts/a.txt",
+            "node_id": "node-file-1",
+            "parent_path": "/deals/contracts",
+            "parent_id": "node-parent-1",
+            "name": "a.txt",
+        },
+    )
+
+    result = provider.download_item(
+        "/contracts/a.txt",
+        auth=BridgeAuthContext(mode="credentials", username="user", password="pass"),
+    )
+
+    assert result.success is True
+    assert result.size == 4
+    assert client.download_node_content_calls == [
+        {
+            "ticket": "ticket-a",
+            "node_id": "node-file-1",
+            "max_bytes": 8,
+        }
+    ]
+
+
+def test_download_item_over_limit_raises_provider_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    provider = _provider_with_config(monkeypatch, {"doc_library": "/deals", "download": {"maxBase64Bytes": 3}}, client)
+
+    monkeypatch.setattr(provider, "_ticket", lambda auth: "ticket-a")
+    monkeypatch.setattr(
+        provider,
+        "_resolve_path",
+        lambda path, ticket=None, strict=False: {
+            "path": "/deals/contracts/a.txt",
+            "node_id": "node-file-1",
+            "parent_path": "/deals/contracts",
+            "parent_id": "node-parent-1",
+            "name": "a.txt",
+        },
+    )
+
+    with pytest.raises(alfresco_provider_module.ProviderOperationError, match="download failed"):
+        provider.download_item(
+            "/contracts/a.txt",
+            auth=BridgeAuthContext(mode="credentials", username="user", password="pass"),
+        )

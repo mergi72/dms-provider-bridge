@@ -152,13 +152,25 @@ class AlfrescoClient:
         url: str,
         headers: dict[str, str] | None = None,
         timeout: int = 30,
+        max_bytes: int | None = None,
     ) -> tuple[bytes, str | None]:
         request_headers = {}
         if headers:
             request_headers.update(headers)
         req = request.Request(url=url, headers=request_headers, method=method)
         with request.urlopen(req, timeout=timeout) as response:
-            data = response.read()
+            if isinstance(max_bytes, int) and max_bytes > 0:
+                buffer = bytearray()
+                while True:
+                    chunk = response.read(64 * 1024)
+                    if not chunk:
+                        break
+                    buffer.extend(chunk)
+                    if len(buffer) > max_bytes:
+                        raise ValueError(f"Alfresco download payload exceeds limit {max_bytes} B.")
+                data = bytes(buffer)
+            else:
+                data = response.read()
             mime = cast(str | None, response.headers.get("Content-Type"))
             return data, mime
 
@@ -391,5 +403,5 @@ class AlfrescoClient:
     def delete_node(self, ticket: str, node_id: str) -> dict:
         return self._request_json("DELETE", self.node_delete_url(node_id), headers=self.auth_headers(ticket))
 
-    def download_node_content(self, ticket: str, node_id: str) -> tuple[bytes, str | None]:
-        return self._request_bytes("GET", self.node_content_url(node_id), headers=self.auth_headers(ticket))
+    def download_node_content(self, ticket: str, node_id: str, max_bytes: int | None = None) -> tuple[bytes, str | None]:
+        return self._request_bytes("GET", self.node_content_url(node_id), headers=self.auth_headers(ticket), max_bytes=max_bytes)
