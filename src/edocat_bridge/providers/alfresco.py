@@ -61,10 +61,16 @@ class AlfrescoProvider(Provider):
             raise ProviderOperationError(f"Alfresco node lookup failed for {resolved['path']}: {exc}") from exc
 
     def _target_parent_and_name(self, destination: str, ticket: str | None = None) -> tuple[str, str | None, str]:
-        resolved = self._resolve_path(destination, ticket, strict=bool(ticket))
-        is_file_like = "." in resolved["name"] and not destination.endswith("/")
+        normalized = self.client.normalize_path(destination)
+        name = normalized.rstrip("/").split("/")[-1] or "/"
+        is_file_like = "." in name and not destination.endswith("/")
+
         if is_file_like:
-            return resolved["parent_id"], resolved["name"], resolved["path"]
+            parent_path = self.client.parent_path(normalized)
+            parent = self._resolve_path(parent_path, ticket, strict=bool(ticket))
+            return parent["node_id"], name, normalized
+
+        resolved = self._resolve_path(normalized, ticket, strict=bool(ticket))
         return resolved["node_id"], None, resolved["path"]
 
     def _item_from_entry(self, entry: dict, fallback_path: str | None = None) -> DmsItem:
@@ -235,11 +241,20 @@ class AlfrescoProvider(Provider):
         ticket = self._ticket(auth)
         resolved = self._resolve_path(path, ticket, strict=False)
         parent = self._resolve_path(resolved["parent_path"], ticket, strict=True)
+        endpoint = self.client.node_create_child_url(parent["node_id"])
         try:
             self.client.create_child_node(ticket, parent["node_id"], resolved["name"], is_folder=True)
         except HTTPError as exc:
             if exc.code in {401, 403}:
                 raise AuthenticationError(f"Alfresco access denied for {resolved['path']}: HTTP {exc.code}.") from exc
+            if exc.code == 409:
+                return OperationResult(
+                    success=True,
+                    operation="mkdir",
+                    provider=self.name,
+                    source=path,
+                    message=f"endpoint={endpoint};mode=live;status=exists",
+                )
             raise ProviderOperationError(f"Alfresco mkdir failed for {resolved['path']}: HTTP Error {exc.code}") from exc
         except Exception as exc:
             raise ProviderOperationError(f"Alfresco mkdir failed for {resolved['path']}: {exc}") from exc
@@ -248,7 +263,7 @@ class AlfrescoProvider(Provider):
             operation="mkdir",
             provider=self.name,
             source=path,
-            message=f"endpoint={self.client.node_create_child_url(parent['node_id'])};mode=live",
+            message=f"endpoint={endpoint};mode=live",
         )
 
     def download_item(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:

@@ -21,6 +21,7 @@ class FakeClient:
         self.create_child_node_calls: list[dict[str, Any]] = []
         self.download_node_content_calls: list[dict[str, Any]] = []
         self.move_node_calls: list[dict[str, Any]] = []
+        self.copy_node_calls: list[dict[str, Any]] = []
 
     def node_create_child_url(self, parent_id: str) -> str:
         return f"https://example.test/repo/nodes/{parent_id}/children"
@@ -46,11 +47,21 @@ class FakeClient:
     def node_move_url(self, node_id: str) -> str:
         return f"https://example.test/repo/nodes/{node_id}/move"
 
+    def node_copy_url(self, node_id: str) -> str:
+        return f"https://example.test/repo/nodes/{node_id}/copy"
+
     def normalize_path(self, path: str) -> str:
         value = path.strip() or "/"
         if not value.startswith("/"):
             value = f"/{value}"
         return value.rstrip("/") or "/"
+
+    def parent_path(self, path: str) -> str:
+        normalized = self.normalize_path(path)
+        if normalized == "/":
+            return "/"
+        parent = normalized.rsplit("/", 1)[0]
+        return parent or "/"
 
     def download_node_content(self, ticket: str, node_id: str, max_bytes: int | None = None) -> tuple[bytes, str | None]:
         self.download_node_content_calls.append(
@@ -66,6 +77,17 @@ class FakeClient:
 
     def move_node(self, ticket: str, node_id: str, target_parent_id: str, name: str | None = None) -> dict:
         self.move_node_calls.append(
+            {
+                "ticket": ticket,
+                "node_id": node_id,
+                "target_parent_id": target_parent_id,
+                "name": name,
+            }
+        )
+        return {"entry": {"id": node_id, "name": name or ""}}
+
+    def copy_node(self, ticket: str, node_id: str, target_parent_id: str, name: str | None = None) -> dict:
+        self.copy_node_calls.append(
             {
                 "ticket": ticket,
                 "node_id": node_id,
@@ -170,6 +192,55 @@ def test_rename_item_allows_new_destination_leaf_that_does_not_yet_exist(monkeyp
     assert result.message is not None
     assert client.create_child_node_calls == []
     assert result.operation == "rename"
+
+
+def test_copy_item_allows_new_destination_leaf_that_does_not_yet_exist(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    provider = _provider_with_config(monkeypatch, {"doc_library": "/deals"}, client)
+
+    monkeypatch.setattr(provider, "_ticket", lambda auth: "ticket-a")
+
+    def fake_resolve(path: str, ticket: str | None = None, strict: bool = False) -> dict[str, str]:
+        if path.endswith("source.txt"):
+            assert strict is True
+            return {
+                "path": "/deals/contracts/source.txt",
+                "node_id": "node-source-1",
+                "parent_path": "/deals/contracts",
+                "parent_id": "node-parent-1",
+                "name": "source.txt",
+            }
+
+        if path == "/contracts":
+            assert strict is True
+            return {
+                "path": "/deals/contracts",
+                "node_id": "node-parent-1",
+                "parent_path": "/deals",
+                "parent_id": "node-root-1",
+                "name": "contracts",
+            }
+
+        raise AssertionError(f"Unexpected path: {path}")
+
+    monkeypatch.setattr(provider, "_resolve_path", fake_resolve)
+
+    result = provider.copy_item(
+        "/contracts/source.txt",
+        "/contracts/copied.txt",
+        auth=BridgeAuthContext(mode="credentials", username="user", password="pass"),
+    )
+
+    assert result.success is True
+    assert result.destination == "/contracts/copied.txt"
+    assert client.copy_node_calls == [
+        {
+            "ticket": "ticket-a",
+            "node_id": "node-source-1",
+            "target_parent_id": "node-parent-1",
+            "name": "copied.txt",
+        }
+    ]
 
 
 def test_download_item_passes_max_bytes_and_returns_content(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -312,6 +383,49 @@ def test_make_dir_maps_http_403_to_authentication_error(monkeypatch: pytest.Monk
             "/contracts/new-folder",
             auth=BridgeAuthContext(mode="credentials", username="user", password="pass"),
         )
+
+
+def test_make_dir_http_409_conflict_is_treated_as_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    provider = _provider_with_config(monkeypatch, {"doc_library": "/deals"}, client)
+
+    monkeypatch.setattr(provider, "_ticket", lambda auth: "ticket-a")
+    monkeypatch.setattr(
+        provider,
+        "_resolve_path",
+        lambda path, ticket=None, strict=False: (
+            {
+                "path": "/deals/contracts/new-folder",
+                "node_id": "missing-node",
+                "parent_path": "/deals/contracts",
+                "parent_id": "fallback-parent-id",
+                "name": "new-folder",
+            }
+            if path == "/contracts/new-folder"
+            else {
+                "path": "/deals/contracts",
+                "node_id": "node-parent-1",
+                "parent_path": "/deals",
+                "parent_id": "node-root-1",
+                "name": "contracts",
+            }
+        ),
+    )
+
+    def _raise_409(*args, **kwargs):
+        raise HTTPError(url="https://example.test", code=409, msg="Conflict", hdrs=None, fp=None)
+
+    monkeypatch.setattr(client, "create_child_node", _raise_409)
+
+    result = provider.make_dir(
+        "/contracts/new-folder",
+        auth=BridgeAuthContext(mode="credentials", username="user", password="pass"),
+    )
+
+    assert result.success is True
+    assert result.operation == "mkdir"
+    assert result.message is not None
+    assert "status=exists" in result.message
 
 
 def test_item_from_entry_maps_modified_and_read_only_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
