@@ -3,12 +3,14 @@ from __future__ import annotations
 # pyright: reportMissingTypeStubs=false
 
 from typing import Any
+from urllib.error import HTTPError
 
 import pytest
 
 import edocat_bridge.providers.alfresco as alfresco_provider_module  # type: ignore[import-untyped]
 from edocat_bridge.models.bridge import BridgeAuthContext  # type: ignore[import-untyped]
 from edocat_bridge.providers.alfresco import AlfrescoProvider  # type: ignore[import-untyped]
+from edocat_bridge.core.errors import AuthenticationError  # type: ignore[import-untyped]
 
 
 pytestmark = pytest.mark.unit
@@ -223,6 +225,91 @@ def test_download_item_over_limit_raises_provider_error(monkeypatch: pytest.Monk
     with pytest.raises(alfresco_provider_module.ProviderOperationError, match="download failed"):
         provider.download_item(
             "/contracts/a.txt",
+            auth=BridgeAuthContext(mode="credentials", username="user", password="pass"),
+        )
+
+
+def test_make_dir_allows_new_destination_leaf_that_does_not_yet_exist(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    provider = _provider_with_config(monkeypatch, {"doc_library": "/deals"}, client)
+
+    monkeypatch.setattr(provider, "_ticket", lambda auth: "ticket-a")
+
+    def fake_resolve(path: str, ticket: str | None = None, strict: bool = False) -> dict[str, str]:
+        if path == "/contracts/new-folder":
+            assert strict is False
+            return {
+                "path": "/deals/contracts/new-folder",
+                "node_id": "missing-node",
+                "parent_path": "/deals/contracts",
+                "parent_id": "fallback-parent-id",
+                "name": "new-folder",
+            }
+        if path == "/deals/contracts":
+            assert strict is True
+            return {
+                "path": "/deals/contracts",
+                "node_id": "node-parent-1",
+                "parent_path": "/deals",
+                "parent_id": "node-root-1",
+                "name": "contracts",
+            }
+        raise AssertionError(f"Unexpected path: {path}")
+
+    monkeypatch.setattr(provider, "_resolve_path", fake_resolve)
+
+    result = provider.make_dir(
+        "/contracts/new-folder",
+        auth=BridgeAuthContext(mode="credentials", username="user", password="pass"),
+    )
+
+    assert result.success is True
+    assert client.create_child_node_calls == [
+        {
+            "ticket": "ticket-a",
+            "parent_id": "node-parent-1",
+            "name": "new-folder",
+            "is_folder": True,
+            "content_base64": None,
+        }
+    ]
+
+
+def test_make_dir_maps_http_403_to_authentication_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    provider = _provider_with_config(monkeypatch, {"doc_library": "/deals"}, client)
+
+    monkeypatch.setattr(provider, "_ticket", lambda auth: "ticket-a")
+    monkeypatch.setattr(
+        provider,
+        "_resolve_path",
+        lambda path, ticket=None, strict=False: (
+            {
+                "path": "/deals/contracts/new-folder",
+                "node_id": "missing-node",
+                "parent_path": "/deals/contracts",
+                "parent_id": "fallback-parent-id",
+                "name": "new-folder",
+            }
+            if path == "/contracts/new-folder"
+            else {
+                "path": "/deals/contracts",
+                "node_id": "node-parent-1",
+                "parent_path": "/deals",
+                "parent_id": "node-root-1",
+                "name": "contracts",
+            }
+        ),
+    )
+
+    def _raise_403(*args, **kwargs):
+        raise HTTPError(url="https://example.test", code=403, msg="Forbidden", hdrs=None, fp=None)
+
+    monkeypatch.setattr(client, "create_child_node", _raise_403)
+
+    with pytest.raises(AuthenticationError, match="access denied"):
+        provider.make_dir(
+            "/contracts/new-folder",
             auth=BridgeAuthContext(mode="credentials", username="user", password="pass"),
         )
 

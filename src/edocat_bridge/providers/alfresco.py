@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import base64
+from urllib.error import HTTPError
 
 from edocat_bridge.clients.alfresco_client import AlfrescoClient
 from edocat_bridge.core.config_loader import load_provider_config
 from edocat_bridge.core.credentials import resolve_alfresco_credentials
-from edocat_bridge.core.errors import ProviderOperationError
+from edocat_bridge.core.errors import AuthenticationError, ProviderOperationError
 from edocat_bridge.models.bridge import BridgeAuthContext
 from edocat_bridge.models.item import DmsItem
 from edocat_bridge.models.listing import ListingResult
@@ -232,9 +233,14 @@ class AlfrescoProvider(Provider):
 
     def make_dir(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         ticket = self._ticket(auth)
-        resolved = self._resolve_path(path, ticket, strict=True)
+        resolved = self._resolve_path(path, ticket, strict=False)
+        parent = self._resolve_path(resolved["parent_path"], ticket, strict=True)
         try:
-            self.client.create_child_node(ticket, resolved["parent_id"], resolved["name"], is_folder=True)
+            self.client.create_child_node(ticket, parent["node_id"], resolved["name"], is_folder=True)
+        except HTTPError as exc:
+            if exc.code in {401, 403}:
+                raise AuthenticationError(f"Alfresco access denied for {resolved['path']}: HTTP {exc.code}.") from exc
+            raise ProviderOperationError(f"Alfresco mkdir failed for {resolved['path']}: HTTP Error {exc.code}") from exc
         except Exception as exc:
             raise ProviderOperationError(f"Alfresco mkdir failed for {resolved['path']}: {exc}") from exc
         return OperationResult(
@@ -242,7 +248,7 @@ class AlfrescoProvider(Provider):
             operation="mkdir",
             provider=self.name,
             source=path,
-            message=f"endpoint={self.client.node_create_child_url(resolved['parent_id'])};mode=live",
+            message=f"endpoint={self.client.node_create_child_url(parent['node_id'])};mode=live",
         )
 
     def download_item(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:
