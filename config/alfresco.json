@@ -75,7 +75,7 @@
 
         "credentials": {
             "mode": "windows",
-            "target": "eDoCatHelper@cheminvest"
+            "target": "tc-wfx/bridge"
         },
 
         "download": {

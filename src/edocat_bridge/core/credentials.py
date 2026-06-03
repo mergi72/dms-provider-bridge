@@ -126,7 +126,31 @@ def load_windows_credential(credential_id: str) -> ProviderCredentials:
     return credential
 
 
-def resolve_alfresco_credentials(auth: BridgeAuthContext | None, base_url: str) -> ProviderCredentials:
+def resolve_alfresco_credentials(
+    auth: BridgeAuthContext | None,
+    base_url: str,
+    provider_config: dict | None = None,
+) -> ProviderCredentials:
+    credentials_cfg = provider_config.get("credentials") if isinstance(provider_config, dict) else None
+    credential_target = None
+    if isinstance(credentials_cfg, dict):
+        credential_target = credentials_cfg.get("target") or credentials_cfg.get("credential_id")
+
+    resolved_windows: ProviderCredentials | None = None
+    if isinstance(credentials_cfg, dict) and credentials_cfg.get("mode") == "windows" and credential_target:
+        try:
+            resolved_windows = load_windows_credential(str(credential_target))
+        except AuthenticationError:
+            resolved_windows = None
+
+    if resolved_windows is not None:
+        return ProviderCredentials(
+            base_url=base_url or os.getenv("ALFRESCO_URL", ""),
+            username=resolved_windows.username or (auth.username if auth else None) or os.getenv("ALFRESCO_USER") or (auth.win_user if auth else None),
+            password=(auth.password if auth else None) or resolved_windows.password or os.getenv("ALFRESCO_PASSWORD"),
+            token=(auth.token if auth else None) or resolved_windows.token or os.getenv("ALFRESCO_TICKET"),
+        )
+
     if auth is None:
         return ProviderCredentials(
             base_url=base_url or os.getenv("ALFRESCO_URL", ""),
@@ -135,7 +159,7 @@ def resolve_alfresco_credentials(auth: BridgeAuthContext | None, base_url: str) 
             token=os.getenv("ALFRESCO_TICKET"),
         )
 
-    username = auth.username or auth.win_user or os.getenv("ALFRESCO_USER")
+    username = auth.username or os.getenv("ALFRESCO_USER") or auth.win_user
     password = auth.password or os.getenv("ALFRESCO_PASSWORD")
     token = auth.token or os.getenv("ALFRESCO_TICKET")
     return ProviderCredentials(

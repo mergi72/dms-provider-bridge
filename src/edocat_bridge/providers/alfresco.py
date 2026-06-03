@@ -22,7 +22,7 @@ class AlfrescoProvider(Provider):
         self.client = AlfrescoClient.from_config(self.config)
 
     def _runtime_credentials(self, auth: BridgeAuthContext | None) -> tuple[str | None, str | None, str | None]:
-        credentials = resolve_alfresco_credentials(auth, self.client.base_url)
+        credentials = resolve_alfresco_credentials(auth, self.client.base_url, self.config)
         return credentials.username, credentials.password, credentials.token
 
     def _download_max_bytes(self) -> int:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+import edocat_bridge.core.credentials as credentials_module  # type: ignore[import-untyped]
 import edocat_bridge.services.auth_service as auth_service_module  # type: ignore[import-untyped]
 from edocat_bridge.core.credentials import ProviderCredentials  # type: ignore[import-untyped]
 from edocat_bridge.core.errors import AuthenticationError  # type: ignore[import-untyped]
@@ -41,3 +42,40 @@ def test_validate_bridge_auth_requires_credentials_or_credential_id() -> None:
 
     with pytest.raises(AuthenticationError, match="credentials mode requires either credential_id"):
         auth_service_module.validate_bridge_auth(auth)
+
+
+def test_resolve_alfresco_credentials_uses_provider_windows_target(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        credentials_module,
+        "load_windows_credential",
+        lambda credential_id: ProviderCredentials(base_url="", username="vault-user", password="vault-pass"),
+    )
+
+    auth = BridgeAuthContext(mode="winuser", win_user="DOMAIN\\tester")
+    result = credentials_module.resolve_alfresco_credentials(
+        auth,
+        "https://example.test/alfresco",
+        provider_config={"credentials": {"mode": "windows", "target": "alfresco-prod"}},
+    )
+
+    assert result.username == "vault-user"
+    assert result.password == "vault-pass"
+
+
+def test_resolve_alfresco_credentials_falls_back_when_windows_target_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _raise_missing(credential_id: str) -> ProviderCredentials:
+        raise AuthenticationError(f"missing {credential_id}")
+
+    monkeypatch.setattr(credentials_module, "load_windows_credential", _raise_missing)
+    monkeypatch.setenv("ALFRESCO_USER", "env-user")
+    monkeypatch.setenv("ALFRESCO_PASSWORD", "env-pass")
+
+    auth = BridgeAuthContext(mode="winuser", win_user="DOMAIN\\tester")
+    result = credentials_module.resolve_alfresco_credentials(
+        auth,
+        "https://example.test/alfresco",
+        provider_config={"credentials": {"mode": "windows", "target": "missing-target"}},
+    )
+
+    assert result.username == "env-user"
+    assert result.password == "env-pass"
