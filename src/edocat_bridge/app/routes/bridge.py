@@ -12,6 +12,7 @@ from edocat_bridge.services.bridge_service import browse_share_url, copy_path, d
 
 router = APIRouter()
 share_url_router = APIRouter()
+RAW_CONTENT_HEADER = "X-Bridge-Raw-Content"
 
 
 def _build_content_disposition(filename: str) -> str:
@@ -61,22 +62,25 @@ def bridge_download(payload: WfxPathRequest) -> dict:
 def bridge_download_raw(payload: WfxPathRequest):
     result = download_path(payload.path, payload.auth)
     if not result.ok:
-        return JSONResponse(content=result.model_dump())
+        return JSONResponse(content=result.model_dump(), headers={RAW_CONTENT_HEADER: "0"})
 
     data = result.data if isinstance(result.data, dict) else {}
     content_base64 = data.get("content_base64") if isinstance(data, dict) else None
     if not isinstance(content_base64, str) or not content_base64:
-        return JSONResponse(content=result.model_dump())
+        return JSONResponse(content=result.model_dump(), headers={RAW_CONTENT_HEADER: "0"})
 
     try:
         raw_content = b64decode(content_base64, validate=True)
     except Exception:
-        return JSONResponse(content=result.model_dump())
+        return JSONResponse(content=result.model_dump(), headers={RAW_CONTENT_HEADER: "0"})
 
     source = data.get("source") if isinstance(data, dict) else None
     filename = PurePosixPath(str(source)).name if isinstance(source, str) and source else "download.bin"
     media_type = data.get("mime_type") if isinstance(data, dict) and isinstance(data.get("mime_type"), str) else "application/octet-stream"
-    headers = {"Content-Disposition": _build_content_disposition(filename)}
+    headers = {
+        "Content-Disposition": _build_content_disposition(filename),
+        RAW_CONTENT_HEADER: "1",
+    }
     return Response(content=raw_content, media_type=media_type, headers=headers)
 
 
