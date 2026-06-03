@@ -76,6 +76,10 @@
         "credentials": {
             "mode": "windows",
             "target": "eDoCatHelper@cheminvest"
+        },
+
+        "download": {
+            "maxBase64Bytes": 314572800
         }
     }
 }
