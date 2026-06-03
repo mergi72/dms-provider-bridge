@@ -278,12 +278,12 @@ class AlfrescoClient:
         folded = segment.casefold()
 
         if folded == "company_home":
-            return ["Company Home", "company_home", "company home"]
+            return ["Company Home", "company_home", "company home", "app:company_home"]
         if folded == "sites":
-            return ["Sites", "sites"]
+            return ["Sites", "sites", "st:sites"]
         if folded == "documentlibrary":
-            return ["documentLibrary", "Document Library", "documentlibrary"]
-        return [segment]
+            return ["documentLibrary", "Document Library", "documentlibrary", "cm:documentLibrary"]
+        return [segment, f"cm:{segment}"]
 
     def _resolve_doc_library_by_walk(self, ticket: str) -> dict | None:
         raw_path = str(self.doc_library or "").strip()

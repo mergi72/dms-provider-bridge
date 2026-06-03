@@ -40,6 +40,33 @@ def test_resolve_doc_library_node_uses_cache(monkeypatch: pytest.MonkeyPatch) ->
     assert calls["count"] == 1
 
 
+def test_resolve_doc_library_node_walks_qname_children(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _client()
+    child_calls = {"count": 0}
+
+    monkeypatch.setattr(AlfrescoClient, "first_search_entry", lambda self, ticket, query: None)
+
+    def fake_child_by_name(self: AlfrescoClient, ticket: str, parent_id: str, name: str) -> dict | None:
+        child_calls["count"] += 1
+        if parent_id == "-root-" and name == "app:company_home":
+            return {"id": "company-home", "name": "Company Home"}
+        if parent_id == "company-home" and name == "st:sites":
+            return {"id": "sites-1", "name": "Sites"}
+        if parent_id == "sites-1" and name == "cm:deals":
+            return {"id": "deals-1", "name": "deals"}
+        if parent_id == "deals-1" and name == "cm:documentLibrary":
+            return {"id": "doclib-1", "name": "documentLibrary"}
+        return None
+
+    monkeypatch.setattr(AlfrescoClient, "child_by_name", fake_child_by_name)
+
+    result = client.resolve_doc_library_node("ticket-a")
+
+    assert result is not None
+    assert result.get("id") == "doclib-1"
+    assert child_calls["count"] >= 4
+
+
 def test_child_by_name_uses_cache_case_insensitive(monkeypatch: pytest.MonkeyPatch) -> None:
     client = _client()
     calls = {"count": 0}
