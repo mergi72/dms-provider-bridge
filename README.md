@@ -83,22 +83,22 @@ Formát vzdálené cesty:
 - `edocat:/folder/file.txt`
 - `alfresco:/folder/file.txt`
 
-Endpointy (POST):
+Endpointy:
 
 - `GET /bridge/wfx/providers` (provider discovery pro root listing ve WFX pluginu)
 
-- `/bridge/wfx/list`
-- `/bridge/wfx/stat`
-- `/bridge/wfx/mkdir`
-- `/bridge/wfx/delete`
-- `/bridge/wfx/rename`
-- `/bridge/wfx/copy`
-- `/bridge/wfx/download`
-- `/bridge/wfx/download-raw`
-- `/bridge/wfx/upload`
-- `/bridge/wfx/resolve-share-url`
-- `/bridge/wfx/browse-share-url`
-- `/bridge/wfx/browse-share-url-validate`
+- `POST /bridge/wfx/list`
+- `POST /bridge/wfx/stat`
+- `POST /bridge/wfx/mkdir`
+- `POST /bridge/wfx/delete`
+- `POST /bridge/wfx/move`
+- `POST /bridge/wfx/copy`
+- `POST /bridge/wfx/download`
+- `POST /bridge/wfx/download-raw`
+- `POST /bridge/wfx/upload`
+- `POST /bridge/wfx/resolve-share-url`
+- `POST /bridge/wfx/browse-share-url`
+- `POST /bridge/wfx/browse-share-url-validate`
 
 Autentizace (`auth`) je povinná pro každé volání:
 
@@ -144,10 +144,10 @@ Převod eDoCat Share URL na bridge path:
 
 One-shot browse přes Share URL:
 
-- `browse-share-url`: `{ "share_url": "https://.../documentlibrary#/03%20.../Upload?page=1", "provider": "alfresco", "operation": "list|stat|download|copy|rename|mkdir|delete|upload", "execute": true, "auth": { ... }, "provider_path_override": "/optional/manual/path", "destination_share_url": "https://...", "destination_path_override": "/target/path", "file_name": "upload.txt", "content_base64": "...", "overwrite": true }`
+- `browse-share-url`: `{ "share_url": "https://.../documentlibrary#/03%20.../Upload?page=1", "provider": "alfresco", "operation": "list|stat|download|copy|move|mkdir|delete|upload", "execute": true, "auth": { ... }, "provider_path_override": "/optional/manual/path", "destination_share_url": "https://...", "destination_path_override": "/target/path", "file_name": "upload.txt", "content_base64": "...", "overwrite": true }`
 - `browse-share-url` je canonical endpoint; pro dry-run validaci používej stejný endpoint s `execute=false`.
 - V odpovědi je `data.resolved` (výsledek převodu URL), `data.path_source` (`share_url` nebo `provider_path_override`) a `data.result` (výsledek zvolené operace).
-- Pro `copy|rename` je navíc povinné zadat `destination_path_override` nebo `destination_share_url`; odpověď obsahuje `data.destination`.
+- Pro `copy|move` je navíc povinné zadat `destination_path_override` nebo `destination_share_url`; odpověď obsahuje `data.destination`.
 - Pro `upload` je povinné `file_name`; cíl lze zadat přes `destination_path_override`/`destination_share_url`, jinak se použije cesta vyřešená ze `share_url`.
 - OpenAPI operationId: `bridgeResolveShareUrl`, `bridgeBrowseShareUrl` (canonical), deprecated alias: `bridgeBrowseShareUrlValidateDeprecated`.
 - Pokud `execute=false`, endpoint nic neprovede a vrátí dry-run validaci stejnou logikou jako `browse-share-url-validate`.

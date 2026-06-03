@@ -416,7 +416,7 @@ def browse_share_url(
         response = mkdir_path(path, auth)
     elif operation == "delete":
         response = delete_path(path, auth)
-    elif operation in {"copy", "rename"}:
+    elif operation in {"copy", "move"}:
         if destination_path_override:
             normalized_destination = unquote(destination_path_override).replace("\\", "/").strip()
             if not normalized_destination:
@@ -436,7 +436,7 @@ def browse_share_url(
         else:
             return _failure(
                 WfxErrorCode.BAD_PATH,
-                "copy/rename requires destination_path_override or destination_share_url.",
+                "copy/move requires destination_path_override or destination_share_url.",
             )
 
         if not destination_path:
@@ -489,7 +489,7 @@ def browse_share_url(
         "path_source": path_source,
         "result": response.data,
     }
-    if operation in {"copy", "rename", "upload"} and destination_path and destination_source:
+    if operation in {"copy", "move", "upload"} and destination_path and destination_source:
         merged_data["destination"] = {
             "path": destination_path,
             "path_source": destination_source,
@@ -532,13 +532,13 @@ def validate_browse_share_url(
     if not source_path:
         return _failure(WfxErrorCode.BAD_PATH, "Resolved share URL does not contain a source path.")
 
-    supported = {"list", "stat", "download", "copy", "rename", "mkdir", "delete", "upload"}
+    supported = {"list", "stat", "download", "copy", "move", "mkdir", "delete", "upload"}
     if operation not in supported:
         return _failure(WfxErrorCode.NOT_SUPPORTED, f"Unsupported operation for share URL validation: {operation}")
 
     destination_path = None
     destination_path_source = None
-    if operation in {"copy", "rename", "upload"}:
+    if operation in {"copy", "move", "upload"}:
         if destination_path_override:
             normalized_destination = unquote(destination_path_override).replace("\\", "/").strip()
             if not normalized_destination:
@@ -561,7 +561,7 @@ def validate_browse_share_url(
         else:
             return _failure(
                 WfxErrorCode.BAD_PATH,
-                "copy/rename requires destination_path_override or destination_share_url.",
+                "copy/move requires destination_path_override or destination_share_url.",
             )
 
         if not destination_path:
