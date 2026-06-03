@@ -68,6 +68,13 @@ class AlfrescoClient:
             store.pop(next(iter(store)))
         store[key] = value
 
+    def _invalidate_structure_cache(self, ticket: str) -> None:
+        ticket_prefix = f"{self._ticket_key(ticket)}|"
+        for store in (self._path_cache, self._child_cache):
+            keys = [key for key in store if key.startswith(ticket_prefix)]
+            for key in keys:
+                store.pop(key, None)
+
     def endpoint_url(self, endpoint_key: str, api_root_key: str) -> str:
         root = self.api_roots.get(api_root_key, "")
         suffix = self.endpoints.get(endpoint_key, "")
@@ -368,13 +375,17 @@ class AlfrescoClient:
         payload: dict[str, str] = {"targetParentId": target_parent_id}
         if name:
             payload["name"] = name
-        return self._request_json("POST", self.node_copy_url(node_id), headers=self.auth_headers(ticket), payload=payload)
+        response = self._request_json("POST", self.node_copy_url(node_id), headers=self.auth_headers(ticket), payload=payload)
+        self._invalidate_structure_cache(ticket)
+        return response
 
     def move_node(self, ticket: str, node_id: str, target_parent_id: str, name: str | None = None) -> dict:
         payload: dict[str, str] = {"targetParentId": target_parent_id}
         if name:
             payload["name"] = name
-        return self._request_json("POST", self.node_move_url(node_id), headers=self.auth_headers(ticket), payload=payload)
+        response = self._request_json("POST", self.node_move_url(node_id), headers=self.auth_headers(ticket), payload=payload)
+        self._invalidate_structure_cache(ticket)
+        return response
 
     def create_child_node(
         self,
@@ -393,15 +404,19 @@ class AlfrescoClient:
         if content_base64:
             payload["content"] = content_base64
             payload["properties"] = {"cm:description": "Uploaded via edocat-bridge"}
-        return self._request_json(
+        response = self._request_json(
             "POST",
             self.node_create_child_url(parent_id),
             headers=self.auth_headers(ticket),
             payload=payload,
         )
+        self._invalidate_structure_cache(ticket)
+        return response
 
     def delete_node(self, ticket: str, node_id: str) -> dict:
-        return self._request_json("DELETE", self.node_delete_url(node_id), headers=self.auth_headers(ticket))
+        response = self._request_json("DELETE", self.node_delete_url(node_id), headers=self.auth_headers(ticket))
+        self._invalidate_structure_cache(ticket)
+        return response
 
     def download_node_content(self, ticket: str, node_id: str, max_bytes: int | None = None) -> tuple[bytes, str | None]:
         return self._request_bytes("GET", self.node_content_url(node_id), headers=self.auth_headers(ticket), max_bytes=max_bytes)

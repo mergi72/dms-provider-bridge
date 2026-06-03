@@ -163,3 +163,30 @@ def test_alfresco_stat_missing_file_returns_none(monkeypatch: pytest.MonkeyPatch
     result = provider.stat_item("/folder/welcome.pdf")
 
     assert result is None
+
+
+def test_move_node_invalidates_structure_cache_for_ticket(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _client()
+    ticket = "ticket-a"
+    ticket_key = client._ticket_key(ticket)
+
+    path_key = f"{ticket_key}|/A/B"
+    child_key = f"{ticket_key}|parent-1|new.txt"
+    other_ticket_key = client._ticket_key("ticket-b")
+    other_path_key = f"{other_ticket_key}|/A/B"
+
+    client._path_cache[path_key] = {"id": "node-stale"}
+    client._child_cache[child_key] = None
+    client._path_cache[other_path_key] = {"id": "node-other"}
+
+    monkeypatch.setattr(
+        AlfrescoClient,
+        "_request_json",
+        lambda self, method, url, headers=None, payload=None, timeout=30: {"entry": {"id": "moved-1"}},
+    )
+
+    client.move_node(ticket, "node-1", "parent-1", "new.txt")
+
+    assert path_key not in client._path_cache
+    assert child_key not in client._child_cache
+    assert other_path_key in client._path_cache
