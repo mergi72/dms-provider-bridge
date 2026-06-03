@@ -94,6 +94,26 @@ def test_browse_share_url_dry_run() -> None:
     assert body["metadata"]["operation"] == "browse-share-url:dry-run:copy"
 
 
+def test_browse_share_url_move_dry_run() -> None:
+    client = TestClient(create_app())
+    payload = {
+        "share_url": _share_url(),
+        "provider": "alfresco",
+        "operation": "move",
+        "execute": False,
+        "auth": _auth(),
+        "provider_path_override": _source_file_path(),
+        "destination_path_override": _target_file_path("sample-move-dry-run.txt"),
+    }
+    response = client.post("/bridge/wfx/browse-share-url", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["data"]["executed"] is False
+    assert body["metadata"]["operation"] == "browse-share-url:dry-run:move"
+
+
 def test_validate_alias_returns_dry_run_payload() -> None:
     client = TestClient(create_app())
     payload = {

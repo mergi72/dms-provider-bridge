@@ -2,9 +2,9 @@
 
 [![CI](https://github.com/mergi72/edocat-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/edocat-bridge/actions/workflows/ci.yml)
 
-`dms-provider-bridge` (repo: `edocat-bridge`) je základní skeleton služby pro propojení více DMS providerů (eDoCat, Alfresco, FSO, ...).
+`dms-provider-bridge` (repository: `edocat-bridge`) is a base bridge service skeleton for integrating multiple DMS providers (eDoCat, Alfresco, FSO, ...).
 
-## Rychlý start
+## Quick Start
 
 ```bash
 python -m venv .venv312
@@ -15,17 +15,17 @@ python -m uvicorn edocat_bridge.app.server:app --host 127.0.0.1 --port 8765
 
 ## VS Code (Windows)
 
-Workspace má přednastavený interpreter na `.venv312` v souboru `.vscode/settings.json`.
+The workspace is preconfigured to use the `.venv312` interpreter in `.vscode/settings.json`.
 
-## Testy
+## Tests
 
-Instalace test závislostí:
+Install test dependencies:
 
 ```bash
 python -m pip install -e .[dev]
 ```
 
-Rychlé spuštění (PowerShell):
+Quick run (PowerShell):
 
 ```powershell
 .\scripts\run-tests.ps1 unit
@@ -33,7 +33,7 @@ Rychlé spuštění (PowerShell):
 .\scripts\run-tests.ps1 all
 ```
 
-Rychlé spuštění (Bash, např. Git Bash/WSL):
+Quick run (Bash, for example Git Bash/WSL):
 
 ```bash
 ./scripts/run-tests.sh unit
@@ -41,27 +41,27 @@ Rychlé spuštění (Bash, např. Git Bash/WSL):
 ./scripts/run-tests.sh all
 ```
 
-Poznámka: oba skripty hledají interpreter v pořadí `.venv312`, `.venv`, a nakonec systémový `python`/`python3` z PATH.
+Note: both scripts look for the interpreter in this order: `.venv312`, `.venv`, and finally system `python`/`python3` from PATH.
 
-## Cisty Release ZIP (Bez Cache)
+## Clean Release ZIP (No Cache)
 
-Pro release balicek pouzij archivaci z Gitu, ktera bere jen trackovane soubory:
+For release packaging, use Git archive so only tracked files are included:
 
 ```powershell
 .\scripts\build-release-zip.ps1
 ```
 
-Tento postup automaticky vylouci lokalni balast jako `__pycache__/`, `*.pyc`, `.venv/` a runtime logy.
+This workflow automatically excludes local artifacts such as `__pycache__/`, `*.pyc`, `.venv/`, and runtime logs.
 
-Pokud chces predtim uklidit lokalni workspace, pouzij:
+If you want to clean the local workspace before that, run:
 
 ```powershell
 .\scripts\clean-artifacts.ps1
 ```
 
-## Bezpecne Testovani (ENV)
+## Safe Testing (ENV)
 
-Pro lokalni smoke testy nepouzivej hardcoded hesla v historii shellu. Nastav si je do environment promennych a payload skladat z nich.
+For local smoke testing, avoid hardcoded passwords in shell history. Put them into environment variables and build payloads from them.
 
 PowerShell:
 
@@ -92,16 +92,16 @@ curl -sS http://127.0.0.1:8765/bridge/wfx/list \
   -d "{\"path\":\"edocat:/deals\",\"auth\":{\"mode\":\"credentials\",\"username\":\"$BRIDGE_USER\",\"password\":\"$BRIDGE_PASSWORD\"}}"
 ```
 
-## WFX Bridge API (pro C# plugin)
+## WFX Bridge API (for C# plugin)
 
-Formát vzdálené cesty:
+Remote path format:
 
 - `edocat:/folder/file.txt`
 - `alfresco:/folder/file.txt`
 
-Endpointy:
+Endpoints:
 
-- `GET /bridge/wfx/providers` (provider discovery pro root listing ve WFX pluginu)
+- `GET /bridge/wfx/providers` (provider discovery for root listing in the WFX plugin)
 
 - `POST /bridge/wfx/list`
 - `POST /bridge/wfx/stat`
@@ -116,77 +116,77 @@ Endpointy:
 - `POST /bridge/wfx/browse-share-url`
 - `POST /bridge/wfx/browse-share-url-validate`
 
-Autentizace (`auth`) je povinná pro každé volání:
+Authentication (`auth`) is required for every call:
 
-Bridge používá jednu vstupní autentizaci pro oba providery. Provider-specific HTTP autentizace se řeší až uvnitř provideru.
+The bridge uses one incoming authentication model for all providers. Provider specific upstream HTTP authentication is resolved inside the provider implementation.
 
 - `credentials`:
   `{ "auth": { "mode": "credentials", "credential_id": "edocat-prod" } }`
-  nebo
+  or
   `{ "auth": { "mode": "credentials", "username": "user", "password": "secret" } }`
 
-  `credential_id` se čte z Windows Credential Manageru. Pro běžné přihlašovací údaje použij generic credential s `UserName` a tajemstvím v blobu; pokud blob obsahuje JSON, bridge z něj umí vzít i `username`, `password`, `token` a volitelně `base_url`.
+  `credential_id` is read from Windows Credential Manager. For regular credentials, use a generic credential with `UserName` and a secret in the credential blob; if the blob contains JSON, the bridge can also read `username`, `password`, `token`, and optional `base_url`.
 - `winuser`:
-  `{ "auth": { "mode": "winuser", "win_user": "DOMAIN\\uzivatel" } }`
+  `{ "auth": { "mode": "winuser", "win_user": "DOMAIN\\user" } }`
 
-Příklad requestu:
+Example request:
 
-`{ "path": "edocat:/", "auth": { "mode": "winuser", "win_user": "DOMAIN\\uzivatel" } }`
+`{ "path": "edocat:/", "auth": { "mode": "winuser", "win_user": "DOMAIN\\user" } }`
 
-Odpověď má sjednocený tvar:
+Response uses a unified shape:
 
 - `ok` (`true/false`)
 - `error_code` (`0` = OK)
-- `message` (text chyby)
-- `data` (payload operace)
-- `metadata.provider` (aktivní provider)
-- `metadata.upstream_auth_scheme` (např. `basic`, `ticket`)
-- `metadata.upstream_endpoint` (reálný upstream endpoint provideru)
+- `message` (error text)
+- `data` (operation payload)
+- `metadata.provider` (active provider)
+- `metadata.upstream_auth_scheme` (for example `basic`, `ticket`)
+- `metadata.upstream_endpoint` (actual upstream endpoint for the provider)
 
-Poznámka k režimu vykonání:
+Execution mode notes:
 
-- Pokud bridge získá použitelné upstream credentials/ticket, operace běží v režimu `live`.
-- Pokud credentials/ticket nejsou dostupné, bridge vrací bezpečný `preview` výstup (s přesným endpointem), aby WFX vrstva věděla, co bude voláno.
+- If the bridge obtains usable upstream credentials or ticket, operations run in `live` mode.
+- If credentials or ticket are not available, the bridge returns a safe `preview` result (including exact endpoint) so the WFX layer can see what would be called.
 
-Přenosové operace:
+Transfer operations:
 
 - `download`: `{ "path": "alfresco:/contracts/sample.txt", "auth": { ... } }`
 - `upload`: `{ "destination": "alfresco:/contracts", "file_name": "upload.txt", "content_base64": "...", "overwrite": true, "auth": { ... } }`
 
-Převod eDoCat Share URL na bridge path:
+eDoCat Share URL to bridge path conversion:
 
 - `resolve-share-url`: `{ "share_url": "https://.../documentlibrary#/03%20.../Upload?page=1", "provider": "alfresco" }`
-- Odpověď vrací `data.path` ve formátu `alfresco:/...`, který lze použít pro `list/stat/copy/...`.
+- Response returns `data.path` in `alfresco:/...` format, usable for `list/stat/copy/...`.
 
-One-shot browse přes Share URL:
+One-shot browse via Share URL:
 
 - `browse-share-url`: `{ "share_url": "https://.../documentlibrary#/03%20.../Upload?page=1", "provider": "alfresco", "operation": "list|stat|download|copy|move|mkdir|delete|upload", "execute": true, "auth": { ... }, "provider_path_override": "/optional/manual/path", "destination_share_url": "https://...", "destination_path_override": "/target/path", "file_name": "upload.txt", "content_base64": "...", "overwrite": true }`
-- `browse-share-url` je canonical endpoint; pro dry-run validaci používej stejný endpoint s `execute=false`.
-- V odpovědi je `data.resolved` (výsledek převodu URL), `data.path_source` (`share_url` nebo `provider_path_override`) a `data.result` (výsledek zvolené operace).
-- Pro `copy|move` je navíc povinné zadat `destination_path_override` nebo `destination_share_url`; odpověď obsahuje `data.destination`.
-- Pro `upload` je povinné `file_name`; cíl lze zadat přes `destination_path_override`/`destination_share_url`, jinak se použije cesta vyřešená ze `share_url`.
+- `browse-share-url` is the canonical endpoint; for dry-run validation, use the same endpoint with `execute=false`.
+- Response includes `data.resolved` (URL resolution result), `data.path_source` (`share_url` or `provider_path_override`), and `data.result` (selected operation result).
+- For `copy|move`, `destination_path_override` or `destination_share_url` is additionally required; response contains `data.destination`.
+- For `upload`, `file_name` is required; target can be provided via `destination_path_override` or `destination_share_url`, otherwise the path resolved from `share_url` is used.
 - OpenAPI operationId: `bridgeResolveShareUrl`, `bridgeBrowseShareUrl` (canonical), deprecated alias: `bridgeBrowseShareUrlValidateDeprecated`.
-- Pokud `execute=false`, endpoint nic neprovede a vrátí dry-run validaci stejnou logikou jako `browse-share-url-validate`.
+- If `execute=false`, the endpoint performs no action and returns dry-run validation with the same logic as `browse-share-url-validate`.
 
-Lightweight validace bez spuštění operace:
+Lightweight validation without operation execution:
 
-- `browse-share-url-validate`: stejné vstupy jako `browse-share-url`, ale bez `auth` a bez `content_base64`.
-- Endpoint vrací vypočtené `source`/`destination` cesty a validační chyby payloadu, bez volání provider operace.
-- Interně je to alias na `browse-share-url` s `execute=false` (jedna společná implementační cesta).
-- V OpenAPI je endpoint označen jako deprecated; preferovaný endpoint je `browse-share-url` s `execute=false`.
+- `browse-share-url-validate`: same inputs as `browse-share-url`, but without `auth` and without `content_base64`.
+- Endpoint returns computed `source` and `destination` paths and payload validation errors without calling provider operations.
+- Internally this is an alias to `browse-share-url` with `execute=false` (single shared implementation path).
+- In OpenAPI this endpoint is marked as deprecated; preferred endpoint is `browse-share-url` with `execute=false`.
 
-Poznámka k `download` payloadu:
+`download` payload notes:
 
-- `/bridge/wfx/download` vrací vždy JSON kontrakt (včetně `ok`, `error_code`, `data`).
-- `/bridge/wfx/download-raw` vrací binární stream souboru (`Content-Disposition` + `Content-Type`).
-- V `live` režimu JSON `download` vrací `data.content_base64`, `data.mime_type` a `data.size`.
-- V `preview` režimu jsou tyto položky `null` a v `data.message` je uveden cílový endpoint.
+- `/bridge/wfx/download` always returns JSON contract (`ok`, `error_code`, `data`).
+- `/bridge/wfx/download-raw` returns raw file bytes (`Content-Disposition` + `Content-Type`).
+- In `live` mode, JSON `download` includes `data.content_base64`, `data.mime_type`, and `data.size`.
+- In `preview` mode, those fields are `null` and target endpoint is provided in `data.message`.
 
-Poznámka k FSO bezpečnosti:
+FSO security notes:
 
-- FSO provider podporuje omezení lokálních cest přes `allowedRoots` v `config/fso.json`.
-- Operace mimo tyto kořeny jsou blokované (`ProviderOperationError`).
-- Pro lokální prostředí nastav vlastní absolutní cesty (Windows příklad):
+- FSO provider supports local path restrictions via `allowedRoots` in `config/fso.json`.
+- Operations outside these roots are blocked (`ProviderOperationError`).
+- For local environments, set your own absolute paths (Windows example):
 
 ```json
 {
@@ -199,14 +199,14 @@ Poznámka k FSO bezpečnosti:
 }
 ```
 
-Poznámka k výkonu Alfresco:
+Alfresco performance notes:
 
-- Klient obsahuje in-memory cache pro resolve doc library, lookup child node a resolve cesty.
-- Opakované volání stejné Alfresco cesty je proto výrazně rychlejší než první cold lookup.
+- The client contains in-memory cache for doc library resolution, child lookup, and path resolution.
+- Repeated calls for the same Alfresco path are significantly faster than the first cold lookup.
 
 ## Runbook
 
-Restart lokalniho serveru:
+Restart local server:
 
 ```powershell
 $conn = Get-NetTCPConnection -LocalAddress 127.0.0.1 -LocalPort 8765 -ErrorAction SilentlyContinue | Where-Object { $_.State -eq 'Listen' }
@@ -220,24 +220,24 @@ Health check:
 Invoke-RestMethod -Method Get -Uri http://127.0.0.1:8765/health | ConvertTo-Json -Depth 10
 ```
 
-Diagnostika, kdy se vraci stale stejny soubor (typicky "welcome.pdf"):
+Diagnostics when the same file keeps appearing (typically "welcome.pdf"):
 
-- Ověr, ze volas `POST /bridge/wfx/list` (ne legacy `GET /listing`).
-- Ověr format provideru: `provider=edocat`, ne `provider=edocat:`.
-- Ověr, ze payload posila spravne `path` s provider prefixem (`edocat:/...` nebo `alfresco:/...`) a `auth`.
-- Pokud jde o Alfresco, prvni volani muze byt pomalejsi; druhe opakovane volani by melo byt rychlejsi (cache warm).
+- Verify you are calling `POST /bridge/wfx/list` (not legacy `GET /listing`).
+- Verify provider format is `provider=edocat`, not `provider=edocat:`.
+- Verify payload sends correct provider-prefixed `path` (`edocat:/...` or `alfresco:/...`) and `auth`.
+- For Alfresco, first call may be slower; repeated call should be faster (warm cache).
 
-## Struktura
+## Structure
 
-Projekt je rozdělen na:
+Project is split into:
 
-- `app/` API vrstva
-- `services/` business logika
-- `providers/` implementace providerů
-- `clients/` API klienti
-- `models/` datové modely
-- `core/` konfigurace, logování a utility jádra
+- `app/` API layer
+- `services/` business logic
+- `providers/` provider implementations
+- `clients/` API clients
+- `models/` data models
+- `core/` configuration, logging, and core utilities
 
 ## License
 
-Projekt je licencovaný pod MIT licencí. Plný text je v souboru `LICENSE`.
+The project is licensed under the MIT License. Full text is available in `LICENSE`.
