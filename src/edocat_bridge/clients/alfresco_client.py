@@ -6,6 +6,7 @@ import json
 import re
 from dataclasses import dataclass
 from dataclasses import field
+from threading import RLock
 from typing import cast
 from urllib.parse import unquote
 from urllib.parse import urlencode
@@ -26,19 +27,42 @@ class AlfrescoClient:
     endpoints: dict[str, str]
     doc_library: str
     node_types: dict[str, object] = field(default_factory=dict)
+    json_timeout: int = 30
+    bytes_timeout: int = 30
+    upload_timeout: int = 30
     _doclib_cache: dict[str, dict] = field(default_factory=dict)
     _path_cache: dict[str, dict] = field(default_factory=dict)
     _child_cache: dict[str, dict | None] = field(default_factory=dict)
     _cache_limit: int = 4096
+    _cache_lock: RLock = field(default_factory=RLock)
+
+    @staticmethod
+    def _read_timeout(value: object, fallback: int) -> int:
+        if isinstance(value, (int, float)):
+            parsed = int(value)
+            if parsed > 0:
+                return parsed
+        return fallback
 
     @classmethod
     def from_config(cls, config: dict) -> "AlfrescoClient":
+        timeout_cfg = config.get("timeouts", {}) if isinstance(config, dict) else {}
+        timeout_json = 30
+        timeout_bytes = 30
+        timeout_upload = 30
+        if isinstance(timeout_cfg, dict):
+            timeout_json = cls._read_timeout(timeout_cfg.get("requestSeconds"), timeout_json)
+            timeout_bytes = cls._read_timeout(timeout_cfg.get("downloadSeconds"), timeout_bytes)
+            timeout_upload = cls._read_timeout(timeout_cfg.get("uploadSeconds"), timeout_upload)
         return cls(
             base_url=str(config.get("base_url", "")),
             api_roots=dict(config.get("api", {})),
             endpoints=dict(config.get("endpoints", {})),
             doc_library=str(config.get("doc_library", "/")),
             node_types=dict(config.get("nodeType", {})),
+            json_timeout=timeout_json,
+            bytes_timeout=timeout_bytes,
+            upload_timeout=timeout_upload,
         )
 
     def _configured_node_type(self, key: str, fallback: str) -> str:
@@ -58,22 +82,30 @@ class AlfrescoClient:
         return hashlib.sha1(ticket.encode("utf-8")).hexdigest()[:16]
 
     def _cache_get(self, store: dict, key: str):
-        return store.get(key)
+        with self._cache_lock:
+            return store.get(key)
+
+    def _cache_get_with_presence(self, store: dict, key: str):
+        with self._cache_lock:
+            value = store.get(key)
+            return value, key in store
 
     def _cache_set(self, store: dict, key: str, value) -> None:
-        if key in store:
+        with self._cache_lock:
+            if key in store:
+                store[key] = value
+                return
+            if len(store) >= self._cache_limit:
+                store.pop(next(iter(store)))
             store[key] = value
-            return
-        if len(store) >= self._cache_limit:
-            store.pop(next(iter(store)))
-        store[key] = value
 
     def _invalidate_structure_cache(self, ticket: str) -> None:
         ticket_prefix = f"{self._ticket_key(ticket)}|"
-        for store in (self._path_cache, self._child_cache):
-            keys = [key for key in store if key.startswith(ticket_prefix)]
-            for key in keys:
-                store.pop(key, None)
+        with self._cache_lock:
+            for store in (self._path_cache, self._child_cache):
+                keys = [key for key in store if key.startswith(ticket_prefix)]
+                for key in keys:
+                    store.pop(key, None)
 
     def endpoint_url(self, endpoint_key: str, api_root_key: str) -> str:
         root = self.api_roots.get(api_root_key, "")
@@ -139,7 +171,7 @@ class AlfrescoClient:
         url: str,
         headers: dict[str, str] | None = None,
         payload: dict | None = None,
-        timeout: int = 30,
+        timeout: int | None = None,
     ) -> dict:
         body = None
         request_headers = {"Accept": "application/json"}
@@ -149,7 +181,8 @@ class AlfrescoClient:
             body = json.dumps(payload).encode("utf-8")
             request_headers.setdefault("Content-Type", "application/json")
         req = request.Request(url=url, data=body, headers=request_headers, method=method)
-        with request.urlopen(req, timeout=timeout) as response:
+        timeout_value = timeout if isinstance(timeout, int) and timeout > 0 else self.json_timeout
+        with request.urlopen(req, timeout=timeout_value) as response:
             content = response.read().decode("utf-8")
             return json.loads(content) if content else {}
 
@@ -158,14 +191,15 @@ class AlfrescoClient:
         method: str,
         url: str,
         headers: dict[str, str] | None = None,
-        timeout: int = 30,
+        timeout: int | None = None,
         max_bytes: int | None = None,
     ) -> tuple[bytes, str | None]:
         request_headers = {}
         if headers:
             request_headers.update(headers)
         req = request.Request(url=url, headers=request_headers, method=method)
-        with request.urlopen(req, timeout=timeout) as response:
+        timeout_value = timeout if isinstance(timeout, int) and timeout > 0 else self.bytes_timeout
+        with request.urlopen(req, timeout=timeout_value) as response:
             if isinstance(max_bytes, int) and max_bytes > 0:
                 buffer = bytearray()
                 while True:
@@ -234,8 +268,8 @@ class AlfrescoClient:
         expected = str(name)
         expected_folded = expected.casefold()
         cache_key = f"{self._ticket_key(ticket)}|{parent_id}|{expected_folded}"
-        cached = self._cache_get(self._child_cache, cache_key)
-        if cached is not None or cache_key in self._child_cache:
+        cached, has_cached_key = self._cache_get_with_presence(self._child_cache, cache_key)
+        if cached is not None or has_cached_key:
             return cached
 
         skip_count = 0
@@ -432,7 +466,7 @@ class AlfrescoClient:
                 headers=request_headers,
                 method="POST",
             )
-            with request.urlopen(req, timeout=30) as response:
+            with request.urlopen(req, timeout=self.upload_timeout) as response:
                 content = response.read().decode("utf-8")
                 result = json.loads(content) if content else {}
             self._invalidate_structure_cache(ticket)

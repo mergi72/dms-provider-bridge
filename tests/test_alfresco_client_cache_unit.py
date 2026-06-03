@@ -242,3 +242,49 @@ def test_move_node_invalidates_structure_cache_for_ticket(monkeypatch: pytest.Mo
     assert path_key not in client._path_cache
     assert child_key not in client._child_cache
     assert other_path_key in client._path_cache
+
+
+def test_from_config_reads_timeout_settings() -> None:
+    client = AlfrescoClient.from_config(
+        {
+            "base_url": "https://example.test",
+            "api": {"search_root": "/search", "repo_root": "/repo"},
+            "endpoints": {"search": "/search", "nodes": "/nodes"},
+            "doc_library": "/app:company_home/st:sites/cm:deals/cm:documentLibrary",
+            "timeouts": {
+                "requestSeconds": 17,
+                "downloadSeconds": 41,
+                "uploadSeconds": 73,
+            },
+        }
+    )
+
+    assert client.json_timeout == 17
+    assert client.bytes_timeout == 41
+    assert client.upload_timeout == 73
+
+
+def test_create_child_node_uses_configured_upload_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _client()
+    client.upload_timeout = 91
+    captured: dict[str, object] = {}
+
+    class _FakeResponse:
+        def __enter__(self) -> "_FakeResponse":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b'{"entry": {"id": "created-1"}}'
+
+    def fake_urlopen(req, timeout: int = 30):
+        captured["timeout"] = timeout
+        return _FakeResponse()
+
+    monkeypatch.setattr("edocat_bridge.clients.alfresco_client.request.urlopen", fake_urlopen)
+
+    client.create_child_node("ticket-a", "parent-1", "new-file.txt", is_folder=False, content_base64="dGVzdA==")
+
+    assert captured["timeout"] == 91

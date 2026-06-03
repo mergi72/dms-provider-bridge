@@ -445,3 +445,68 @@ def test_item_from_entry_maps_modified_and_read_only_metadata(monkeypatch: pytes
 
     assert item.modified_at == "2026-06-03T08:55:12.123Z"
     assert item.is_read_only is True
+
+
+def test_list_items_retries_once_after_ticket_expiration(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    provider = _provider_with_config(monkeypatch, {"doc_library": "/deals"}, client)
+    auth = BridgeAuthContext(mode="credentials", username="user", password="pass")
+
+    monkeypatch.setattr(provider, "_runtime_credentials", lambda _auth: ("user", "pass", "expired-ticket"))
+    monkeypatch.setattr(client, "create_ticket", lambda username, password: "fresh-ticket", raising=False)
+
+    calls: list[str] = []
+
+    def fake_resolve(path: str, ticket: str | None = None, strict: bool = False) -> dict[str, str]:
+        calls.append(f"resolve:{ticket}")
+        return {
+            "path": "/deals/contracts",
+            "node_id": "node-parent-1",
+            "parent_path": "/deals",
+            "parent_id": "node-root-1",
+            "name": "contracts",
+        }
+
+    def fake_get_children(ticket: str, node_id: str, max_items: int = 200, skip_count: int = 0) -> dict:
+        calls.append(f"children:{ticket}")
+        if ticket == "expired-ticket":
+            raise HTTPError(url="https://example.test", code=401, msg="Unauthorized", hdrs=None, fp=None)
+        return {"list": {"entries": []}}
+
+    monkeypatch.setattr(provider, "_resolve_path", fake_resolve)
+    monkeypatch.setattr(client, "get_children", fake_get_children, raising=False)
+
+    result = provider.list_items("/contracts", auth)
+
+    assert result.total == 0
+    assert "children:expired-ticket" in calls
+    assert "children:fresh-ticket" in calls
+
+
+def test_list_items_maps_expired_ticket_without_refresh_to_auth_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    provider = _provider_with_config(monkeypatch, {"doc_library": "/deals"}, client)
+    auth = BridgeAuthContext(mode="credentials", username="user", password="pass")
+
+    monkeypatch.setattr(provider, "_runtime_credentials", lambda _auth: (None, None, "expired-ticket"))
+    monkeypatch.setattr(client, "create_ticket", lambda username, password: "fresh-ticket", raising=False)
+
+    monkeypatch.setattr(
+        provider,
+        "_resolve_path",
+        lambda path, ticket=None, strict=False: {
+            "path": "/deals/contracts",
+            "node_id": "node-parent-1",
+            "parent_path": "/deals",
+            "parent_id": "node-root-1",
+            "name": "contracts",
+        },
+    )
+
+    def always_unauthorized(ticket: str, node_id: str, max_items: int = 200, skip_count: int = 0) -> dict:
+        raise HTTPError(url="https://example.test", code=401, msg="Unauthorized", hdrs=None, fp=None)
+
+    monkeypatch.setattr(client, "get_children", always_unauthorized, raising=False)
+
+    with pytest.raises(AuthenticationError, match="access denied"):
+        provider.list_items("/contracts", auth)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+from collections.abc import Callable
 from urllib.error import HTTPError
 
 from edocat_bridge.clients.alfresco_client import AlfrescoClient
@@ -43,14 +44,43 @@ class AlfrescoProvider(Provider):
 
     def _ticket(self, auth: BridgeAuthContext | None) -> str:
         username, password, token = self._runtime_credentials(auth)
-        if username and password:
-            return self.client.basic_auth_token(username, password)
         if token:
             normalized = token.strip()
             if normalized.lower().startswith("basic "):
                 return normalized.split(" ", 1)[1].strip()
             return normalized
+        if username and password:
+            return self.client.basic_auth_token(username, password)
         raise ProviderOperationError("Alfresco credentials are missing; live operation cannot continue.")
+
+    def _refresh_ticket(self, auth: BridgeAuthContext | None) -> str | None:
+        try:
+            username, password, _token = self._runtime_credentials(auth)
+        except Exception:
+            return None
+        if not (username and password):
+            return None
+        try:
+            return self.client.create_ticket(username, password)
+        except Exception:
+            return None
+
+    def _run_with_ticket_retry(self, auth: BridgeAuthContext | None, operation: str, fn: Callable[[str], object]):
+        ticket = self._ticket(auth)
+        try:
+            return fn(ticket)
+        except HTTPError as exc:
+            if exc.code not in {401, 403}:
+                raise
+            refreshed = self._refresh_ticket(auth)
+            if not refreshed:
+                raise AuthenticationError(f"Alfresco access denied for {operation}: HTTP {exc.code}.") from exc
+            try:
+                return fn(refreshed)
+            except HTTPError as retry_exc:
+                if retry_exc.code in {401, 403}:
+                    raise AuthenticationError(f"Alfresco access denied for {operation}: HTTP {retry_exc.code}.") from retry_exc
+                raise
 
     def _live_node(self, path: str, auth: BridgeAuthContext | None, ticket: str | None = None) -> dict:
         ticket = ticket or self._ticket(auth)
@@ -108,6 +138,8 @@ class AlfrescoProvider(Provider):
                     node_id = str(live_node["id"])
                 elif strict:
                     raise ProviderOperationError(f"Unable to resolve Alfresco path: {normalized}")
+            except HTTPError:
+                raise
             except Exception:
                 if strict:
                     raise ProviderOperationError(f"Unable to resolve Alfresco path: {normalized}")
@@ -117,6 +149,8 @@ class AlfrescoProvider(Provider):
                     parent_id = str(live_parent["id"])
                 elif strict:
                     raise ProviderOperationError(f"Unable to resolve Alfresco parent path: {parent_path}")
+            except HTTPError:
+                raise
             except Exception:
                 if strict:
                     raise ProviderOperationError(f"Unable to resolve Alfresco parent path: {parent_path}")
@@ -130,15 +164,19 @@ class AlfrescoProvider(Provider):
         }
 
     def list_items(self, path: str, auth: BridgeAuthContext | None = None) -> ListingResult:
-        ticket = self._ticket(auth)
-        resolved = self._resolve_path(path, ticket, strict=True)
         try:
-            response = self.client.get_children(ticket, resolved["node_id"])
-            entries = response.get("list", {}).get("entries", [])
-            items = [self._item_from_entry(item.get("entry", {}), None) for item in entries]
-            return ListingResult(provider=self.name, path=resolved["path"], total=len(items), items=items)
+            def _run(ticket: str) -> ListingResult:
+                resolved = self._resolve_path(path, ticket, strict=True)
+                response = self.client.get_children(ticket, resolved["node_id"])
+                entries = response.get("list", {}).get("entries", [])
+                items = [self._item_from_entry(item.get("entry", {}), None) for item in entries]
+                return ListingResult(provider=self.name, path=resolved["path"], total=len(items), items=items)
+
+            return self._run_with_ticket_retry(auth, f"list {self.client.normalize_path(path)}", _run)
+        except AuthenticationError:
+            raise
         except Exception as exc:
-            raise ProviderOperationError(f"Alfresco list failed for {resolved['path']}: {exc}") from exc
+            raise ProviderOperationError(f"Alfresco list failed for {self.client.normalize_path(path)}: {exc}") from exc
 
     def bridge_endpoint_for(self, operation: str) -> str | None:
         mapping = {
@@ -184,13 +222,18 @@ class AlfrescoProvider(Provider):
         )
 
     def copy_item(self, source: str, destination: str, auth: BridgeAuthContext | None = None) -> OperationResult:
-        ticket = self._ticket(auth)
-        resolved = self._resolve_path(source, ticket, strict=True)
-        target_parent_id, target_name, destination_path = self._target_parent_and_name(destination, ticket)
         try:
-            self.client.copy_node(ticket, resolved["node_id"], target_parent_id, target_name)
+            def _run(ticket: str) -> tuple[dict[str, str], str]:
+                resolved = self._resolve_path(source, ticket, strict=True)
+                target_parent_id, target_name, destination_path = self._target_parent_and_name(destination, ticket)
+                self.client.copy_node(ticket, resolved["node_id"], target_parent_id, target_name)
+                return resolved, destination_path
+
+            resolved, destination_path = self._run_with_ticket_retry(auth, f"copy {source}", _run)
+        except AuthenticationError:
+            raise
         except Exception as exc:
-            raise ProviderOperationError(f"Alfresco copy failed for {resolved['path']} -> {destination_path}: {exc}") from exc
+            raise ProviderOperationError(f"Alfresco copy failed for {source} -> {destination}: {exc}") from exc
         return OperationResult(
             success=True,
             operation="copy",
@@ -201,18 +244,25 @@ class AlfrescoProvider(Provider):
         )
 
     def rename_item(self, source: str, destination: str, auth: BridgeAuthContext | None = None) -> OperationResult:
-        ticket = self._ticket(auth)
-        resolved = self._resolve_path(source, ticket, strict=True)
-        destination_resolved = self._resolve_path(destination, ticket, strict=False)
-        target_parent_id = destination_resolved["parent_id"]
-        target_name = destination_resolved["name"]
-        destination_path = destination_resolved["path"]
-        if not target_name or destination_path == "/":
-            raise ProviderOperationError(f"Alfresco rename failed for {resolved['path']} -> {destination_path}: destination name is missing.")
         try:
-            self.client.move_node(ticket, resolved["node_id"], target_parent_id, target_name)
+            def _run(ticket: str) -> tuple[dict[str, str], str]:
+                resolved = self._resolve_path(source, ticket, strict=True)
+                destination_resolved = self._resolve_path(destination, ticket, strict=False)
+                target_parent_id = destination_resolved["parent_id"]
+                target_name = destination_resolved["name"]
+                destination_path = destination_resolved["path"]
+                if not target_name or destination_path == "/":
+                    raise ProviderOperationError(
+                        f"Alfresco rename failed for {resolved['path']} -> {destination_path}: destination name is missing."
+                    )
+                self.client.move_node(ticket, resolved["node_id"], target_parent_id, target_name)
+                return resolved, destination_path
+
+            resolved, destination_path = self._run_with_ticket_retry(auth, f"rename {source}", _run)
+        except AuthenticationError:
+            raise
         except Exception as exc:
-            raise ProviderOperationError(f"Alfresco rename failed for {resolved['path']} -> {destination_path}: {exc}") from exc
+            raise ProviderOperationError(f"Alfresco rename failed for {source} -> {destination}: {exc}") from exc
         return OperationResult(
             success=True,
             operation="rename",
@@ -223,12 +273,17 @@ class AlfrescoProvider(Provider):
         )
 
     def delete_item(self, target: str, auth: BridgeAuthContext | None = None) -> OperationResult:
-        ticket = self._ticket(auth)
-        resolved = self._resolve_path(target, ticket, strict=True)
         try:
-            self.client.delete_node(ticket, resolved["node_id"])
+            def _run(ticket: str) -> dict[str, str]:
+                resolved = self._resolve_path(target, ticket, strict=True)
+                self.client.delete_node(ticket, resolved["node_id"])
+                return resolved
+
+            resolved = self._run_with_ticket_retry(auth, f"delete {target}", _run)
+        except AuthenticationError:
+            raise
         except Exception as exc:
-            raise ProviderOperationError(f"Alfresco delete failed for {resolved['path']}: {exc}") from exc
+            raise ProviderOperationError(f"Alfresco delete failed for {target}: {exc}") from exc
         return OperationResult(
             success=True,
             operation="delete",
@@ -238,15 +293,22 @@ class AlfrescoProvider(Provider):
         )
 
     def make_dir(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:
-        ticket = self._ticket(auth)
-        resolved = self._resolve_path(path, ticket, strict=False)
-        parent = self._resolve_path(resolved["parent_path"], ticket, strict=True)
-        endpoint = self.client.node_create_child_url(parent["node_id"])
+        endpoint = self.client.node_create_child_url("{parentId}")
         try:
-            self.client.create_child_node(ticket, parent["node_id"], resolved["name"], is_folder=True)
+            def _run(ticket: str) -> tuple[str, str]:
+                nonlocal endpoint
+                resolved = self._resolve_path(path, ticket, strict=False)
+                parent = self._resolve_path(resolved["parent_path"], ticket, strict=True)
+                endpoint = self.client.node_create_child_url(parent["node_id"])
+                self.client.create_child_node(ticket, parent["node_id"], resolved["name"], is_folder=True)
+                return endpoint, resolved["path"]
+
+            endpoint, _resolved_path = self._run_with_ticket_retry(auth, f"mkdir {path}", _run)
+        except AuthenticationError:
+            raise
         except HTTPError as exc:
             if exc.code in {401, 403}:
-                raise AuthenticationError(f"Alfresco access denied for {resolved['path']}: HTTP {exc.code}.") from exc
+                raise AuthenticationError(f"Alfresco access denied for {self.client.normalize_path(path)}: HTTP {exc.code}.") from exc
             if exc.code == 409:
                 return OperationResult(
                     success=True,
@@ -255,9 +317,9 @@ class AlfrescoProvider(Provider):
                     source=path,
                     message=f"endpoint={endpoint};mode=live;status=exists",
                 )
-            raise ProviderOperationError(f"Alfresco mkdir failed for {resolved['path']}: HTTP Error {exc.code}") from exc
+            raise ProviderOperationError(f"Alfresco mkdir failed for {self.client.normalize_path(path)}: HTTP Error {exc.code}") from exc
         except Exception as exc:
-            raise ProviderOperationError(f"Alfresco mkdir failed for {resolved['path']}: {exc}") from exc
+            raise ProviderOperationError(f"Alfresco mkdir failed for {self.client.normalize_path(path)}: {exc}") from exc
         return OperationResult(
             success=True,
             operation="mkdir",
@@ -267,13 +329,18 @@ class AlfrescoProvider(Provider):
         )
 
     def download_item(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:
-        ticket = self._ticket(auth)
-        resolved = self._resolve_path(path, ticket, strict=True)
         max_bytes = self._download_max_bytes()
         try:
-            raw_content, detected_mime = self.client.download_node_content(ticket, resolved["node_id"], max_bytes=max_bytes)
+            def _run(ticket: str) -> tuple[dict[str, str], bytes, str | None]:
+                resolved = self._resolve_path(path, ticket, strict=True)
+                raw_content, detected_mime = self.client.download_node_content(ticket, resolved["node_id"], max_bytes=max_bytes)
+                return resolved, raw_content, detected_mime
+
+            resolved, raw_content, detected_mime = self._run_with_ticket_retry(auth, f"download {path}", _run)
+        except AuthenticationError:
+            raise
         except Exception as exc:
-            raise ProviderOperationError(f"Alfresco download failed for {resolved['path']}: {exc}") from exc
+            raise ProviderOperationError(f"Alfresco download failed for {self.client.normalize_path(path)}: {exc}") from exc
         return OperationResult(
             success=True,
             operation="download",
@@ -286,21 +353,28 @@ class AlfrescoProvider(Provider):
         )
 
     def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, overwrite: bool = False, auth: BridgeAuthContext | None = None) -> OperationResult:
-        ticket = self._ticket(auth)
-        resolved = self._resolve_path(destination, ticket, strict=True)
-        target_parent_id = resolved["parent_id"] if resolved["path"] != "/" and "." in resolved["name"] else resolved["node_id"]
-        target_destination = f"{resolved['path'].rstrip('/')}/{file_name}" if resolved["path"] != "/" and "." not in resolved["name"] else resolved["path"]
         suffix = "?overwrite=true" if overwrite else ""
         content_state = "inline-base64" if content_base64 else "external-stream"
         try:
-            self.client.create_child_node(ticket, target_parent_id, file_name, is_folder=False, content_base64=content_base64)
+            def _run(ticket: str) -> tuple[str, str]:
+                resolved = self._resolve_path(destination, ticket, strict=True)
+                target_parent_id = resolved["parent_id"] if resolved["path"] != "/" and "." in resolved["name"] else resolved["node_id"]
+                target_destination = (
+                    f"{resolved['path'].rstrip('/')}/{file_name}" if resolved["path"] != "/" and "." not in resolved["name"] else resolved["path"]
+                )
+                self.client.create_child_node(ticket, target_parent_id, file_name, is_folder=False, content_base64=content_base64)
+                return self.client.node_create_child_url(target_parent_id), target_destination
+
+            endpoint, target_destination = self._run_with_ticket_retry(auth, f"upload {destination}", _run)
+        except AuthenticationError:
+            raise
         except Exception as exc:
-            raise ProviderOperationError(f"Alfresco upload failed for {resolved['path']} -> {target_destination}: {exc}") from exc
+            raise ProviderOperationError(f"Alfresco upload failed for {destination} -> {file_name}: {exc}") from exc
         return OperationResult(
             success=True,
             operation="upload",
             provider=self.name,
             source=file_name,
             destination=target_destination,
-            message=f"endpoint={self.client.node_create_child_url(target_parent_id)}{suffix};content={content_state};mode=live",
+            message=f"endpoint={endpoint}{suffix};content={content_state};mode=live",
         )
