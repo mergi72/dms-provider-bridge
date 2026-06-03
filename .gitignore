@@ -27,6 +27,7 @@ env/
 # Build artifacts
 build/
 dist/
+artifacts/
 *.egg-info/
 
 # IDE files

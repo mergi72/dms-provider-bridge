@@ -43,6 +43,22 @@ Rychlé spuštění (Bash, např. Git Bash/WSL):
 
 Poznámka: oba skripty hledají interpreter v pořadí `.venv312`, `.venv`, a nakonec systémový `python`/`python3` z PATH.
 
+## Cisty Release ZIP (Bez Cache)
+
+Pro release balicek pouzij archivaci z Gitu, ktera bere jen trackovane soubory:
+
+```powershell
+.\scripts\build-release-zip.ps1
+```
+
+Tento postup automaticky vylouci lokalni balast jako `__pycache__/`, `*.pyc`, `.venv/` a runtime logy.
+
+Pokud chces predtim uklidit lokalni workspace, pouzij:
+
+```powershell
+.\scripts\clean-artifacts.ps1
+```
+
 ## Bezpecne Testovani (ENV)
 
 Pro lokalni smoke testy nepouzivej hardcoded hesla v historii shellu. Nastav si je do environment promennych a payload skladat z nich.
