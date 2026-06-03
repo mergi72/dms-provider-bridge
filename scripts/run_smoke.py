@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -13,6 +14,10 @@ def _fail(message: str) -> None:
 
 def main() -> None:
     repo_root = Path(__file__).resolve().parents[1]
+    src_root = repo_root / "src"
+    if str(src_root) not in sys.path:
+        sys.path.insert(0, str(src_root))
+
     fso_config_path = repo_root / "config" / "fso.json"
 
     if not fso_config_path.exists():

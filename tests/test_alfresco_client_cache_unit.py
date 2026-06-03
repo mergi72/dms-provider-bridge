@@ -153,20 +153,45 @@ def test_create_child_node_includes_content_payload(monkeypatch: pytest.MonkeyPa
 
     captured: dict[str, object] = {}
 
-    def fake_request_json(self: AlfrescoClient, method: str, url: str, headers: dict[str, str] | None = None, payload: dict | None = None, timeout: int = 30) -> dict:
-        captured["method"] = method
-        captured["url"] = url
-        captured["payload"] = payload or {}
-        return {"entry": {"id": "created-1"}}
+    def fail_request_json(self: AlfrescoClient, method: str, url: str, headers: dict[str, str] | None = None, payload: dict | None = None, timeout: int = 30) -> dict:
+        raise AssertionError("Multipart upload path should not call _request_json.")
 
-    monkeypatch.setattr(AlfrescoClient, "_request_json", fake_request_json)
+    monkeypatch.setattr(AlfrescoClient, "_request_json", fail_request_json)
+
+    class _FakeResponse:
+        def __enter__(self) -> "_FakeResponse":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b'{"entry": {"id": "created-1"}}'
+
+    def fake_urlopen(req, timeout: int = 30):
+        captured["method"] = req.get_method()
+        captured["url"] = req.full_url
+        captured["headers"] = {k.lower(): v for k, v in req.header_items()}
+        captured["body"] = req.data
+        captured["timeout"] = timeout
+        return _FakeResponse()
+
+    monkeypatch.setattr("edocat_bridge.clients.alfresco_client.request.urlopen", fake_urlopen)
 
     client.create_child_node("ticket-a", "parent-1", "new-file.txt", is_folder=False, content_base64="dGVzdA==")
 
-    payload = captured["payload"]
-    assert isinstance(payload, dict)
-    assert payload["content"] == "dGVzdA=="
-    assert payload["properties"] == {"cm:description": "Uploaded via edocat-bridge"}
+    headers = captured["headers"]
+    assert isinstance(headers, dict)
+    assert headers["content-type"].startswith("multipart/form-data; boundary=")
+
+    body = captured["body"]
+    assert isinstance(body, bytes)
+    assert b'name="name"' in body
+    assert b"new-file.txt" in body
+    assert b'name="nodeType"' in body
+    assert b"cm:content" in body
+    assert b'name="filedata"; filename="new-file.txt"' in body
+    assert b"test" in body
 
 
 def test_alfresco_stat_missing_file_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
