@@ -397,13 +397,51 @@ class AlfrescoClient:
     ) -> dict:
         folder_type = self._configured_node_type("folder", "cm:folder")
         file_type = self._configured_node_type("file", "cm:content")
+        if not is_folder and content_base64 is not None:
+            try:
+                content_bytes = base64.b64decode(content_base64, validate=True)
+            except Exception as exc:
+                raise ValueError("Invalid base64 payload for Alfresco upload.") from exc
+
+            boundary = f"----edocatbridge{hashlib.sha1(name.encode('utf-8')).hexdigest()[:16]}"
+            safe_name = name.replace('"', "_")
+
+            body = bytearray()
+
+            def append_field(field_name: str, field_value: str) -> None:
+                body.extend(f"--{boundary}\r\n".encode("utf-8"))
+                body.extend(f"Content-Disposition: form-data; name=\"{field_name}\"\r\n\r\n".encode("utf-8"))
+                body.extend(field_value.encode("utf-8"))
+                body.extend(b"\r\n")
+
+            append_field("name", name)
+            append_field("nodeType", file_type)
+            body.extend(f"--{boundary}\r\n".encode("utf-8"))
+            body.extend(f"Content-Disposition: form-data; name=\"filedata\"; filename=\"{safe_name}\"\r\n".encode("utf-8"))
+            body.extend(b"Content-Type: application/octet-stream\r\n\r\n")
+            body.extend(content_bytes)
+            body.extend(b"\r\n")
+            body.extend(f"--{boundary}--\r\n".encode("utf-8"))
+
+            request_headers = self.auth_headers(ticket)
+            request_headers["Accept"] = "application/json"
+            request_headers["Content-Type"] = f"multipart/form-data; boundary={boundary}"
+            req = request.Request(
+                url=self.node_create_child_url(parent_id),
+                data=bytes(body),
+                headers=request_headers,
+                method="POST",
+            )
+            with request.urlopen(req, timeout=30) as response:
+                content = response.read().decode("utf-8")
+                result = json.loads(content) if content else {}
+            self._invalidate_structure_cache(ticket)
+            return result
+
         payload: dict[str, object] = {
             "name": name,
             "nodeType": folder_type if is_folder else file_type,
         }
-        if content_base64:
-            payload["content"] = content_base64
-            payload["properties"] = {"cm:description": "Uploaded via edocat-bridge"}
         response = self._request_json(
             "POST",
             self.node_create_child_url(parent_id),
