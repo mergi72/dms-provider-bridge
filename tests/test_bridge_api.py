@@ -158,11 +158,11 @@ def test_core_wfx_operations_smoke() -> None:
             "auth": auth,
         },
     )
-    rename_resp = client.post(
-        "/bridge/wfx/rename",
+    move_resp = client.post(
+        "/bridge/wfx/move",
         json={
             "source": "alfresco:/contracts/sample.txt",
-            "destination": "alfresco:/contracts/sample-renamed.txt",
+            "destination": "alfresco:/contracts/sample-moved.txt",
             "auth": auth,
         },
     )
@@ -191,7 +191,7 @@ def test_core_wfx_operations_smoke() -> None:
         mkdir_resp,
         delete_resp,
         copy_resp,
-        rename_resp,
+        move_resp,
         upload_resp,
     ]:
         assert resp.status_code == 200

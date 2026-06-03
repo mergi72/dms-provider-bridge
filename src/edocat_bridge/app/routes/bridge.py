@@ -43,8 +43,8 @@ def bridge_delete(payload: WfxPathRequest) -> dict:
     return delete_path(payload.path, payload.auth).model_dump()
 
 
-@router.post("/rename")
-def bridge_rename(payload: WfxMoveRequest) -> dict:
+@router.post("/move")
+def bridge_move(payload: WfxMoveRequest) -> dict:
     return rename_path(payload.source, payload.destination, payload.auth).model_dump()
 
 
