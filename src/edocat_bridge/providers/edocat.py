@@ -40,6 +40,20 @@ class EdocatProvider(Provider):
             return normalized
         return f"{root}{normalized}"
 
+    def _public_path(self, path: str) -> str:
+        normalized = (path or "").strip() or "/"
+        if not normalized.startswith("/"):
+            normalized = f"/{normalized}"
+        normalized = normalized.rstrip("/") or "/"
+
+        root = self._browse_root()
+        if normalized == root:
+            return "/"
+        if root != "/" and normalized.startswith(f"{root}/"):
+            public_path = normalized[len(root):]
+            return public_path if public_path.startswith("/") else f"/{public_path}"
+        return normalized
+
     def _runtime_credentials(self, auth: BridgeAuthContext | None) -> tuple[str | None, str | None]:
         if auth is None:
             return None, None
@@ -291,6 +305,7 @@ class EdocatProvider(Provider):
 
     def _item_from_node(self, node: dict, fallback_path: str) -> DmsItem:
         node_path = self._normalize_node_path(node) or fallback_path
+        public_path = self._public_path(node_path)
         name = str(node.get("name") or node_path.rstrip("/").split("/")[-1] or "/")
         node_type = str(node.get("nodeType") or "")
         is_folder = node_type.lower().endswith("folder") or node_type.lower().endswith("basefolder")
@@ -311,7 +326,7 @@ class EdocatProvider(Provider):
         return DmsItem(
             id=str(node.get("uuid") or node.get("id") or name),
             name=name,
-            path=node_path,
+            path=public_path,
             is_folder=is_folder,
             size=size,
             mime_type=str(node.get("mimeType")) if node.get("mimeType") else None,
@@ -453,7 +468,7 @@ class EdocatProvider(Provider):
         resolved_path = self._resolve_path(path)
         nodes = self._direct_child_nodes(resolved_path, auth, include_content=False)
         items = [self._item_from_node(node, resolved_path) for node in nodes if isinstance(node, dict)]
-        return ListingResult(provider=self.name, path=resolved_path, total=len(items), items=items)
+        return ListingResult(provider=self.name, path=self._public_path(resolved_path), total=len(items), items=items)
 
     def bridge_endpoint_for(self, operation: str) -> str | None:
         mapping = {
@@ -474,7 +489,7 @@ class EdocatProvider(Provider):
         if node is not None:
             return self._item_from_node(node, resolved_path)
 
-        if resolved_path == "/":
+        if self._public_path(resolved_path) == "/":
             return DmsItem(id="edo-root", name="/", path="/", is_folder=True)
         return None
 
@@ -523,8 +538,8 @@ class EdocatProvider(Provider):
             success=True,
             operation="copy",
             provider=self.name,
-            source=source_path,
-            destination=destination_path,
+            source=self._public_path(source_path),
+            destination=self._public_path(destination_path),
             message=f"endpoint={self.bridge_endpoint_for('copy')};uuid={target_uuid};mode=live",
         )
 
@@ -573,8 +588,8 @@ class EdocatProvider(Provider):
             success=True,
             operation="rename",
             provider=self.name,
-            source=source_path,
-            destination=destination_path,
+            source=self._public_path(source_path),
+            destination=self._public_path(destination_path),
             message=f"endpoint={self.bridge_endpoint_for('rename')};uuid={target_uuid};mode=live",
         )
 
@@ -611,7 +626,7 @@ class EdocatProvider(Provider):
             success=True,
             operation="delete",
             provider=self.name,
-            source=target_path,
+            source=self._public_path(target_path),
             message=f"endpoint={self.bridge_endpoint_for('delete')};uuid={uuid};mode=live",
         )
 
@@ -641,7 +656,7 @@ class EdocatProvider(Provider):
             success=True,
             operation="mkdir",
             provider=self.name,
-            source=resolved_path,
+            source=self._public_path(resolved_path),
             message=f"endpoint={self.bridge_endpoint_for('mkdir')};uuid={target_uuid};mode=live",
         )
 
@@ -690,7 +705,7 @@ class EdocatProvider(Provider):
             success=True,
             operation="download",
             provider=self.name,
-            source=resolved_path,
+            source=self._public_path(resolved_path),
             message=f"endpoint={self.client.endpoint_url('query')};content=live",
             content_base64=content,
             mime_type=mime_type,
@@ -722,6 +737,6 @@ class EdocatProvider(Provider):
             operation="upload",
             provider=self.name,
             source=file_name,
-            destination=target,
+            destination=self._public_path(target),
             message=f"endpoint={self.client.endpoint_url('node')};uuid={target_uuid};mode=live",
         )

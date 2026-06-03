@@ -118,7 +118,7 @@ def test_rename_item_uses_update_node(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert result.success is True
     assert result.operation == "rename"
-    assert result.destination == "/deals/folder/new.txt"
+    assert result.destination == "/folder/new.txt"
     client.update_node.assert_called_once_with(
         {"uuid": "node-1", "name": "new.txt"},
         username="user",
@@ -347,7 +347,7 @@ def test_list_items_returns_only_direct_children(monkeypatch: pytest.MonkeyPatch
 
     listing = provider.list_items("/folder", BridgeAuthContext(mode="credentials", username="user", password="pass"))
 
-    assert listing.path == "/deals/folder"
+    assert listing.path == "/folder"
     assert listing.total == 2
     assert [item.name for item in listing.items] == ["sub", "a.txt"]
 
@@ -876,7 +876,7 @@ def test_stat_item_prefers_exact_path_over_first_query_result(monkeypatch: pytes
     assert item is not None
     assert item.id == "target-1"
     assert item.name == "target.pdf"
-    assert item.path == "/deals/folder/target.pdf"
+    assert item.path == "/folder/target.pdf"
 
 
 def test_stat_item_missing_leaf_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -949,7 +949,7 @@ def test_stat_item_resolves_folder_from_parent_query_when_leaf_query_returns_chi
     assert item is not None
     assert item.id == "folder-1"
     assert item.name == "bambule"
-    assert item.path == "/deals/folder/bambule"
+    assert item.path == "/folder/bambule"
     assert item.is_folder is True
 
 
