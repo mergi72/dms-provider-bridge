@@ -18,6 +18,7 @@ class FakeClient:
     def __init__(self) -> None:
         self.create_child_node_calls: list[dict[str, Any]] = []
         self.download_node_content_calls: list[dict[str, Any]] = []
+        self.move_node_calls: list[dict[str, Any]] = []
 
     def node_create_child_url(self, parent_id: str) -> str:
         return f"https://example.test/repo/nodes/{parent_id}/children"
@@ -40,6 +41,9 @@ class FakeClient:
     def node_content_url(self, node_id: str) -> str:
         return f"https://example.test/repo/nodes/{node_id}/content"
 
+    def node_move_url(self, node_id: str) -> str:
+        return f"https://example.test/repo/nodes/{node_id}/move"
+
     def download_node_content(self, ticket: str, node_id: str, max_bytes: int | None = None) -> tuple[bytes, str | None]:
         self.download_node_content_calls.append(
             {
@@ -51,6 +55,17 @@ class FakeClient:
         if isinstance(max_bytes, int) and max_bytes < 4:
             raise ValueError("Alfresco download payload exceeds limit")
         return (b"test", "application/octet-stream")
+
+    def move_node(self, ticket: str, node_id: str, target_parent_id: str, name: str | None = None) -> dict:
+        self.move_node_calls.append(
+            {
+                "ticket": ticket,
+                "node_id": node_id,
+                "target_parent_id": target_parent_id,
+                "name": name,
+            }
+        )
+        return {"entry": {"id": node_id, "name": name or ""}}
 
 
 def _provider(monkeypatch: pytest.MonkeyPatch, client: FakeClient | None = None) -> AlfrescoProvider:
@@ -107,6 +122,46 @@ def test_upload_item_passes_content_base64_to_client(monkeypatch: pytest.MonkeyP
             "content_base64": "dGVzdA==",
         }
     ]
+
+
+def test_rename_item_allows_new_destination_leaf_that_does_not_yet_exist(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    provider = _provider_with_config(monkeypatch, {"doc_library": "/deals"}, client)
+
+    monkeypatch.setattr(provider, "_ticket", lambda auth: "ticket-a")
+    monkeypatch.setattr(
+        provider,
+        "_resolve_path",
+        lambda path, ticket=None, strict=False: (
+            {
+                "path": "/deals/folder/old.txt",
+                "node_id": "node-old",
+                "parent_path": "/deals/folder",
+                "parent_id": "node-parent-1",
+                "name": "old.txt",
+            }
+            if path.endswith("old.txt")
+            else {
+                "path": "/deals/folder/new.txt",
+                "node_id": "node-missing",
+                "parent_path": "/deals/folder",
+                "parent_id": "node-parent-1",
+                "name": "new.txt",
+            }
+        ),
+    )
+
+    result = provider.rename_item(
+        "/folder/old.txt",
+        "/folder/new.txt",
+        auth=BridgeAuthContext(mode="credentials", username="user", password="pass"),
+    )
+
+    assert result.success is True
+    assert result.destination == "/deals/folder/new.txt"
+    assert result.message is not None
+    assert client.create_child_node_calls == []
+    assert result.operation == "rename"
 
 
 def test_download_item_passes_max_bytes_and_returns_content(monkeypatch: pytest.MonkeyPatch) -> None:

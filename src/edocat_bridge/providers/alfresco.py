@@ -189,7 +189,12 @@ class AlfrescoProvider(Provider):
     def rename_item(self, source: str, destination: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         ticket = self._ticket(auth)
         resolved = self._resolve_path(source, ticket, strict=True)
-        target_parent_id, target_name, destination_path = self._target_parent_and_name(destination, ticket)
+        destination_resolved = self._resolve_path(destination, ticket, strict=False)
+        target_parent_id = destination_resolved["parent_id"]
+        target_name = destination_resolved["name"]
+        destination_path = destination_resolved["path"]
+        if not target_name or destination_path == "/":
+            raise ProviderOperationError(f"Alfresco rename failed for {resolved['path']} -> {destination_path}: destination name is missing.")
         try:
             self.client.move_node(ticket, resolved["node_id"], target_parent_id, target_name)
         except Exception as exc:
