@@ -1,8 +1,8 @@
 # dms-provider-bridge
 
-[![CI](https://github.com/mergi72/edocat-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/edocat-bridge/actions/workflows/ci.yml)
+[![CI](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml)
 
-`dms-provider-bridge` (repository: `edocat-bridge`) is a base bridge service skeleton for integrating multiple DMS providers (eDoCat, Alfresco, FSO, ...).
+`dms-provider-bridge` is a base bridge service skeleton for integrating multiple DMS providers (eDoCat, Alfresco, FSO, ...).
 
 ## Quick Start
 
