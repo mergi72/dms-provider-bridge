@@ -6,8 +6,6 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from edocat_bridge.app.server import create_app
-
 
 def _fail(message: str) -> None:
     raise RuntimeError(f"Bridge smoke failed: {message}")
@@ -37,6 +35,9 @@ def main() -> None:
             ),
             encoding="utf-8",
         )
+
+        # Import app only after temporary config is written; provider registry is built at import time.
+        from edocat_bridge.app.server import create_app
 
         client = TestClient(create_app())
 
