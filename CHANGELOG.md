@@ -5,6 +5,7 @@
 ### Changed
 - Bridge WFX rename endpoint was replaced by move endpoint: use `POST /bridge/wfx/move`.
 - Share URL browse operation name was aligned from `rename` to `move`.
+- Share URL operation contract now uses `move` only; `rename` is no longer accepted.
 - Cross-provider copy routing now supports `fso -> dms` via upload flow.
 - Alfresco file uploads now use `multipart/form-data` payloads for content upload compatibility.
 
