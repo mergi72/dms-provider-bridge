@@ -226,9 +226,9 @@ def copy_path(source: str, destination: str, auth: BridgeAuthContext) -> WfxResp
             response = _success(data=result.model_dump(), metadata=_metadata(src_provider, "copy"))
             return _log_and_return("copy", provider_name, operation_path, started_at, response)
 
-        # First supported cross-provider flow: local file system -> eDoCat.
-        if not (src_provider.name == "fso" and dst_provider.name == "edocat"):
-            response = _failure(WfxErrorCode.NOT_SUPPORTED, "Cross-provider copy is supported only for fso -> edocat.")
+        # Cross-provider upload flow: local file system provider -> any DMS provider.
+        if src_provider.name != "fso" or dst_provider.name == "fso":
+            response = _failure(WfxErrorCode.NOT_SUPPORTED, "Cross-provider copy is supported only for fso -> dms providers.")
             return _log_and_return("copy", provider_name, operation_path, started_at, response, response.message)
 
         try:

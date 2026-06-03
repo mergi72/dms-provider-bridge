@@ -83,6 +83,54 @@ def test_copy_path_cross_provider_fso_to_edocat_uses_download_and_upload(monkeyp
     )
 
 
+def test_copy_path_cross_provider_fso_to_alfresco_uses_download_and_upload(monkeypatch: pytest.MonkeyPatch) -> None:
+    src_provider = DummyProvider("fso")
+    dst_provider = DummyProvider("alfresco", config={"transfer": {"maxBase64Bytes": 1024 * 1024}})
+
+    src_provider.stat_item.return_value = DmsItem(id="f-1", name="source.txt", path="/source.txt", is_folder=False)
+    src_provider.download_item.return_value = OperationResult(
+        success=True,
+        operation="download",
+        provider="fso",
+        source="/source.txt",
+        content_base64="dGVzdA==",
+        mime_type="text/plain",
+        size=4,
+    )
+    dst_provider.upload_item.return_value = OperationResult(
+        success=True,
+        operation="upload",
+        provider="alfresco",
+        source="source.txt",
+        destination="/target.txt",
+        message="upload-ok",
+    )
+
+    monkeypatch.setattr(bridge_service_module, "validate_bridge_auth", lambda auth: None)
+    monkeypatch.setattr(
+        bridge_service_module,
+        "_resolve",
+        lambda path: (src_provider, type("P", (), {"path": "/source.txt"})())
+        if path == "fso:/source.txt"
+        else (dst_provider, type("P", (), {"path": "/target/target.txt"})()),
+    )
+
+    response = bridge_service_module.copy_path("fso:/source.txt", "alfresco:/target/target.txt", _auth())
+
+    assert response.ok is True
+    assert isinstance(response.data, dict)
+    assert response.data["operation"] == "copy"
+    assert response.data["provider"] == "alfresco"
+    src_provider.download_item.assert_called_once_with("/source.txt", _auth())
+    dst_provider.upload_item.assert_called_once_with(
+        "/target",
+        "target.txt",
+        content_base64="dGVzdA==",
+        overwrite=False,
+        auth=_auth(),
+    )
+
+
 def test_copy_path_cross_provider_rejects_payload_over_limit(monkeypatch: pytest.MonkeyPatch) -> None:
     src_provider = DummyProvider("fso")
     dst_provider = DummyProvider("edocat", config={"transfer": {"maxBase64Bytes": 4}})
@@ -130,7 +178,7 @@ def test_copy_path_cross_provider_rejects_unsupported_direction(monkeypatch: pyt
 
     assert response.ok is False
     assert response.error_code == bridge_service_module.WfxErrorCode.NOT_SUPPORTED
-    assert "only for fso -> edocat" in (response.message or "")
+    assert "only for fso -> dms providers" in (response.message or "")
 
 
 def test_copy_path_cross_provider_fso_folder_creates_target_and_uploads_children(monkeypatch: pytest.MonkeyPatch) -> None:
