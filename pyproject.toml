@@ -3,13 +3,13 @@ requires = ["hatchling>=1.24.2"]
 build-backend = "hatchling.build"
 
 [project]
-name = "edocat-bridge"
+name = "dms-provider-bridge"
 version = "0.2.0"
-description = "Bridge service for Edocat and external DMS providers"
+description = "Provider bridge service for DMS systems such as eDoCat, Alfresco and FSO, with WFX API support."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
-  { name = "edocat-bridge team" }
+  { name = "dms-provider-bridge team" }
 ]
 dependencies = [
   "fastapi>=0.116.0",
@@ -32,6 +32,7 @@ markers = [
 ]
 
 [project.scripts]
+dms-provider-bridge = "edocat_bridge.main:main"
 edocat-bridge = "edocat_bridge.main:main"
 
 [tool.hatch.build.targets.wheel]
