@@ -71,6 +71,11 @@ class AlfrescoProvider(Provider):
         name = entry.get("name") or (fallback_path.rstrip("/").split("/")[-1] if fallback_path else "") or "/"
         path = fallback_path or entry.get("path", {}).get("name", "/") or "/"
         is_folder = entry.get("isFolder") if isinstance(entry.get("isFolder"), bool) else str(entry.get("nodeType", "")).endswith("folder")
+        modified_at = entry.get("modifiedAt")
+        if modified_at is not None:
+            modified_at = str(modified_at)
+        lock_type = props.get("cm:lockType") if isinstance(props, dict) else None
+        is_read_only = bool(lock_type) if lock_type is not None else None
         return DmsItem(
             id=str(entry.get("id") or self.client.node_id_from_path(path)),
             name=str(name),
@@ -78,6 +83,8 @@ class AlfrescoProvider(Provider):
             is_folder=bool(is_folder),
             size=entry.get("content", {}).get("sizeInBytes") if isinstance(entry.get("content"), dict) else None,
             mime_type=entry.get("content", {}).get("mimeType") if isinstance(entry.get("content"), dict) else props.get("cm:content.mimetype"),
+            modified_at=modified_at,
+            is_read_only=is_read_only,
         )
 
     def _resolve_path(self, path: str, ticket: str | None = None, strict: bool = False) -> dict[str, str]:

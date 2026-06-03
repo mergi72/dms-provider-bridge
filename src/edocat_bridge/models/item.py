@@ -10,3 +10,5 @@ class DmsItem(BaseModel):
     is_folder: bool = False
     size: int | None = None
     mime_type: str | None = None
+    modified_at: str | None = None
+    is_read_only: bool | None = None

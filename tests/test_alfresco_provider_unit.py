@@ -44,6 +44,12 @@ class FakeClient:
     def node_move_url(self, node_id: str) -> str:
         return f"https://example.test/repo/nodes/{node_id}/move"
 
+    def normalize_path(self, path: str) -> str:
+        value = path.strip() or "/"
+        if not value.startswith("/"):
+            value = f"/{value}"
+        return value.rstrip("/") or "/"
+
     def download_node_content(self, ticket: str, node_id: str, max_bytes: int | None = None) -> tuple[bytes, str | None]:
         self.download_node_content_calls.append(
             {
@@ -219,3 +225,22 @@ def test_download_item_over_limit_raises_provider_error(monkeypatch: pytest.Monk
             "/contracts/a.txt",
             auth=BridgeAuthContext(mode="credentials", username="user", password="pass"),
         )
+
+
+def test_item_from_entry_maps_modified_and_read_only_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _provider(monkeypatch, FakeClient())
+
+    item = provider._item_from_entry(
+        {
+            "id": "node-1",
+            "name": "report.docx",
+            "path": {"name": "/deals/reports/report.docx"},
+            "isFolder": False,
+            "modifiedAt": "2026-06-03T08:55:12.123Z",
+            "properties": {"cm:lockType": "WRITE_LOCK"},
+            "content": {"sizeInBytes": 123, "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+        }
+    )
+
+    assert item.modified_at == "2026-06-03T08:55:12.123Z"
+    assert item.is_read_only is True

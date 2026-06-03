@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+from datetime import datetime, timezone
 import mimetypes
 import os
 import shutil
@@ -76,6 +77,14 @@ class FsoProvider(Provider):
         normalized_parent = self._normalize_virtual_path(parent).rstrip("/") or "/"
         return f"{normalized_parent}/{name}" if normalized_parent != "/" else f"/{name}"
 
+    def _modified_at_iso(self, stat_result: os.stat_result | None) -> str | None:
+        if stat_result is None:
+            return None
+        try:
+            return datetime.fromtimestamp(stat_result.st_mtime, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+        except (OSError, OverflowError, ValueError):
+            return None
+
     def list_items(self, path: str, auth: BridgeAuthContext | None = None) -> ListingResult:
         virtual_path = self._normalize_virtual_path(path)
         local_path = self._to_local_path(virtual_path)
@@ -89,11 +98,13 @@ class FsoProvider(Provider):
             is_folder = entry.is_dir()
             size = None
             mime_type = None
+            stat_result = None
+            try:
+                stat_result = entry.stat()
+            except OSError:
+                stat_result = None
             if not is_folder:
-                try:
-                    size = entry.stat().st_size
-                except OSError:
-                    size = None
+                size = stat_result.st_size if stat_result is not None else None
                 mime_type = mimetypes.guess_type(entry.name)[0]
             items.append(
                 DmsItem(
@@ -103,6 +114,8 @@ class FsoProvider(Provider):
                     is_folder=is_folder,
                     size=size,
                     mime_type=mime_type,
+                    modified_at=self._modified_at_iso(stat_result),
+                    is_read_only=not os.access(entry.path, os.W_OK),
                 )
             )
 
@@ -122,10 +135,20 @@ class FsoProvider(Provider):
             return None
 
         is_folder = os.path.isdir(local_path)
-        size = None if is_folder else os.path.getsize(local_path)
+        stat_result = os.stat(local_path)
+        size = None if is_folder else stat_result.st_size
         mime_type = None if is_folder else mimetypes.guess_type(local_path)[0]
         name = os.path.basename(local_path.rstrip("\\/")) or "/"
-        return DmsItem(id=virtual_path, name=name, path=virtual_path, is_folder=is_folder, size=size, mime_type=mime_type)
+        return DmsItem(
+            id=virtual_path,
+            name=name,
+            path=virtual_path,
+            is_folder=is_folder,
+            size=size,
+            mime_type=mime_type,
+            modified_at=self._modified_at_iso(stat_result),
+            is_read_only=not os.access(local_path, os.W_OK),
+        )
 
     def copy_item(self, source: str, destination: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         src_virtual = self._normalize_virtual_path(source)

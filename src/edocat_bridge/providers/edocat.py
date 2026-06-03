@@ -297,6 +297,17 @@ class EdocatProvider(Provider):
         size = node.get("size")
         if not isinstance(size, int):
             size = None
+        modified_at = (
+            node.get("modifiedAt")
+            or node.get("lastModified")
+            or node.get("modified")
+            or node.get("lastModificationDate")
+        )
+        if modified_at is not None:
+            modified_at = str(modified_at)
+        read_only_flag = node.get("readOnly")
+        if not isinstance(read_only_flag, bool):
+            read_only_flag = None
         return DmsItem(
             id=str(node.get("uuid") or node.get("id") or name),
             name=name,
@@ -304,6 +315,8 @@ class EdocatProvider(Provider):
             is_folder=is_folder,
             size=size,
             mime_type=str(node.get("mimeType")) if node.get("mimeType") else None,
+            modified_at=modified_at,
+            is_read_only=read_only_flag,
         )
 
     def _node_uuid(self, node: dict | None) -> str:
@@ -505,7 +518,7 @@ class EdocatProvider(Provider):
             raise ProviderOperationError(f"eDoCat copy failed for {source_path} -> {destination_path}: {exc}") from exc
 
         copied = response if isinstance(response, dict) else {}
-        target_uuid = str(copied.get("uuid") or copied.get("id") or copied.get("name") or name)
+        target_uuid = str(copied.get("uuid") or copied.get("id") or copied.get("name") or source_node.get("name") or "")
         return OperationResult(
             success=True,
             operation="copy",
