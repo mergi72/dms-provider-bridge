@@ -19,30 +19,26 @@ def _auth() -> dict[str, str]:
 
 def _share_url() -> str:
     return (
-        "https://cheminvest.edocat.net/share/page/site/deals/documentlibrary"
-        "#/03%20zak%C3%A1zky%20v%20realizaci/22%20080%20-%20UNI_Novy%20odolejovac%20bl.%2068"
-        "/05%20Realizace/04%20Dokumentace/13%20-%20CHI/Test_DMS/Upload?page=1"
+        "https://example.com/share/page/site/deals/documentlibrary"
+        "#/Team%20Documents/Projects/Upload?page=1"
     )
 
 
 def _source_file_path() -> str:
     return (
-        "/03 zakazky v realizaci/22 080 - UNI_Novy odolejovac bl. 68"
-        "/05 Realizace/04 Dokumentace/13 - CHI/Test_DMS/Upload/sample.txt"
+        "/Team Documents/Projects/Upload/sample.txt"
     )
 
 
 def _target_file_path(name: str) -> str:
     return (
-        "/03 zakazky v realizaci/22 080 - UNI_Novy odolejovac bl. 68"
-        f"/05 Realizace/04 Dokumentace/13 - CHI/Test_DMS/Upload/{name}"
+        f"/Team Documents/Projects/Upload/{name}"
     )
 
 
 def _target_folder_path(name: str) -> str:
     return (
-        "/03 zakazky v realizaci/22 080 - UNI_Novy odolejovac bl. 68"
-        f"/05 Realizace/04 Dokumentace/13 - CHI/Test_DMS/Upload/{name}"
+        f"/Team Documents/Projects/Upload/{name}"
     )
 
 

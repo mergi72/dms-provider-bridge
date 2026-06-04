@@ -192,13 +192,13 @@ def test_rename_item_uses_folder_node_when_edocat_path_is_parent_only(monkeypatc
             {
                 "uuid": "folder-1",
                 "name": "projekt",
-                "path": "/deals/03 zakĂˇzky v realizaci/22 080 - UNI_Novy odolejovac bl. 68/05 Realizace/04 Dokumentace/13 - CHI/Test_DMS",
+                "path": "/deals/Team Documents/Project Files/Upload",
                 "nodeType": "ctfd:baseFolder",
             },
             {
                 "uuid": "file-1",
                 "name": "soubor.txt",
-                "path": "/deals/03 zakĂˇzky v realizaci/22 080 - UNI_Novy odolejovac bl. 68/05 Realizace/04 Dokumentace/13 - CHI/Test_DMS/projekt",
+                "path": "/deals/Team Documents/Project Files/Upload/projekt",
                 "nodeType": "ctbd:baseDoc",
             },
         ]
@@ -206,8 +206,8 @@ def test_rename_item_uses_folder_node_when_edocat_path_is_parent_only(monkeypatc
     provider = _make_provider(monkeypatch, client)
 
     result = provider.rename_item(
-        "/03 zakĂˇzky v realizaci/22 080 - UNI_Novy odolejovac bl. 68/05 Realizace/04 Dokumentace/13 - CHI/Test_DMS/projekt",
-        "/03 zakĂˇzky v realizaci/22 080 - UNI_Novy odolejovac bl. 68/05 Realizace/04 Dokumentace/13 - CHI/Test_DMS/bambule",
+        "/Team Documents/Project Files/Upload/projekt",
+        "/Team Documents/Project Files/Upload/bambule",
         BridgeAuthContext(mode="credentials", username="user", password="pass"),
     )
 

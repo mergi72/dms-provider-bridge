@@ -173,12 +173,12 @@ Alfresco upload transport:
 
 eDoCat Share URL to bridge path conversion:
 
-- `resolve-share-url`: `{ "share_url": "https://.../documentlibrary#/03%20.../Upload?page=1", "provider": "alfresco" }`
+- `resolve-share-url`: `{ "share_url": "https://.../documentlibrary#/Team%20Documents/Upload?page=1", "provider": "alfresco" }`
 - Response returns `data.path` in `alfresco:/...` format, usable for `list/stat/copy/...`.
 
 One-shot browse via Share URL:
 
-- `browse-share-url`: `{ "share_url": "https://.../documentlibrary#/03%20.../Upload?page=1", "provider": "alfresco", "operation": "list|stat|download|copy|move|mkdir|delete|upload", "execute": true, "auth": { ... }, "provider_path_override": "/optional/manual/path", "destination_share_url": "https://...", "destination_path_override": "/target/path", "file_name": "upload.txt", "content_base64": "...", "overwrite": true }`
+- `browse-share-url`: `{ "share_url": "https://.../documentlibrary#/Team%20Documents/Upload?page=1", "provider": "alfresco", "operation": "list|stat|download|copy|move|mkdir|delete|upload", "execute": true, "auth": { ... }, "provider_path_override": "/optional/manual/path", "destination_share_url": "https://...", "destination_path_override": "/target/path", "file_name": "upload.txt", "content_base64": "...", "overwrite": true }`
 - `browse-share-url` is the canonical endpoint; for dry-run validation, use the same endpoint with `execute=false`.
 - Response includes `data.resolved` (URL resolution result), `data.path_source` (`share_url` or `provider_path_override`), and `data.result` (selected operation result).
 - For `copy|move`, `destination_path_override` or `destination_share_url` is additionally required; response contains `data.destination`.
@@ -211,7 +211,7 @@ FSO security notes:
   "key": "fso",
   "fso": {
     "allowedRoots": [
-      "C:/Users/merhautr/python_projects"
+      "C:/MyDocuments"
     ]
   }
 }

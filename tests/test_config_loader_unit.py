@@ -14,7 +14,7 @@ pytestmark = pytest.mark.unit
 def test_load_provider_config_accepts_utf8_bom(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     provider_file = tmp_path / "fso.json"
     provider_file.write_text(
-        '{"key":"fso","fso":{"allowedRoots":["C:/Users/merhautr/python_projects"]}}',
+        '{"key":"fso","fso":{"allowedRoots":["C:/MyDocuments"]}}',
         encoding="utf-8-sig",
     )
 
@@ -22,5 +22,5 @@ def test_load_provider_config_accepts_utf8_bom(tmp_path: Path, monkeypatch: pyte
 
     config = config_loader.load_provider_config("fso")
 
-    assert config["allowedRoots"] == ["C:/Users/merhautr/python_projects"]
+    assert config["allowedRoots"] == ["C:/MyDocuments"]
 
