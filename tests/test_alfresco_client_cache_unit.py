@@ -244,6 +244,75 @@ def test_move_node_invalidates_structure_cache_for_ticket(monkeypatch: pytest.Mo
     assert other_path_key in client._path_cache
 
 
+def test_copy_node_invalidates_structure_cache_for_ticket(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _client()
+    ticket = "ticket-a"
+    ticket_key = client._ticket_key(ticket)
+
+    path_key = f"{ticket_key}|/A/B"
+    child_key = f"{ticket_key}|parent-1|new.txt"
+
+    client._path_cache[path_key] = {"id": "node-stale"}
+    client._child_cache[child_key] = None
+
+    monkeypatch.setattr(
+        AlfrescoClient,
+        "_request_json",
+        lambda self, method, url, headers=None, payload=None, timeout=30: {"entry": {"id": "copied-1"}},
+    )
+
+    client.copy_node(ticket, "node-1", "parent-1", "new.txt")
+
+    assert path_key not in client._path_cache
+    assert child_key not in client._child_cache
+
+
+def test_delete_node_invalidates_structure_cache_for_ticket(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _client()
+    ticket = "ticket-a"
+    ticket_key = client._ticket_key(ticket)
+
+    path_key = f"{ticket_key}|/A/B"
+    child_key = f"{ticket_key}|parent-1|new.txt"
+
+    client._path_cache[path_key] = {"id": "node-stale"}
+    client._child_cache[child_key] = None
+
+    monkeypatch.setattr(
+        AlfrescoClient,
+        "_request_json",
+        lambda self, method, url, headers=None, payload=None, timeout=30: {"entry": {"id": "deleted-1"}},
+    )
+
+    client.delete_node(ticket, "node-1")
+
+    assert path_key not in client._path_cache
+    assert child_key not in client._child_cache
+
+
+def test_create_child_node_invalidates_structure_cache_for_ticket(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _client()
+    ticket = "ticket-a"
+    ticket_key = client._ticket_key(ticket)
+
+    path_key = f"{ticket_key}|/A/B"
+    child_key = f"{ticket_key}|parent-1|new-file.txt"
+
+    client._path_cache[path_key] = {"id": "node-stale"}
+    client._child_cache[child_key] = None
+
+    monkeypatch.setattr(
+        AlfrescoClient,
+        "_request_json",
+        lambda self, method, url, headers=None, payload=None, timeout=30: {"entry": {"id": "created-1"}},
+    )
+
+    client.create_child_node("ticket-a", "parent-1", "new-file.txt", is_folder=False)
+
+    assert path_key not in client._path_cache
+    assert child_key not in client._child_cache
+
+
 def test_from_config_reads_timeout_settings() -> None:
     client = AlfrescoClient.from_config(
         {
