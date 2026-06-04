@@ -454,6 +454,50 @@ def test_stat_path_maps_provider_operation_error_to_internal_error(monkeypatch: 
     assert "query failed" in (response.message or "").lower()
 
 
+def test_stat_path_deduplicates_repeated_leaf(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = DummyProvider("alfresco")
+    valid_item = DmsItem(
+        id="f-1",
+        name="Plant 3D Models_25_06_27.zip",
+        path="/A/B/Plant 3D Models_25_06_27.zip",
+        is_folder=False,
+    )
+
+    def _stat_side_effect(path: str, auth: BridgeAuthContext):
+        if path == "/A/B/Plant 3D Models_25_06_27.zip/Plant 3D Models_25_06_27.zip":
+            return None
+        if path == "/A/B/Plant 3D Models_25_06_27.zip":
+            return valid_item
+        return None
+
+    provider.stat_item.side_effect = _stat_side_effect
+
+    monkeypatch.setattr(bridge_service_module, "validate_bridge_auth", lambda auth: None)
+    monkeypatch.setattr(
+        bridge_service_module,
+        "_resolve",
+        lambda path: (
+            provider,
+            type(
+                "P",
+                (),
+                {"path": "/A/B/Plant 3D Models_25_06_27.zip/Plant 3D Models_25_06_27.zip"},
+            )(),
+        ),
+    )
+
+    response = bridge_service_module.stat_path(
+        "alfresco:/A/B/Plant 3D Models_25_06_27.zip/Plant 3D Models_25_06_27.zip",
+        _auth(),
+    )
+
+    assert response.ok is True
+    assert response.data is not None
+    assert response.data["path"] == "/A/B/Plant 3D Models_25_06_27.zip"
+    assert provider.stat_item.call_args_list[0].args[0] == "/A/B/Plant 3D Models_25_06_27.zip/Plant 3D Models_25_06_27.zip"
+    assert provider.stat_item.call_args_list[1].args[0] == "/A/B/Plant 3D Models_25_06_27.zip"
+
+
 def test_copy_path_cross_provider_fso_folder_rejects_file_over_limit_without_operations(monkeypatch: pytest.MonkeyPatch) -> None:
     src_provider = DummyProvider("fso")
     dst_provider = DummyProvider("edocat", config={"transfer": {"maxBase64Bytes": 3, "maxNodes": 10}})

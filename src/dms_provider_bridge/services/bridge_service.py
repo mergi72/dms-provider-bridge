@@ -37,6 +37,23 @@ def _metadata(provider, operation: str) -> dict[str, str | None]:
     }
 
 
+def _deduplicate_repeated_leaf(path: str) -> str | None:
+    normalized = (path or "").strip()
+    if not normalized:
+        return None
+
+    if not normalized.startswith("/"):
+        normalized = f"/{normalized}"
+
+    parts = [segment for segment in normalized.split("/") if segment]
+    if len(parts) < 2:
+        return None
+    if parts[-1] != parts[-2]:
+        return None
+
+    return "/" + "/".join(parts[:-1])
+
+
 def _log_and_return(
     operation: str,
     provider: str | None,
@@ -111,6 +128,14 @@ def stat_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
         validate_bridge_auth(auth)
         item = provider.stat_item(parsed.path, auth)
         if item is None:
+            deduplicated_path = _deduplicate_repeated_leaf(parsed.path)
+            if deduplicated_path and deduplicated_path != parsed.path:
+                item = provider.stat_item(deduplicated_path, auth)
+                if item is not None:
+                    resolved_path = deduplicated_path
+                    response = _success(data=item.model_dump(), metadata=_metadata(provider, "stat"))
+                    return _log_and_return("stat", provider_name, resolved_path, started_at, response)
+
             response = _failure(WfxErrorCode.NOT_FOUND, f"Path not found: {path}")
             return _log_and_return("stat", provider_name, resolved_path, started_at, response, response.message)
         response = _success(data=item.model_dump(), metadata=_metadata(provider, "stat"))
