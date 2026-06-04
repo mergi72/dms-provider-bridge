@@ -43,6 +43,7 @@ class WfxUploadRequest(BaseModel):
     auth: BridgeAuthContext
     file_name: str = Field(min_length=1)
     content_base64: str | None = None
+    source_path: str | None = None
     overwrite: bool = False
 
 

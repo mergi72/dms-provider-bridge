@@ -477,6 +477,22 @@ def test_upload_item_prefers_base_doc_node_type_from_config(monkeypatch: pytest.
     )
 
 
+def test_upload_item_rejects_source_path_raw_mode(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    client = FakeClient()
+    provider = _make_provider(monkeypatch, client)
+    source = tmp_path / "upload.txt"
+    source.write_bytes(b"hello")
+
+    with pytest.raises(ProviderOperationError, match="raw stream mode is not supported"):
+        provider.upload_item(
+            "/folder",
+            "upload.txt",
+            source_path=str(source),
+            overwrite=False,
+            auth=BridgeAuthContext(mode="credentials", username="user", password="pass"),
+        )
+
+
 def test_copy_item_clones_content_and_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
     client = FakeClient()
     client.query_nodes.return_value = {

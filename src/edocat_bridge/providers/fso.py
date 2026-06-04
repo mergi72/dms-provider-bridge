@@ -219,7 +219,7 @@ class FsoProvider(Provider):
             size=len(data),
         )
 
-    def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, overwrite: bool = False, auth: BridgeAuthContext | None = None) -> OperationResult:
+    def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, source_path: str | None = None, overwrite: bool = False, auth: BridgeAuthContext | None = None) -> OperationResult:
         destination_virtual = self._normalize_virtual_path(destination)
         destination_local = self._to_local_path(destination_virtual)
         self._ensure_allowed(destination_local, "upload", destination_virtual)
@@ -229,9 +229,19 @@ class FsoProvider(Provider):
         if os.path.exists(target_local) and not overwrite:
             raise ProviderOperationError(f"FSO upload failed: target exists and overwrite is false: {target_local}")
 
-        data = base64.b64decode(content_base64) if content_base64 else b""
-        with open(target_local, "wb") as handle:
-            handle.write(data)
+        if source_path:
+            with open(source_path, "rb") as source_handle, open(target_local, "wb") as target_handle:
+                while True:
+                    chunk = source_handle.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    target_handle.write(chunk)
+            size = os.path.getsize(target_local)
+        else:
+            data = base64.b64decode(content_base64) if content_base64 else b""
+            with open(target_local, "wb") as handle:
+                handle.write(data)
+            size = len(data)
 
         target_virtual = self._child_virtual_path(destination_virtual, file_name)
-        return OperationResult(success=True, operation="upload", provider=self.name, source=file_name, destination=target_virtual, size=len(data), mime_type=mimetypes.guess_type(file_name)[0])
+        return OperationResult(success=True, operation="upload", provider=self.name, source=file_name, destination=target_virtual, size=size, mime_type=mimetypes.guess_type(file_name)[0])

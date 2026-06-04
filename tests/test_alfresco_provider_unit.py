@@ -29,7 +29,7 @@ class FakeClient:
     def basic_auth_token(self, username: str, password: str) -> str:
         return "ticket-a"
 
-    def create_child_node(self, ticket: str, parent_id: str, name: str, is_folder: bool = False, content_base64: str | None = None) -> dict:
+    def create_child_node(self, ticket: str, parent_id: str, name: str, is_folder: bool = False, content_base64: str | None = None, source_path: str | None = None) -> dict:
         self.create_child_node_calls.append(
             {
                 "ticket": ticket,
@@ -37,6 +37,7 @@ class FakeClient:
                 "name": name,
                 "is_folder": is_folder,
                 "content_base64": content_base64,
+                "source_path": source_path,
             }
         )
         return {"entry": {"id": "created-1"}}
@@ -150,6 +151,7 @@ def test_upload_item_passes_content_base64_to_client(monkeypatch: pytest.MonkeyP
             "name": "sample.txt",
             "is_folder": False,
             "content_base64": "dGVzdA==",
+            "source_path": None,
         }
     ]
 
@@ -342,6 +344,7 @@ def test_make_dir_allows_new_destination_leaf_that_does_not_yet_exist(monkeypatc
             "name": "new-folder",
             "is_folder": True,
             "content_base64": None,
+            "source_path": None,
         }
     ]
 

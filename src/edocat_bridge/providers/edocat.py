@@ -712,15 +712,20 @@ class EdocatProvider(Provider):
             size=size,
         )
 
-    def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, overwrite: bool = False, auth: BridgeAuthContext | None = None) -> OperationResult:
+    def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, source_path: str | None = None, overwrite: bool = False, auth: BridgeAuthContext | None = None) -> OperationResult:
+        if source_path is not None:
+            raise ProviderOperationError(
+                "eDoCat upload blocked: upstream API requires base64 content in JSON; raw stream mode is not supported."
+            )
         username, password = self._runtime_credentials(auth)
         resolved_destination = self._resolve_path(destination)
         target = f"{resolved_destination.rstrip('/')}/{file_name}" if resolved_destination != "/" else f"/{file_name}"
         parent, name = self._parent_and_name(target)
+        encoded_content = self._encode_if_needed(content_base64)
         payload: dict[str, object] = {
             "path": parent.lstrip("/"),
             "name": name,
-            "content": self._encode_if_needed(content_base64),
+            "content": encoded_content,
             "nodeType": self._document_node_type(),
         }
         if overwrite:

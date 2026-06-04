@@ -4,7 +4,12 @@
     "port": 8765
   },
   "provider": {
-    "default": "edocat"
+    "default": "alfresco"
+  },
+  "upload": {
+    "raw": {
+      "maxBytes": 536870912
+    }
   },
   "logging": {
     "level": "INFO"

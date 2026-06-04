@@ -281,7 +281,7 @@ def download_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
         return _log_and_return("download", provider_name, resolved_path, started_at, response, str(exc))
 
 
-def upload_path(destination: str, file_name: str, auth: BridgeAuthContext, content_base64: str | None = None, overwrite: bool = False) -> WfxResponse:
+def upload_path(destination: str, file_name: str, auth: BridgeAuthContext, content_base64: str | None = None, source_path: str | None = None, overwrite: bool = False) -> WfxResponse:
     started_at = time.perf_counter()
     provider_name: str | None = None
     resolved_path = destination
@@ -291,7 +291,7 @@ def upload_path(destination: str, file_name: str, auth: BridgeAuthContext, conte
         resolved_path = parsed.path
         validate_bridge_auth(auth)
         try:
-            result = upload_with_preflight(provider, parsed.path, file_name, auth, content_base64=content_base64, overwrite=overwrite)
+            result = upload_with_preflight(provider, parsed.path, file_name, auth, content_base64=content_base64, source_path=source_path, overwrite=overwrite)
         except TransferPrecheckError as exc:
             response = _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
             return _log_and_return("upload", provider_name, resolved_path, started_at, response, str(exc))

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import math
 
 from edocat_bridge.models.bridge import BridgeAuthContext
@@ -217,10 +218,16 @@ def copy_fso_to_edocat(src_provider, dst_provider, source_path: str, destination
     )
 
 
-def upload_with_preflight(provider, destination_path: str, file_name: str, auth: BridgeAuthContext, content_base64: str | None = None, overwrite: bool = False) -> OperationResult:
-    max_bytes = max_cross_provider_upload_bytes(provider)
-    payload_bytes = estimated_binary_size_from_base64(content_base64 or "")
-    if payload_bytes > max_bytes:
-        raise TransferPrecheckError(f"Upload blocked: payload size {payload_bytes} B exceeds limit {max_bytes} B.")
+def upload_with_preflight(provider, destination_path: str, file_name: str, auth: BridgeAuthContext, content_base64: str | None = None, source_path: str | None = None, overwrite: bool = False) -> OperationResult:
+    if source_path:
+        try:
+            os.path.getsize(source_path)
+        except OSError as exc:
+            raise TransferPrecheckError(f"Upload blocked: source file is not accessible: {source_path}") from exc
+    else:
+        max_bytes = max_cross_provider_upload_bytes(provider)
+        payload_bytes = estimated_binary_size_from_base64(content_base64 or "")
+        if payload_bytes > max_bytes:
+            raise TransferPrecheckError(f"Upload blocked: payload size {payload_bytes} B exceeds limit {max_bytes} B.")
     ensure_folder_chain(provider, destination_path, auth)
-    return provider.upload_item(destination_path, file_name, content_base64=content_base64, overwrite=overwrite, auth=auth)
+    return provider.upload_item(destination_path, file_name, content_base64=content_base64, source_path=source_path, overwrite=overwrite, auth=auth)

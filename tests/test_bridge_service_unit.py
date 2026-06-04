@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from unittest.mock import Mock
 
 import pytest
@@ -357,7 +358,7 @@ def test_upload_path_creates_destination_chain_top_down(monkeypatch: pytest.Monk
     assert provider.make_dir.call_args_list[0].args == ("/A", _auth())
     assert provider.make_dir.call_args_list[1].args == ("/A/B", _auth())
     assert provider.make_dir.call_args_list[2].args == ("/A/B/C", _auth())
-    provider.upload_item.assert_called_once_with("/A/B/C", "test.txt", content_base64="YQ==", overwrite=False, auth=_auth())
+    provider.upload_item.assert_called_once_with("/A/B/C", "test.txt", content_base64="YQ==", source_path=None, overwrite=False, auth=_auth())
 
 
 def test_upload_path_rejects_payload_over_limit_without_operations(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -372,6 +373,35 @@ def test_upload_path_rejects_payload_over_limit_without_operations(monkeypatch: 
     assert "exceeds limit" in (response.message or "")
     provider.make_dir.assert_not_called()
     provider.upload_item.assert_not_called()
+
+
+def test_upload_path_source_path_bypasses_base64_limit(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    provider = DummyProvider("fso", config={"transfer": {"maxBase64Bytes": 3}})
+    provider.upload_item.return_value = OperationResult(success=True, operation="upload", provider="fso")
+
+    source = tmp_path / "large.bin"
+    source.write_bytes(b"12345")
+
+    monkeypatch.setattr(bridge_service_module, "validate_bridge_auth", lambda auth: None)
+    monkeypatch.setattr(bridge_service_module, "_resolve", lambda destination: (provider, type("P", (), {"path": "/A/B/C"})()))
+
+    response = bridge_service_module.upload_path(
+        "fso:/A/B/C",
+        "large.bin",
+        _auth(),
+        source_path=os.fspath(source),
+        overwrite=False,
+    )
+
+    assert response.ok is True
+    provider.upload_item.assert_called_once_with(
+        "/A/B/C",
+        "large.bin",
+        content_base64=None,
+        source_path=os.fspath(source),
+        overwrite=False,
+        auth=_auth(),
+    )
 
 
 def test_stat_path_maps_provider_authentication_error_to_access_denied(monkeypatch: pytest.MonkeyPatch) -> None:

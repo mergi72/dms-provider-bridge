@@ -1,18 +1,38 @@
 from __future__ import annotations
 
+import json
+import os
+import tempfile
+import time
 from base64 import b64decode
 from pathlib import PurePosixPath
 from urllib.parse import quote
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, File, Form, Response, UploadFile
 from fastapi.responses import JSONResponse
 
-from edocat_bridge.models.bridge import WfxMoveRequest, WfxPathRequest, WfxShareUrlBrowseRequest, WfxShareUrlRequest, WfxShareUrlValidateRequest, WfxUploadRequest
+from edocat_bridge.adapters.commander_api import WfxErrorCode
+from edocat_bridge.core.config_loader import load_config
+from edocat_bridge.core.logging import get_logger
+from edocat_bridge.models.bridge import BridgeAuthContext, WfxMoveRequest, WfxPathRequest, WfxShareUrlBrowseRequest, WfxShareUrlRequest, WfxShareUrlValidateRequest, WfxUploadRequest
 from edocat_bridge.services.bridge_service import browse_share_url, copy_path, delete_path, download_path, list_path, mkdir_path, providers_path, rename_path, resolve_share_url, stat_path, upload_path
 
 router = APIRouter()
 share_url_router = APIRouter()
 RAW_CONTENT_HEADER = "X-Bridge-Raw-Content"
+UPLOAD_RAW_BUFFER_BYTES = 1024 * 1024
+UPLOAD_RAW_MAX_BYTES_DEFAULT = 512 * 1024 * 1024
+_LOGGER = get_logger(__name__)
+
+
+def _upload_raw_max_bytes() -> int:
+    config = load_config()
+    upload_cfg = config.get("upload") if isinstance(config, dict) else None
+    raw_cfg = upload_cfg.get("raw") if isinstance(upload_cfg, dict) else None
+    value = raw_cfg.get("maxBytes") if isinstance(raw_cfg, dict) else None
+    if isinstance(value, int) and value > 0:
+        return value
+    return UPLOAD_RAW_MAX_BYTES_DEFAULT
 
 
 def _build_content_disposition(filename: str) -> str:
@@ -91,8 +111,88 @@ def bridge_upload(payload: WfxUploadRequest) -> dict:
         payload.file_name,
         payload.auth,
         content_base64=payload.content_base64,
+        source_path=payload.source_path,
         overwrite=payload.overwrite,
     ).model_dump()
+
+
+@router.post("/upload-raw")
+async def bridge_upload_raw(
+    destination: str = Form(...),
+    file_name: str = Form(...),
+    overwrite: bool = Form(False),
+    auth_json: str = Form(...),
+    file: UploadFile = File(...),
+) -> dict:
+    started_at = time.perf_counter()
+    temp_path: str | None = None
+    uploaded_bytes = 0
+    max_bytes = _upload_raw_max_bytes()
+    rejected = False
+    try:
+        auth_payload = json.loads(auth_json)
+        auth = BridgeAuthContext.model_validate(auth_payload)
+    except Exception as exc:
+        return {
+            "ok": False,
+            "error_code": WfxErrorCode.BAD_PATH,
+            "message": f"Invalid auth_json payload: {exc}",
+            "data": None,
+        }
+
+    try:
+        suffix = f"-{file_name}" if file_name else ""
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            temp_path = tmp.name
+            while True:
+                chunk = await file.read(UPLOAD_RAW_BUFFER_BYTES)
+                if not chunk:
+                    break
+                if uploaded_bytes + len(chunk) > max_bytes:
+                    rejected = True
+                    return {
+                        "ok": False,
+                        "error_code": WfxErrorCode.INTERNAL_ERROR,
+                        "message": f"Upload blocked: payload size exceeds configured raw limit {max_bytes} B.",
+                        "data": None,
+                    }
+                tmp.write(chunk)
+                uploaded_bytes += len(chunk)
+
+        response = upload_path(
+            destination,
+            file_name,
+            auth,
+            source_path=temp_path,
+            overwrite=overwrite,
+        )
+        return response.model_dump()
+    finally:
+        duration_ms = int((time.perf_counter() - started_at) * 1000)
+        if rejected:
+            _LOGGER.warning(
+                "bridge_upload_raw_rejected destination=%s file=%s bytes=%d max_bytes=%d duration_ms=%d",
+                destination,
+                file_name,
+                uploaded_bytes,
+                max_bytes,
+                duration_ms,
+            )
+        else:
+            _LOGGER.info(
+                "bridge_upload_raw destination=%s file=%s bytes=%d max_bytes=%d duration_ms=%d",
+                destination,
+                file_name,
+                uploaded_bytes,
+                max_bytes,
+                duration_ms,
+            )
+        await file.close()
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError:
+                _LOGGER.warning("bridge_upload_raw cleanup_failed path=%s", temp_path)
 
 
 @router.get("/providers")

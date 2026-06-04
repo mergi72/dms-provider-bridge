@@ -112,6 +112,7 @@ Endpoints:
 - `POST /bridge/wfx/download`
 - `POST /bridge/wfx/download-raw`
 - `POST /bridge/wfx/upload`
+- `POST /bridge/wfx/upload-raw`
 - `POST /bridge/wfx/resolve-share-url`
 - `POST /bridge/wfx/browse-share-url`
 - `POST /bridge/wfx/browse-share-url-validate`
@@ -152,6 +153,13 @@ Transfer operations:
 
 - `download`: `{ "path": "alfresco:/contracts/sample.txt", "auth": { ... } }`
 - `upload`: `{ "destination": "alfresco:/contracts", "file_name": "upload.txt", "content_base64": "...", "overwrite": true, "auth": { ... } }`
+- `upload-raw`: multipart form-data with fields `destination`, `file_name`, `overwrite`, `auth_json`, and binary field `file`
+
+Raw upload limits:
+
+- Config key: `upload.raw.maxBytes` in `config/default.json` (can be overridden in `config/user.json`)
+- Default: `536870912` (512 MB)
+- Bridge rejects larger payloads before provider upload and logs `bytes`, `max_bytes`, and `duration_ms`
 
 eDoCat Share URL to bridge path conversion:
 

@@ -45,5 +45,5 @@ class Provider(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, overwrite: bool = False, auth: BridgeAuthContext | None = None) -> OperationResult:
+    def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, source_path: str | None = None, overwrite: bool = False, auth: BridgeAuthContext | None = None) -> OperationResult:
         raise NotImplementedError

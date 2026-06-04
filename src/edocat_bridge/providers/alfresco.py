@@ -352,9 +352,9 @@ class AlfrescoProvider(Provider):
             size=len(raw_content),
         )
 
-    def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, overwrite: bool = False, auth: BridgeAuthContext | None = None) -> OperationResult:
+    def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, source_path: str | None = None, overwrite: bool = False, auth: BridgeAuthContext | None = None) -> OperationResult:
         suffix = "?overwrite=true" if overwrite else ""
-        content_state = "inline-base64" if content_base64 else "external-stream"
+        content_state = "source-path" if source_path else ("inline-base64" if content_base64 else "external-stream")
         try:
             def _run(ticket: str) -> tuple[str, str]:
                 resolved = self._resolve_path(destination, ticket, strict=True)
@@ -362,7 +362,7 @@ class AlfrescoProvider(Provider):
                 target_destination = (
                     f"{resolved['path'].rstrip('/')}/{file_name}" if resolved["path"] != "/" and "." not in resolved["name"] else resolved["path"]
                 )
-                self.client.create_child_node(ticket, target_parent_id, file_name, is_folder=False, content_base64=content_base64)
+                self.client.create_child_node(ticket, target_parent_id, file_name, is_folder=False, content_base64=content_base64, source_path=source_path)
                 return self.client.node_create_child_url(target_parent_id), target_destination
 
             endpoint, target_destination = self._run_with_ticket_retry(auth, f"upload {destination}", _run)

@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import http.client
 import json
+import os
 import re
+from urllib.parse import urlparse
 from dataclasses import dataclass
 from dataclasses import field
 from threading import RLock
@@ -30,6 +33,7 @@ class AlfrescoClient:
     json_timeout: int = 30
     bytes_timeout: int = 30
     upload_timeout: int = 30
+    upload_buffer_bytes: int = 1024 * 1024
     _doclib_cache: dict[str, dict] = field(default_factory=dict)
     _path_cache: dict[str, dict] = field(default_factory=dict)
     _child_cache: dict[str, dict | None] = field(default_factory=dict)
@@ -49,7 +53,7 @@ class AlfrescoClient:
         timeout_cfg = config.get("timeouts", {}) if isinstance(config, dict) else {}
         timeout_json = 30
         timeout_bytes = 30
-        timeout_upload = 30
+        timeout_upload = 900
         if isinstance(timeout_cfg, dict):
             timeout_json = cls._read_timeout(timeout_cfg.get("requestSeconds"), timeout_json)
             timeout_bytes = cls._read_timeout(timeout_cfg.get("downloadSeconds"), timeout_bytes)
@@ -64,6 +68,73 @@ class AlfrescoClient:
             bytes_timeout=timeout_bytes,
             upload_timeout=timeout_upload,
         )
+
+    def _post_multipart_file(
+        self,
+        url: str,
+        headers: dict[str, str],
+        fields: list[tuple[str, str]],
+        file_field_name: str,
+        file_name: str,
+        source_path: str,
+        mime_type: str = "application/octet-stream",
+    ) -> dict:
+        parsed = urlparse(url)
+        if parsed.scheme == "https":
+            connection: http.client.HTTPConnection = http.client.HTTPSConnection(parsed.hostname, parsed.port, timeout=self.upload_timeout)
+        else:
+            connection = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=self.upload_timeout)
+
+        boundary = f"----edocatbridge{hashlib.sha1(file_name.encode('utf-8')).hexdigest()[:16]}"
+        safe_name = file_name.replace('"', "_")
+        preamble = bytearray()
+        for field_name, field_value in fields:
+            preamble.extend(f"--{boundary}\r\n".encode("utf-8"))
+            preamble.extend(f"Content-Disposition: form-data; name=\"{field_name}\"\r\n\r\n".encode("utf-8"))
+            preamble.extend(field_value.encode("utf-8"))
+            preamble.extend(b"\r\n")
+
+        file_header = (
+            f"--{boundary}\r\n"
+            f"Content-Disposition: form-data; name=\"{file_field_name}\"; filename=\"{safe_name}\"\r\n"
+            f"Content-Type: {mime_type}\r\n\r\n"
+        ).encode("utf-8")
+        closing = f"\r\n--{boundary}--\r\n".encode("utf-8")
+
+        file_size = os.path.getsize(source_path)
+        content_length = len(preamble) + len(file_header) + file_size + len(closing)
+        request_headers = dict(headers)
+        request_headers["Content-Type"] = f"multipart/form-data; boundary={boundary}"
+        request_headers["Content-Length"] = str(content_length)
+        request_headers.setdefault("Accept", "application/json")
+
+        path_with_query = parsed.path or "/"
+        if parsed.query:
+            path_with_query = f"{path_with_query}?{parsed.query}"
+
+        try:
+            connection.putrequest("POST", path_with_query)
+            for key, value in request_headers.items():
+                connection.putheader(key, value)
+            connection.endheaders()
+
+            connection.send(bytes(preamble))
+            connection.send(file_header)
+            with open(source_path, "rb") as handle:
+                while True:
+                    chunk = handle.read(self.upload_buffer_bytes)
+                    if not chunk:
+                        break
+                    connection.send(chunk)
+            connection.send(closing)
+
+            response = connection.getresponse()
+            body = response.read().decode("utf-8")
+            if response.status >= 400:
+                raise ValueError(f"Alfresco upload failed with HTTP {response.status}: {body}")
+            return json.loads(body) if body else {}
+        finally:
+            connection.close()
 
     def _configured_node_type(self, key: str, fallback: str) -> str:
         value = self.node_types.get(key)
@@ -428,9 +499,27 @@ class AlfrescoClient:
         name: str,
         is_folder: bool = False,
         content_base64: str | None = None,
+        source_path: str | None = None,
     ) -> dict:
         folder_type = self._configured_node_type("folder", "cm:folder")
         file_type = self._configured_node_type("file", "cm:content")
+        if not is_folder and source_path is not None:
+            fields = [
+                ("name", name),
+                ("nodeType", file_type),
+            ]
+            request_headers = self.auth_headers(ticket)
+            result = self._post_multipart_file(
+                self.node_create_child_url(parent_id),
+                request_headers,
+                fields,
+                "filedata",
+                name,
+                source_path,
+            )
+            self._invalidate_structure_cache(ticket)
+            return result
+
         if not is_folder and content_base64 is not None:
             try:
                 content_bytes = base64.b64decode(content_base64, validate=True)
