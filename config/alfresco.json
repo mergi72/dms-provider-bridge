@@ -19,7 +19,7 @@
     "key": "alfresco",
 
     "alfresco": {
-        "base_url": "https://cheminvest.edocat.net/alfresco",
+        "base_url": "https://your_company.edocat.net/alfresco",
 
         "api": {
             "search_root": "/api/-default-/public/search/versions/1",

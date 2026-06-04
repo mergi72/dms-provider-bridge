@@ -19,7 +19,7 @@
     "key": "edocat",
 
     "edocat": {
-        "base_url": "https://cheminvest.edocat.net",
+        "base_url": "https://your_company.edocat.net",
         "api": "/edocat/api/v1",
         "doc_library": "/deals",
         "endpoints": {
@@ -46,8 +46,8 @@
         },
         "credentials": {
             "mode": "windows",
-            "targetBase": "cheminvest/eDoCat_Helper",
-            "target": "merhautr@cheminvest/eDoCat_Helper"
+            "targetBase": "your_company/eDoCat_Helper",
+            "target": "your_user@your_company/eDoCat_Helper"
         }
     }
 }
