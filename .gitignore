@@ -24,6 +24,11 @@ env/
 .env.*
 !.env.example
 
+# Local config overrides (keep generic config/*.json in repo)
+config/local.json
+config/user.local.json
+config/*.local.json
+
 # Build artifacts
 build/
 dist/

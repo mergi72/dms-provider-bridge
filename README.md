@@ -94,6 +94,19 @@ curl -sS http://127.0.0.1:8765/bridge/wfx/list \
 
 ## WFX Bridge API (for C# plugin)
 
+## Config Layers (Git vs local)
+
+Configuration is loaded in layers, where later files override earlier ones:
+
+- Global config: `config/default.json` -> `config/user.json` -> `config/user.local.json` -> `config/local.json`
+- Provider config (`edocat`, `alfresco`, `fso`, ...): `config/<provider>.json` -> `config/<provider>.local.json`
+
+Recommended workflow:
+
+- Keep `config/*.json` in Git generic/safe.
+- Put machine/user specific credentials, hosts, and local paths into `*.local.json` files.
+- `*.local.json` and `config/local.json` are ignored by Git, so functional local settings are not pushed.
+
 Remote path format:
 
 - `edocat:/folder/file.txt`

@@ -25,19 +25,7 @@ def _merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str, An
     return merged
 
 
-def load_config() -> dict[str, Any]:
-    default_cfg = _read_json(CONFIG_DIR / "default.json")
-    user_cfg = _read_json(CONFIG_DIR / "user.json")
-    return _merge_dicts(default_cfg, user_cfg)
-
-
-def load_provider_config(provider_name: str) -> dict[str, Any]:
-    """Load provider vendor config from config/<provider>.json.
-
-    File format is expected to contain either a "key" pointing to provider section
-    or the provider section directly under provider_name.
-    """
-    payload = _read_json(CONFIG_DIR / f"{provider_name}.json")
+def _extract_provider_section(payload: dict[str, Any], provider_name: str) -> dict[str, Any]:
     if not payload:
         return {}
 
@@ -49,4 +37,30 @@ def load_provider_config(provider_name: str) -> dict[str, Any]:
     if isinstance(section, dict):
         return section
     return {}
+
+
+def load_config() -> dict[str, Any]:
+    default_cfg = _read_json(CONFIG_DIR / "default.json")
+    user_cfg = _read_json(CONFIG_DIR / "user.json")
+    user_local_cfg = _read_json(CONFIG_DIR / "user.local.json")
+    local_cfg = _read_json(CONFIG_DIR / "local.json")
+
+    merged = _merge_dicts(default_cfg, user_cfg)
+    merged = _merge_dicts(merged, user_local_cfg)
+    merged = _merge_dicts(merged, local_cfg)
+    return merged
+
+
+def load_provider_config(provider_name: str) -> dict[str, Any]:
+    """Load provider vendor config from config/<provider>.json.
+
+    File format is expected to contain either a "key" pointing to provider section
+    or the provider section directly under provider_name.
+    """
+    base_payload = _read_json(CONFIG_DIR / f"{provider_name}.json")
+    local_payload = _read_json(CONFIG_DIR / f"{provider_name}.local.json")
+
+    base_section = _extract_provider_section(base_payload, provider_name)
+    local_section = _extract_provider_section(local_payload, provider_name)
+    return _merge_dicts(base_section, local_section)
 
