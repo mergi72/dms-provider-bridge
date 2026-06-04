@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from edocat_bridge.core.errors import ProviderOperationError
-from edocat_bridge.providers.fso import FsoProvider
+from dms_provider_bridge.core.errors import ProviderOperationError
+from dms_provider_bridge.providers.fso import FsoProvider
 
 
 pytestmark = pytest.mark.unit
@@ -93,3 +93,4 @@ def test_fso_upload_allows_path_inside_allowed_roots(tmp_path: Path) -> None:
 
     assert result.success is True
     assert (allowed_root / "inside.txt").read_text(encoding="utf-8") == "hello"
+

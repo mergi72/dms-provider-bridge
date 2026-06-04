@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
-import edocat_bridge.services.transfer_service as transfer_service_module
+import dms_provider_bridge.services.transfer_service as transfer_service_module
 
 
 pytestmark = pytest.mark.unit

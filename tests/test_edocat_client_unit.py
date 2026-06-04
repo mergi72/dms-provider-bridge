@@ -5,8 +5,8 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 
-import edocat_bridge.clients.edocat_client as edocat_client_module  # type: ignore[import-untyped]
-from edocat_bridge.clients.edocat_client import EdocatClient  # type: ignore[import-untyped]
+import dms_provider_bridge.clients.edocat_client as edocat_client_module  # type: ignore[import-untyped]
+from dms_provider_bridge.clients.edocat_client import EdocatClient  # type: ignore[import-untyped]
 
 
 pytestmark = pytest.mark.unit
@@ -66,3 +66,4 @@ def test_query_nodes_fetches_all_pages(monkeypatch: pytest.MonkeyPatch) -> None:
     assert first_query["size"] == ["100"]
     assert second_query["page"] == ["1"]
     assert second_query["size"] == ["100"]
+

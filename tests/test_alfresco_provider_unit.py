@@ -7,10 +7,10 @@ from urllib.error import HTTPError
 
 import pytest
 
-import edocat_bridge.providers.alfresco as alfresco_provider_module  # type: ignore[import-untyped]
-from edocat_bridge.models.bridge import BridgeAuthContext  # type: ignore[import-untyped]
-from edocat_bridge.providers.alfresco import AlfrescoProvider  # type: ignore[import-untyped]
-from edocat_bridge.core.errors import AuthenticationError  # type: ignore[import-untyped]
+import dms_provider_bridge.providers.alfresco as alfresco_provider_module  # type: ignore[import-untyped]
+from dms_provider_bridge.models.bridge import BridgeAuthContext  # type: ignore[import-untyped]
+from dms_provider_bridge.providers.alfresco import AlfrescoProvider  # type: ignore[import-untyped]
+from dms_provider_bridge.core.errors import AuthenticationError  # type: ignore[import-untyped]
 
 
 pytestmark = pytest.mark.unit
@@ -513,3 +513,4 @@ def test_list_items_maps_expired_ticket_without_refresh_to_auth_error(monkeypatc
 
     with pytest.raises(AuthenticationError, match="access denied"):
         provider.list_items("/contracts", auth)
+

@@ -11,13 +11,13 @@ from unittest.mock import Mock
 
 import pytest
 
-import edocat_bridge.clients.edocat_client as edocat_client_module  # type: ignore[import-untyped]
-import edocat_bridge.providers.edocat as edocat_provider_module  # type: ignore[import-untyped]
-from edocat_bridge.clients.edocat_client import EdocatClient  # type: ignore[import-untyped]
-from edocat_bridge.core.errors import AuthenticationError, ProviderOperationError  # type: ignore[import-untyped]
-from edocat_bridge.models.bridge import BridgeAuthContext  # type: ignore[import-untyped]
-from edocat_bridge.models.operation import OperationResult  # type: ignore[import-untyped]
-from edocat_bridge.providers.edocat import EdocatProvider  # type: ignore[import-untyped]
+import dms_provider_bridge.clients.edocat_client as edocat_client_module  # type: ignore[import-untyped]
+import dms_provider_bridge.providers.edocat as edocat_provider_module  # type: ignore[import-untyped]
+from dms_provider_bridge.clients.edocat_client import EdocatClient  # type: ignore[import-untyped]
+from dms_provider_bridge.core.errors import AuthenticationError, ProviderOperationError  # type: ignore[import-untyped]
+from dms_provider_bridge.models.bridge import BridgeAuthContext  # type: ignore[import-untyped]
+from dms_provider_bridge.models.operation import OperationResult  # type: ignore[import-untyped]
+from dms_provider_bridge.providers.edocat import EdocatProvider  # type: ignore[import-untyped]
 
 
 pytestmark = pytest.mark.unit
@@ -192,13 +192,13 @@ def test_rename_item_uses_folder_node_when_edocat_path_is_parent_only(monkeypatc
             {
                 "uuid": "folder-1",
                 "name": "projekt",
-                "path": "/deals/03 zakázky v realizaci/22 080 - UNI_Novy odolejovac bl. 68/05 Realizace/04 Dokumentace/13 - CHI/Test_DMS",
+                "path": "/deals/03 zakĂˇzky v realizaci/22 080 - UNI_Novy odolejovac bl. 68/05 Realizace/04 Dokumentace/13 - CHI/Test_DMS",
                 "nodeType": "ctfd:baseFolder",
             },
             {
                 "uuid": "file-1",
                 "name": "soubor.txt",
-                "path": "/deals/03 zakázky v realizaci/22 080 - UNI_Novy odolejovac bl. 68/05 Realizace/04 Dokumentace/13 - CHI/Test_DMS/projekt",
+                "path": "/deals/03 zakĂˇzky v realizaci/22 080 - UNI_Novy odolejovac bl. 68/05 Realizace/04 Dokumentace/13 - CHI/Test_DMS/projekt",
                 "nodeType": "ctbd:baseDoc",
             },
         ]
@@ -206,8 +206,8 @@ def test_rename_item_uses_folder_node_when_edocat_path_is_parent_only(monkeypatc
     provider = _make_provider(monkeypatch, client)
 
     result = provider.rename_item(
-        "/03 zakázky v realizaci/22 080 - UNI_Novy odolejovac bl. 68/05 Realizace/04 Dokumentace/13 - CHI/Test_DMS/projekt",
-        "/03 zakázky v realizaci/22 080 - UNI_Novy odolejovac bl. 68/05 Realizace/04 Dokumentace/13 - CHI/Test_DMS/bambule",
+        "/03 zakĂˇzky v realizaci/22 080 - UNI_Novy odolejovac bl. 68/05 Realizace/04 Dokumentace/13 - CHI/Test_DMS/projekt",
+        "/03 zakĂˇzky v realizaci/22 080 - UNI_Novy odolejovac bl. 68/05 Realizace/04 Dokumentace/13 - CHI/Test_DMS/bambule",
         BridgeAuthContext(mode="credentials", username="user", password="pass"),
     )
 

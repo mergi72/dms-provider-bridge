@@ -7,7 +7,7 @@
       "request": "launch",
       "module": "uvicorn",
       "args": [
-        "edocat_bridge.app.server:app",
+        "dms_provider_bridge.app.server:app",
         "--host",
         "127.0.0.1",
         "--port",
@@ -25,7 +25,7 @@
       "request": "launch",
       "module": "uvicorn",
       "args": [
-        "edocat_bridge.app.server:app",
+        "dms_provider_bridge.app.server:app",
         "--host",
         "127.0.0.1",
         "--port",
@@ -40,3 +40,4 @@
     }
   ]
 }
+

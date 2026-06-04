@@ -5,12 +5,12 @@ from unittest.mock import Mock
 
 import pytest
 
-import edocat_bridge.services.bridge_service as bridge_service_module
-from edocat_bridge.core.errors import AuthenticationError, ProviderOperationError
-from edocat_bridge.models.bridge import BridgeAuthContext
-from edocat_bridge.models.item import DmsItem
-from edocat_bridge.models.listing import ListingResult
-from edocat_bridge.models.operation import OperationResult
+import dms_provider_bridge.services.bridge_service as bridge_service_module
+from dms_provider_bridge.core.errors import AuthenticationError, ProviderOperationError
+from dms_provider_bridge.models.bridge import BridgeAuthContext
+from dms_provider_bridge.models.item import DmsItem
+from dms_provider_bridge.models.listing import ListingResult
+from dms_provider_bridge.models.operation import OperationResult
 
 
 pytestmark = pytest.mark.unit
@@ -459,3 +459,4 @@ def test_copy_path_cross_provider_fso_folder_rejects_file_over_limit_without_ope
     assert "exceeds limit" in (response.message or "")
     dst_provider.make_dir.assert_not_called()
     dst_provider.upload_item.assert_not_called()
+

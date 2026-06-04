@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from edocat_bridge.clients.alfresco_client import AlfrescoClient
-from edocat_bridge.providers.alfresco import AlfrescoProvider
+from dms_provider_bridge.clients.alfresco_client import AlfrescoClient
+from dms_provider_bridge.providers.alfresco import AlfrescoProvider
 
 
 pytestmark = pytest.mark.unit
@@ -176,7 +176,7 @@ def test_create_child_node_includes_content_payload(monkeypatch: pytest.MonkeyPa
         captured["timeout"] = timeout
         return _FakeResponse()
 
-    monkeypatch.setattr("edocat_bridge.clients.alfresco_client.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("dms_provider_bridge.clients.alfresco_client.request.urlopen", fake_urlopen)
 
     client.create_child_node("ticket-a", "parent-1", "new-file.txt", is_folder=False, content_base64="dGVzdA==")
 
@@ -283,7 +283,7 @@ def test_create_child_node_uses_configured_upload_timeout(monkeypatch: pytest.Mo
         captured["timeout"] = timeout
         return _FakeResponse()
 
-    monkeypatch.setattr("edocat_bridge.clients.alfresco_client.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("dms_provider_bridge.clients.alfresco_client.request.urlopen", fake_urlopen)
 
     client.create_child_node("ticket-a", "parent-1", "new-file.txt", is_folder=False, content_base64="dGVzdA==")
 

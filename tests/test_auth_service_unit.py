@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-import edocat_bridge.core.credentials as credentials_module  # type: ignore[import-untyped]
-import edocat_bridge.services.auth_service as auth_service_module  # type: ignore[import-untyped]
-from edocat_bridge.core.credentials import ProviderCredentials  # type: ignore[import-untyped]
-from edocat_bridge.core.errors import AuthenticationError  # type: ignore[import-untyped]
-from edocat_bridge.models.bridge import BridgeAuthContext  # type: ignore[import-untyped]
+import dms_provider_bridge.core.credentials as credentials_module  # type: ignore[import-untyped]
+import dms_provider_bridge.services.auth_service as auth_service_module  # type: ignore[import-untyped]
+from dms_provider_bridge.core.credentials import ProviderCredentials  # type: ignore[import-untyped]
+from dms_provider_bridge.core.errors import AuthenticationError  # type: ignore[import-untyped]
+from dms_provider_bridge.models.bridge import BridgeAuthContext  # type: ignore[import-untyped]
 
 
 pytestmark = pytest.mark.unit

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-import edocat_bridge.services.listing_service as listing_service_module
-import edocat_bridge.services.provider_service as provider_service_module
+import dms_provider_bridge.services.listing_service as listing_service_module
+import dms_provider_bridge.services.provider_service as provider_service_module
 
 
 pytestmark = pytest.mark.unit

@@ -42,7 +42,7 @@ def main() -> None:
         )
 
         # Import app only after temporary config is written; provider registry is built at import time.
-        from edocat_bridge.app.server import create_app
+        from dms_provider_bridge.app.server import create_app
 
         client = TestClient(create_app())
 
@@ -86,3 +86,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

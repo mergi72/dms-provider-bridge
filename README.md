@@ -10,7 +10,7 @@
 python -m venv .venv312
 .venv312\\Scripts\\activate
 pip install -e .
-python -m uvicorn edocat_bridge.app.server:app --host 127.0.0.1 --port 8765
+python -m uvicorn dms_provider_bridge.app.server:app --host 127.0.0.1 --port 8765
 ```
 
 ## VS Code (Windows)
@@ -219,7 +219,7 @@ Restart local server:
 ```powershell
 $conn = Get-NetTCPConnection -LocalAddress 127.0.0.1 -LocalPort 8765 -ErrorAction SilentlyContinue | Where-Object { $_.State -eq 'Listen' }
 if ($conn) { Stop-Process -Id $conn.OwningProcess -Force }
-.\.venv312\Scripts\python.exe -m uvicorn edocat_bridge.app.server:app --app-dir src --host 127.0.0.1 --port 8765
+.\.venv312\Scripts\python.exe -m uvicorn dms_provider_bridge.app.server:app --app-dir src --host 127.0.0.1 --port 8765
 ```
 
 Health check:
@@ -249,3 +249,4 @@ Project is split into:
 ## License
 
 The project is licensed under the MIT License. Full text is available in `LICENSE`.
+

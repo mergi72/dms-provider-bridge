@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pathlib import Path
 
-from edocat_bridge.core import config_loader
+from dms_provider_bridge.core import config_loader
 
 
 pytestmark = pytest.mark.unit
@@ -23,3 +23,4 @@ def test_load_provider_config_accepts_utf8_bom(tmp_path: Path, monkeypatch: pyte
     config = config_loader.load_provider_config("fso")
 
     assert config["allowedRoots"] == ["C:/Users/merhautr/python_projects"]
+

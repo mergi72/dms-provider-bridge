@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
-import edocat_bridge.services.edit_service as edit_service_module
+import dms_provider_bridge.services.edit_service as edit_service_module
 
 
 pytestmark = pytest.mark.unit
@@ -48,3 +48,4 @@ def test_delete_item_parses_wfx_path(monkeypatch: pytest.MonkeyPatch) -> None:
     edit_service_module.delete_item("edocat:/folder/Upload")
 
     provider.delete_item.assert_called_once_with("/folder/Upload")
+

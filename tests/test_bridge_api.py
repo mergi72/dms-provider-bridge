@@ -5,9 +5,9 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from edocat_bridge.app.server import create_app
-from edocat_bridge.app.routes import bridge as bridge_routes
-from edocat_bridge.models.bridge import WfxResponse
+from dms_provider_bridge.app.server import create_app
+from dms_provider_bridge.app.routes import bridge as bridge_routes
+from dms_provider_bridge.models.bridge import WfxResponse
 
 
 pytestmark = pytest.mark.integration
@@ -358,3 +358,4 @@ def test_download_raw_uses_rfc5987_for_unicode_filename(monkeypatch: pytest.Monk
     header = response.headers["content-disposition"]
     assert header.startswith("attachment; filename=")
     assert "filename*=UTF-8''P%C5%99%C3%ADli%C5%A1%20%C5%BElu%C5%A5ou%C4%8Dk%C3%BD.txt" in header
+

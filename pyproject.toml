@@ -33,8 +33,9 @@ markers = [
 ]
 
 [project.scripts]
-dms-provider-bridge = "edocat_bridge.main:main"
-edocat-bridge = "edocat_bridge.main:main"
+dms-provider-bridge = "dms_provider_bridge.main:main"
+edocat-bridge = "dms_provider_bridge.main:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/edocat_bridge"]
+packages = ["src/dms_provider_bridge"]
+

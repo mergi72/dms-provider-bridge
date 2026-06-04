@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from edocat_bridge.adapters.commander_api import build_wfx_path, map_commander_payload, parse_wfx_path
+from dms_provider_bridge.adapters.commander_api import build_wfx_path, map_commander_payload, parse_wfx_path
 
 
 pytestmark = pytest.mark.unit
@@ -27,3 +27,4 @@ def test_build_wfx_path_always_has_slash() -> None:
 def test_map_commander_payload_is_passthrough() -> None:
     payload = {"x": 1, "nested": {"y": 2}}
     assert map_commander_payload(payload) == payload
+
