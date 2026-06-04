@@ -13,7 +13,7 @@ router = APIRouter()
 def health() -> dict[str, str]:
     return {
         "status": "ok",
-        "service": "edocat-bridge",
+        "service": "dms-provider-bridge",
         "version": get_version(),
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }

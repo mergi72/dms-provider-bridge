@@ -11,7 +11,7 @@ PORT = 8765
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Start edocat-bridge service")
+    parser = argparse.ArgumentParser(description="Start dms-provider-bridge service")
     parser.add_argument("--host", default=None, help="Override host")
     parser.add_argument("--port", type=int, default=None, help="Override port")
     return parser.parse_args()

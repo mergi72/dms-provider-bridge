@@ -21,7 +21,7 @@ try {
     $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
     New-Item -Path $OutputDir -ItemType Directory -Force | Out-Null
 
-    $zipPath = Join-Path $OutputDir "edocat-bridge-$shortSha-$timestamp.zip"
+    $zipPath = Join-Path $OutputDir "dms-provider-bridge-$shortSha-$timestamp.zip"
     git archive --format=zip --output="$zipPath" HEAD
 
     Write-Host "Release ZIP created: $zipPath"

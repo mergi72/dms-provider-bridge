@@ -1,5 +1,5 @@
 class BridgeError(Exception):
-    """Base exception for edocat-bridge."""
+    """Base exception for dms-provider-bridge."""
 
 
 class ProviderNotFoundError(BridgeError):

@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "FastAPI: edocat-bridge",
+      "name": "FastAPI: dms-provider-bridge",
       "type": "python",
       "request": "launch",
       "module": "uvicorn",
@@ -20,7 +20,7 @@
       "justMyCode": true
     },
     {
-      "name": "FastAPI: edocat-bridge (reload)",
+      "name": "FastAPI: dms-provider-bridge (reload)",
       "type": "python",
       "request": "launch",
       "module": "uvicorn",

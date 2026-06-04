@@ -34,7 +34,6 @@ markers = [
 
 [project.scripts]
 dms-provider-bridge = "dms_provider_bridge.main:main"
-edocat-bridge = "dms_provider_bridge.main:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/dms_provider_bridge"]
