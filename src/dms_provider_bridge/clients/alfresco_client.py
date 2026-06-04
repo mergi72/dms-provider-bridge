@@ -53,7 +53,7 @@ class AlfrescoClient:
         timeout_cfg = config.get("timeouts", {}) if isinstance(config, dict) else {}
         timeout_json = 30
         timeout_bytes = 30
-        timeout_upload = 900
+        timeout_upload = 3600
         if isinstance(timeout_cfg, dict):
             timeout_json = cls._read_timeout(timeout_cfg.get("requestSeconds"), timeout_json)
             timeout_bytes = cls._read_timeout(timeout_cfg.get("downloadSeconds"), timeout_bytes)
