@@ -15,6 +15,9 @@ class TransferNotFoundError(FileNotFoundError):
     pass
 
 
+INLINE_UPLOAD_MAX_BYTES_DEFAULT = 4 * 1024 * 1024
+
+
 def estimated_binary_size_from_base64(content_base64: str) -> int:
     payload = content_base64.strip()
     if not payload:
@@ -36,6 +39,20 @@ def max_cross_provider_upload_bytes(provider) -> int:
             if isinstance(value, int) and value > 0:
                 return value
     return 20 * 1024 * 1024
+
+
+def max_inline_upload_bytes(provider) -> int:
+    transfer_limit = max_cross_provider_upload_bytes(provider)
+    config = getattr(provider, "config", {})
+    if isinstance(config, dict):
+        upload_cfg = config.get("upload", {})
+        if isinstance(upload_cfg, dict):
+            inline_cfg = upload_cfg.get("inline", {})
+            if isinstance(inline_cfg, dict):
+                value = inline_cfg.get("maxBytes")
+                if isinstance(value, int) and value > 0:
+                    return min(value, transfer_limit)
+    return min(INLINE_UPLOAD_MAX_BYTES_DEFAULT, transfer_limit)
 
 
 def max_cross_provider_nodes(provider) -> int:
@@ -225,10 +242,13 @@ def upload_with_preflight(provider, destination_path: str, file_name: str, auth:
         except OSError as exc:
             raise TransferPrecheckError(f"Upload blocked: source file is not accessible: {source_path}") from exc
     else:
-        max_bytes = max_cross_provider_upload_bytes(provider)
+        max_bytes = max_inline_upload_bytes(provider)
         payload_bytes = estimated_binary_size_from_base64(content_base64 or "")
         if payload_bytes > max_bytes:
-            raise TransferPrecheckError(f"Upload blocked: payload size {payload_bytes} B exceeds limit {max_bytes} B.")
+            raise TransferPrecheckError(
+                f"Upload blocked: inline content_base64 payload size {payload_bytes} B exceeds limit {max_bytes} B. "
+                "Use /bridge/wfx/upload-raw (or /bridge/wfx/upload-stream) with multipart/form-data for larger files."
+            )
     ensure_folder_chain(provider, destination_path, auth)
     return provider.upload_item(destination_path, file_name, content_base64=content_base64, source_path=source_path, overwrite=overwrite, auth=auth)
 

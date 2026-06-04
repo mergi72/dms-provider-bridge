@@ -375,6 +375,28 @@ def test_upload_path_rejects_payload_over_limit_without_operations(monkeypatch: 
     provider.upload_item.assert_not_called()
 
 
+def test_upload_path_rejects_large_inline_payload_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = DummyProvider("edocat")
+
+    monkeypatch.setattr(bridge_service_module, "validate_bridge_auth", lambda auth: None)
+    monkeypatch.setattr(bridge_service_module, "_resolve", lambda destination: (provider, type("P", (), {"path": "/A/B/C"})()))
+
+    large_inline_base64 = "A" * (6 * 1024 * 1024)
+    response = bridge_service_module.upload_path(
+        "edocat:/A/B/C",
+        "test.txt",
+        _auth(),
+        content_base64=large_inline_base64,
+        overwrite=False,
+    )
+
+    assert response.ok is False
+    assert "inline content_base64" in (response.message or "")
+    assert "upload-raw" in (response.message or "")
+    provider.make_dir.assert_not_called()
+    provider.upload_item.assert_not_called()
+
+
 def test_upload_path_source_path_bypasses_base64_limit(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     provider = DummyProvider("fso", config={"transfer": {"maxBase64Bytes": 3}})
     provider.upload_item.return_value = OperationResult(success=True, operation="upload", provider="fso")

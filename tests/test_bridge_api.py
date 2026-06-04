@@ -254,6 +254,36 @@ def test_upload_raw_streams_file_via_source_path(monkeypatch: pytest.MonkeyPatch
     assert body["ok"] is True
 
 
+def test_upload_stream_alias_streams_file_via_source_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = TestClient(create_app())
+
+    def fake_upload_path(destination, file_name, auth, content_base64=None, source_path=None, overwrite=False):
+        assert destination == "alfresco:/contracts"
+        assert file_name == "upload.bin"
+        assert content_base64 is None
+        assert isinstance(source_path, str)
+        with open(source_path, "rb") as handle:
+            assert handle.read() == b"streamed-payload"
+        return WfxResponse(ok=True, data={"ok": True})
+
+    monkeypatch.setattr(bridge_routes, "upload_path", fake_upload_path)
+
+    response = client.post(
+        "/bridge/wfx/upload-stream",
+        data={
+            "destination": "alfresco:/contracts",
+            "file_name": "upload.bin",
+            "overwrite": "true",
+            "auth_json": json.dumps(_auth()),
+        },
+        files={"file": ("upload.bin", b"streamed-payload", "application/octet-stream")},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+
+
 def test_upload_raw_rejects_payload_over_configured_limit(monkeypatch: pytest.MonkeyPatch) -> None:
     client = TestClient(create_app())
 

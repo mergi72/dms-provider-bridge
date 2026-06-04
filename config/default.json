@@ -7,7 +7,11 @@
     "default": "alfresco"
   },
   "upload": {
+    "inline": {
+      "maxBytes": 4194304
+    },
     "raw": {
+      "chunkBytes": 1048576,
       "maxBytes": 536870912
     }
   },

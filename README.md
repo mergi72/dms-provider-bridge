@@ -113,6 +113,7 @@ Endpoints:
 - `POST /bridge/wfx/download-raw`
 - `POST /bridge/wfx/upload`
 - `POST /bridge/wfx/upload-raw`
+- `POST /bridge/wfx/upload-stream` (alias for `upload-raw`)
 - `POST /bridge/wfx/resolve-share-url`
 - `POST /bridge/wfx/browse-share-url`
 - `POST /bridge/wfx/browse-share-url-validate`
@@ -153,13 +154,22 @@ Transfer operations:
 
 - `download`: `{ "path": "alfresco:/contracts/sample.txt", "auth": { ... } }`
 - `upload`: `{ "destination": "alfresco:/contracts", "file_name": "upload.txt", "content_base64": "...", "overwrite": true, "auth": { ... } }`
-- `upload-raw`: multipart form-data with fields `destination`, `file_name`, `overwrite`, `auth_json`, and binary field `file`
+  - Intended only for small test payloads (`upload.inline.maxBytes`, default `4194304` = 4 MB).
+  - For larger files use `upload-raw` / `upload-stream`.
+- `upload-raw` / `upload-stream`: multipart form-data with fields `destination`, `file_name`, `overwrite`, `auth_json`, and binary field `file`
 
 Raw upload limits:
 
 - Config key: `upload.raw.maxBytes` in `config/default.json` (can be overridden in `config/user.json`)
 - Default: `536870912` (512 MB)
+- Stream chunk size key: `upload.raw.chunkBytes` (clamped to 1-4 MB, default `1048576` = 1 MB)
 - Bridge rejects larger payloads before provider upload and logs `bytes`, `max_bytes`, and `duration_ms`
+
+Alfresco upload transport:
+
+- Raw upload writes incoming multipart file to a temporary file in chunks (1-4 MB policy).
+- Bridge then forwards this file to Alfresco as `multipart/form-data` using streamed file chunks.
+- Large uploads avoid `content_base64` in the transfer path.
 
 eDoCat Share URL to bridge path conversion:
 

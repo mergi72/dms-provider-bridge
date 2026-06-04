@@ -20,7 +20,9 @@ from dms_provider_bridge.services.bridge_service import browse_share_url, copy_p
 router = APIRouter()
 share_url_router = APIRouter()
 RAW_CONTENT_HEADER = "X-Bridge-Raw-Content"
-UPLOAD_RAW_BUFFER_BYTES = 1024 * 1024
+UPLOAD_RAW_BUFFER_BYTES_DEFAULT = 1024 * 1024
+UPLOAD_RAW_BUFFER_BYTES_MIN = 1024 * 1024
+UPLOAD_RAW_BUFFER_BYTES_MAX = 4 * 1024 * 1024
 UPLOAD_RAW_MAX_BYTES_DEFAULT = 512 * 1024 * 1024
 _LOGGER = get_logger(__name__)
 
@@ -33,6 +35,16 @@ def _upload_raw_max_bytes() -> int:
     if isinstance(value, int) and value > 0:
         return value
     return UPLOAD_RAW_MAX_BYTES_DEFAULT
+
+
+def _upload_raw_buffer_bytes() -> int:
+    config = load_config()
+    upload_cfg = config.get("upload") if isinstance(config, dict) else None
+    raw_cfg = upload_cfg.get("raw") if isinstance(upload_cfg, dict) else None
+    value = raw_cfg.get("chunkBytes") if isinstance(raw_cfg, dict) else None
+    if not isinstance(value, int) or value <= 0:
+        return UPLOAD_RAW_BUFFER_BYTES_DEFAULT
+    return max(UPLOAD_RAW_BUFFER_BYTES_MIN, min(UPLOAD_RAW_BUFFER_BYTES_MAX, value))
 
 
 def _build_content_disposition(filename: str) -> str:
@@ -117,6 +129,7 @@ def bridge_upload(payload: WfxUploadRequest) -> dict:
 
 
 @router.post("/upload-raw")
+@router.post("/upload-stream")
 async def bridge_upload_raw(
     destination: str = Form(...),
     file_name: str = Form(...),
@@ -128,6 +141,7 @@ async def bridge_upload_raw(
     temp_path: str | None = None
     uploaded_bytes = 0
     max_bytes = _upload_raw_max_bytes()
+    chunk_bytes = _upload_raw_buffer_bytes()
     rejected = False
     try:
         auth_payload = json.loads(auth_json)
@@ -145,7 +159,7 @@ async def bridge_upload_raw(
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             temp_path = tmp.name
             while True:
-                chunk = await file.read(UPLOAD_RAW_BUFFER_BYTES)
+                chunk = await file.read(chunk_bytes)
                 if not chunk:
                     break
                 if uploaded_bytes + len(chunk) > max_bytes:
@@ -180,11 +194,12 @@ async def bridge_upload_raw(
             )
         else:
             _LOGGER.info(
-                "bridge_upload_raw destination=%s file=%s bytes=%d max_bytes=%d duration_ms=%d",
+                "bridge_upload_raw destination=%s file=%s bytes=%d max_bytes=%d chunk_bytes=%d duration_ms=%d",
                 destination,
                 file_name,
                 uploaded_bytes,
                 max_bytes,
+                chunk_bytes,
                 duration_ms,
             )
         await file.close()
