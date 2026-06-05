@@ -1,8 +1,8 @@
 {
     "projectInfo": {
         "name": "eDoCat Helper",
-        "author": "Radomír Merhaut",
-        "email": "radomir.merhaut@gmail.com",
+        "author": "DMS Provider Bridge contributors",
+        "email": "",
         "version": "0.0.2",
         "description": "Alfresco Search configuration for eDoCat Helper",
         "license": "......"
@@ -19,7 +19,7 @@
     "key": "alfresco",
 
     "alfresco": {
-        "base_url": "https://your_company.edocat.net/alfresco",
+        "base_url": "https://example.com/alfresco",
 
         "api": {
             "search_root": "/api/-default-/public/search/versions/1",

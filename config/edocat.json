@@ -1,8 +1,8 @@
 {
     "projectInfo": {
             "name": "eDoCat Helper",
-            "author": "Radomír Merhaut",
-            "email": "radomir.merhaut@gmail.com",
+            "author": "DMS Provider Bridge contributors",
+            "email": "",
             "version": "0.0.2",
             "description": "......",
             "license": "......"
@@ -19,7 +19,7 @@
     "key": "edocat",
 
     "edocat": {
-        "base_url": "https://your_company.edocat.net",
+        "base_url": "https://example.com",
         "api": "/edocat/api/v1",
         "doc_library": "/deals",
         "endpoints": {
@@ -46,8 +46,8 @@
         },
         "credentials": {
             "mode": "windows",
-            "targetBase": "your_company/eDoCat_Helper",
-            "target": "your_user@your_company/eDoCat_Helper"
+            "targetBase": "example/eDoCat_Helper",
+            "target": "example_user@example.com/eDoCat_Helper"
         }
     }
 }
