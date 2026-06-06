@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Alpha-orange)](https://github.com/mergi72/dms-provider-bridge)
-[![Bridge Version](https://img.shields.io/badge/Bridge-v0.2.1-blue)](https://github.com/mergi72/dms-provider-bridge)
-[![Installer Release](https://img.shields.io/badge/Installer-v0.2.2--alpha-blueviolet)](https://github.com/mergi72/dms-provider-installer/releases/tag/v0.2.2-alpha)
+[![Bridge Version](https://img.shields.io/badge/Bridge-v0.2.4--alpha-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.2.4-alpha)
+[![Bridge Setup](https://img.shields.io/badge/Setup-v0.2.4--alpha-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.2.4-alpha)
 
 Current development branch: `develop`  
 Stable release branch: `main`
@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.2.1`
-- Latest installer release that bundles bridge + plugin: `v0.2.2-alpha`
+- Bridge repository latest changelog version: `0.2.4-alpha`
+- Latest bridge-only release: `v0.2.4-alpha`
 
 ## Related Projects
 
