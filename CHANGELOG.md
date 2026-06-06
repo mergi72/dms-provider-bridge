@@ -1,9 +1,12 @@
 # Changelog
 
-## 0.2.2-alpha - 2026-06-06
+## 0.2.3-alpha - 2026-06-06
 
 ### Added
 - `scripts/install-bridge-service.ps1` — standalone Windows Service installer for bridge, no TC plugin dependency.
+- `scripts/uninstall-bridge-service.ps1` — standalone Windows Service uninstall script for bridge.
+- `scripts/build-bridge-service-package.ps1` — creates service package ZIP for ops/dev deployment.
+- `scripts/build-bridge-installer.ps1` + `bridge-installer.iss` — bridge-only Inno Setup EXE installer build.
 - `DMS_PROVIDER_CONFIG_DIR` environment variable support in `core/paths.py` for installed EXE deployments.
 
 ### Fixed
