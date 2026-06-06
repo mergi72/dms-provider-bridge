@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.4-alpha - 2026-06-06
+
+### Added
+- Bridge startup and standalone service installer now print Health, Swagger UI, and OpenAPI URLs explicitly for diagnostics.
+
+### Changed
+- Bridge standalone release assets were refreshed for `v0.2.4-alpha` (`dms-provider-bridge.exe`, service ZIP, setup EXE).
+
+---
+
 ## 0.2.3-alpha - 2026-06-06
 
 ### Added
