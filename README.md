@@ -69,6 +69,30 @@ If you want to clean the local workspace before that, run:
 .\scripts\clean-artifacts.ps1
 ```
 
+## Build bridge.exe (Windows)
+
+For a release executable build (PyInstaller onefile), run:
+
+```powershell
+.\scripts\build-bridge.ps1
+```
+
+Output:
+
+- `dist/dms-provider-bridge.exe`
+
+Alternative build (onedir layout) is still available:
+
+```powershell
+.\scripts\build-bridge-exe.ps1
+```
+
+Quick check:
+
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:8765/health
+```
+
 ## Safe Testing (ENV)
 
 For local smoke testing, avoid hardcoded passwords in shell history. Put them into environment variables and build payloads from them.
