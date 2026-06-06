@@ -1,6 +1,7 @@
 param(
     [string]$ServiceName = "DmsProviderBridge",
     [string]$InstallRoot = "$env:ProgramFiles\DMS Provider",
+    [string]$ConfigRoot = "$env:ProgramData\DMSProvider\config",
     [string]$BridgeExePath,
     [string]$BridgeConfigDirPath,
     [string]$NssmExePath,
@@ -93,7 +94,7 @@ if ([string]::IsNullOrWhiteSpace($BridgeConfigDirPath)) {
 }
 
 $bridgeExeTargetPath = Join-Path $InstallRoot "dms-provider-bridge.exe"
-$bridgeConfigTargetDir = Join-Path $InstallRoot "config"
+$bridgeConfigTargetDir = $ConfigRoot
 $bridgeLogs = Join-Path $InstallRoot "logs"
 $stdoutLog = Join-Path $bridgeLogs "bridge-stdout.log"
 $stderrLog = Join-Path $bridgeLogs "bridge-stderr.log"
@@ -141,8 +142,8 @@ Write-Host ""
 Write-Host "Bridge service installed."
 Write-Host "Service:        $ServiceName"
 Write-Host "Install root:   $InstallRoot"
+Write-Host "Config root:    $bridgeConfigTargetDir"
 Write-Host "Bridge exe:     $bridgeExeTargetPath"
-Write-Host "Bridge config:  $bridgeConfigTargetDir"
 Write-Host "Bridge URL:     $HealthUrl"
 Write-Host "Service user:   $(if ($ServiceAccount -eq 'LocalSystem') { 'LocalSystem' } elseif ($ServiceAccount -eq 'CurrentUser') { Resolve-ServiceUserName -Mode 'CurrentUser' -ExplicitUserName '' } else { $ServiceUserName })"
 Write-Host "Logs:           $bridgeLogs"
