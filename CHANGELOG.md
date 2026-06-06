@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.2-alpha - 2026-06-06
+
+### Added
+- `scripts/install-bridge-service.ps1` — standalone Windows Service installer for bridge, no TC plugin dependency.
+- `DMS_PROVIDER_CONFIG_DIR` environment variable support in `core/paths.py` for installed EXE deployments.
+
+### Fixed
+- `provider.default` from `default.json` is now correctly used as the default provider (previously only `EDOCAT_PROVIDER` env var was checked).
+
+---
+
 ## 0.2.1 - 2026-06-03
 
 ### Changed
