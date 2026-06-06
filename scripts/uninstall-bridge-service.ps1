@@ -1,5 +1,8 @@
 param(
+    [ValidateSet("Auto", "User", "Service")]
+    [string]$RuntimeMode = "Auto",
     [string]$ServiceName = "DmsProviderBridge",
+    [string]$TaskName = "DmsProviderBridgeUser",
     [string]$InstallRoot = "$env:ProgramFiles\DMS Provider",
     [string]$ConfigRoot = "$env:ProgramData\DMSProvider\config",
     [string]$NssmExePath,
@@ -19,12 +22,19 @@ if (-not (Test-IsAdministrator)) {
     throw "Uninstall requires elevated PowerShell (Run as Administrator)."
 }
 
-if ([string]::IsNullOrWhiteSpace($NssmExePath) -or -not (Test-Path $NssmExePath)) {
-    throw "NSSM executable not found. Provide -NssmExePath."
+if (($RuntimeMode -eq "Service" -or $RuntimeMode -eq "Auto") -and -not [string]::IsNullOrWhiteSpace($NssmExePath) -and (Test-Path $NssmExePath)) {
+    & $NssmExePath stop $ServiceName | Out-Null 2>&1
+    & $NssmExePath remove $ServiceName confirm | Out-Null 2>&1
 }
 
-& $NssmExePath stop $ServiceName | Out-Null 2>&1
-& $NssmExePath remove $ServiceName confirm | Out-Null 2>&1
+if ($RuntimeMode -eq "Service" -or $RuntimeMode -eq "Auto") {
+    sc.exe stop $ServiceName | Out-Null 2>&1
+    sc.exe delete $ServiceName | Out-Null 2>&1
+}
+
+if ($RuntimeMode -eq "User" -or $RuntimeMode -eq "Auto") {
+    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
+}
 
 if (-not $KeepBridgeFiles) {
     if (Test-Path $InstallRoot) {
@@ -38,6 +48,9 @@ if (-not $KeepConfigFiles) {
     }
 }
 
-Write-Host "Bridge service uninstalled: $ServiceName"
+Write-Host "Bridge runtime uninstalled."
+Write-Host "Runtime mode: $RuntimeMode"
+Write-Host "Service: $ServiceName"
+Write-Host "Task: $TaskName"
 Write-Host "Bridge files kept: $KeepBridgeFiles"
 Write-Host "Config files kept: $KeepConfigFiles"
