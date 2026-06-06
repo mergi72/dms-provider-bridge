@@ -162,7 +162,11 @@ New-Item -ItemType Directory -Path $bridgeConfigTargetDir -Force | Out-Null
 Copy-Item -Path $BridgeExePath -Destination $bridgeExeTargetPath -Force
 
 if (-not [string]::IsNullOrWhiteSpace($BridgeConfigDirPath) -and (Test-Path $BridgeConfigDirPath)) {
-    Copy-Item -Path (Join-Path $BridgeConfigDirPath "*.json") -Destination $bridgeConfigTargetDir -Force
+    Get-ChildItem -Path $BridgeConfigDirPath -Filter "*.json" -File |
+        Where-Object { $_.Name -notlike "*.local.json" } |
+        ForEach-Object {
+            Copy-Item -Path $_.FullName -Destination (Join-Path $bridgeConfigTargetDir $_.Name) -Force
+        }
     Write-Host "Bridge config copied from: $BridgeConfigDirPath"
 }
 else {

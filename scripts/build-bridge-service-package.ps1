@@ -52,6 +52,13 @@ if (-not [System.IO.Path]::IsPathRooted($OutputDir)) {
 $staging = Join-Path $OutputDir "staging"
 $configTarget = Join-Path $staging "config"
 $zipPath = Join-Path $OutputDir "DmsProviderBridgeService-$Version.zip"
+$configWhitelist = @(
+    "default.json",
+    "alfresco.json",
+    "edocat.json",
+    "fso.json",
+    "user.json"
+)
 
 if (Test-Path $staging) {
     Remove-Item -Path $staging -Recurse -Force
@@ -64,7 +71,14 @@ Copy-Item -Path $BridgeExePath -Destination (Join-Path $staging "dms-provider-br
 Copy-Item -Path $resolvedNssm -Destination (Join-Path $staging "nssm.exe") -Force
 Copy-Item -Path (Join-Path $repoRoot "scripts\install-bridge-service.ps1") -Destination (Join-Path $staging "install-bridge-service.ps1") -Force
 Copy-Item -Path (Join-Path $repoRoot "scripts\uninstall-bridge-service.ps1") -Destination (Join-Path $staging "uninstall-bridge-service.ps1") -Force
-Copy-Item -Path (Join-Path $repoRoot "config\*.json") -Destination $configTarget -Force
+
+foreach ($configName in $configWhitelist) {
+    $configSource = Join-Path $repoRoot (Join-Path "config" $configName)
+    if (-not (Test-Path $configSource)) {
+        throw "Required config template missing: $configSource"
+    }
+    Copy-Item -Path $configSource -Destination (Join-Path $configTarget $configName) -Force
+}
 
 if (Test-Path $zipPath) {
     Remove-Item -Path $zipPath -Force

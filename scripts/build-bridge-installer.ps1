@@ -70,6 +70,13 @@ if ([string]::IsNullOrWhiteSpace($resolvedNssm)) {
 
 $payloadDir = Join-Path $repoRoot "artifacts\bridge-installer-payload"
 $configPayloadDir = Join-Path $payloadDir "config"
+$configWhitelist = @(
+    "default.json",
+    "alfresco.json",
+    "edocat.json",
+    "fso.json",
+    "user.json"
+)
 
 if (Test-Path $payloadDir) {
     Remove-Item -Path $payloadDir -Recurse -Force
@@ -82,7 +89,14 @@ Copy-Item -Path $BridgeExePath -Destination (Join-Path $payloadDir "dms-provider
 Copy-Item -Path $resolvedNssm -Destination (Join-Path $payloadDir "nssm.exe") -Force
 Copy-Item -Path (Join-Path $repoRoot "scripts\install-bridge-service.ps1") -Destination (Join-Path $payloadDir "install-bridge-service.ps1") -Force
 Copy-Item -Path (Join-Path $repoRoot "scripts\uninstall-bridge-service.ps1") -Destination (Join-Path $payloadDir "uninstall-bridge-service.ps1") -Force
-Copy-Item -Path (Join-Path $repoRoot "config\*.json") -Destination $configPayloadDir -Force
+
+foreach ($configName in $configWhitelist) {
+    $configSource = Join-Path $repoRoot (Join-Path "config" $configName)
+    if (-not (Test-Path $configSource)) {
+        throw "Required config template missing: $configSource"
+    }
+    Copy-Item -Path $configSource -Destination (Join-Path $configPayloadDir $configName) -Force
+}
 
 Write-Host "Installer payload prepared: $payloadDir"
 
