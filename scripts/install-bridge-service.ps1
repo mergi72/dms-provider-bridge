@@ -1,5 +1,9 @@
 param(
+    [ValidateSet("User", "Service")]
+    [string]$RuntimeMode = "User",
     [string]$ServiceName = "DmsProviderBridge",
+    [string]$TaskName = "DmsProviderBridgeUser",
+    [string]$RunAsUser,
     [string]$InstallRoot = "$env:ProgramFiles\DMS Provider",
     [string]$ConfigRoot = "$env:ProgramData\DMSProvider\config",
     [string]$BridgeExePath,
@@ -9,6 +13,7 @@ param(
     [string]$ServiceAccount = "LocalSystem",
     [string]$ServiceUserName,
     [string]$ServicePassword,
+    [switch]$StartImmediately,
     [int]$HealthTimeoutSeconds = 30,
     [string]$HealthUrl = "http://127.0.0.1:8765/health"
 )
@@ -68,12 +73,52 @@ function Resolve-ServiceUserName {
     return ""
 }
 
+function Resolve-CurrentUserName {
+    $envUser = $env:USERNAME
+    $envDomain = $env:USERDOMAIN
+    if ([string]::IsNullOrWhiteSpace($envUser)) {
+        throw "Could not resolve current user from environment."
+    }
+    return if ([string]::IsNullOrWhiteSpace($envDomain)) { $envUser } else { "$envDomain\$envUser" }
+}
+
+function Write-UserModeLauncher {
+    param(
+        [string]$Path,
+        [string]$BridgeExe,
+        [string]$ConfigDir,
+        [string]$WorkingDir
+    )
+
+    $launcher = @"
+
+$env:DMS_PROVIDER_CONFIG_DIR = '$ConfigDir'
+Start-Process -FilePath '$BridgeExe' -WorkingDirectory '$WorkingDir' -WindowStyle Hidden
+"@
+
+    Set-Content -Path $Path -Value $launcher -Encoding ASCII
+}
+
+function Remove-ExistingBridgeService {
+    param([string]$Name)
+
+    $existing = Get-Service -Name $Name -ErrorAction SilentlyContinue
+    if ($null -eq $existing) {
+        return
+    }
+
+    sc.exe stop $Name | Out-Null 2>&1
+    sc.exe delete $Name | Out-Null 2>&1
+}
+
 if (-not (Test-IsAdministrator)) {
     throw "Install requires elevated PowerShell (Run as Administrator)."
 }
 
-if ([string]::IsNullOrWhiteSpace($NssmExePath) -or -not (Test-Path $NssmExePath)) {
-    throw "NSSM executable not found. Provide -NssmExePath."
+if ($RuntimeMode -eq "Service") {
+    if ([string]::IsNullOrWhiteSpace($NssmExePath) -or -not (Test-Path $NssmExePath)) {
+        throw "NSSM executable not found. Provide -NssmExePath."
+    }
 }
 
 # Resolve bridge exe: explicit param, then next to this script, then dist/ in repo
@@ -125,6 +170,47 @@ else {
     Write-Host "Place config files manually into: $bridgeConfigTargetDir"
 }
 
+$bridgeBaseUrl = Resolve-BridgeBaseUrl -Url $HealthUrl
+
+if ($RuntimeMode -eq "User") {
+    if ([string]::IsNullOrWhiteSpace($RunAsUser)) {
+        $RunAsUser = Resolve-CurrentUserName
+    }
+
+    # User mode is for interactive desktop usage (for example Total Commander).
+    Remove-ExistingBridgeService -Name $ServiceName
+    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
+
+    $launcherPath = Join-Path $InstallRoot "start-bridge-usermode.ps1"
+    Write-UserModeLauncher -Path $launcherPath -BridgeExe $bridgeExeTargetPath -ConfigDir $bridgeConfigTargetDir -WorkingDir $InstallRoot
+
+    $taskAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$launcherPath`""
+    $taskTrigger = New-ScheduledTaskTrigger -AtLogOn -User $RunAsUser
+    $taskPrincipal = New-ScheduledTaskPrincipal -UserId $RunAsUser -LogonType InteractiveToken -RunLevel Highest
+
+    Register-ScheduledTask -TaskName $TaskName -Action $taskAction -Trigger $taskTrigger -Principal $taskPrincipal -Force | Out-Null
+
+    if ($StartImmediately) {
+        Start-ScheduledTask -TaskName $TaskName
+        Wait-BridgeHealth -Url $HealthUrl -TimeoutSeconds $HealthTimeoutSeconds
+    }
+
+    Write-Host ""
+    Write-Host "Bridge started successfully."
+    Write-Host "Runtime mode:    User"
+    Write-Host "Task:            $TaskName"
+    Write-Host "Run as user:     $RunAsUser"
+    Write-Host "Install root:    $InstallRoot"
+    Write-Host "Config root:     $bridgeConfigTargetDir"
+    Write-Host "Bridge exe:      $bridgeExeTargetPath"
+    Write-Host "Health:          $HealthUrl"
+    Write-Host "Swagger UI:      $bridgeBaseUrl/docs"
+    Write-Host "OpenAPI:         $bridgeBaseUrl/openapi.json"
+    Write-Host "Logs:            $bridgeLogs"
+    return
+}
+
+Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
 & $NssmExePath stop $ServiceName | Out-Null 2>&1
 & $NssmExePath remove $ServiceName confirm | Out-Null 2>&1
 
@@ -149,10 +235,9 @@ else {
 & $NssmExePath start $ServiceName
 Wait-BridgeHealth -Url $HealthUrl -TimeoutSeconds $HealthTimeoutSeconds
 
-$bridgeBaseUrl = Resolve-BridgeBaseUrl -Url $HealthUrl
-
 Write-Host ""
 Write-Host "Bridge started successfully."
+Write-Host "Runtime mode:    Service"
 Write-Host "Service:        $ServiceName"
 Write-Host "Install root:   $InstallRoot"
 Write-Host "Config root:    $bridgeConfigTargetDir"

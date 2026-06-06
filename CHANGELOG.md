@@ -7,6 +7,7 @@
 
 ### Changed
 - Bridge standalone release assets were refreshed for `v0.2.4-alpha` (`dms-provider-bridge.exe`, service ZIP, setup EXE).
+- Bridge setup runtime model now defaults to **User mode** (Scheduled Task at user logon) for Total Commander usage, while **Service mode** (NSSM) remains available as advanced/server mode.
 
 ---
 

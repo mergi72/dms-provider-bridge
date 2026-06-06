@@ -15,6 +15,21 @@ Current release mapping:
 - Bridge repository latest changelog version: `0.2.4-alpha`
 - Latest bridge-only release: `v0.2.4-alpha`
 
+## Runtime Modes (Bridge Installer)
+
+Bridge setup supports two runtime modes:
+
+- User mode (default, recommended for Total Commander):
+  - Creates a Scheduled Task triggered at user logon.
+  - Runs bridge under the interactive user account.
+  - Preserves `credential_id` flow with user Credential Manager entries.
+- Service mode (advanced/server mode):
+  - Runs bridge as a Windows Service via NSSM.
+  - Suitable for server/API scenarios.
+  - Under `LocalSystem`, user-scoped Credential Manager entries are not visible.
+
+Installer default is User mode to match TC plugin `credential_id` usage.
+
 ## Related Projects
 
 - `tc-wfx-plugin`

@@ -22,7 +22,7 @@ Source: "artifacts\bridge-installer-payload\uninstall-bridge-service.ps1"; DestD
 Source: "artifacts\bridge-installer-payload\config\*.json"; DestDir: "{commonappdata}\DMSProvider\config"; Flags: ignoreversion onlyifdoesntexist
 
 [Run]
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install-bridge-service.ps1"" -BridgeExePath ""{app}\dms-provider-bridge.exe"" -BridgeConfigDirPath ""{commonappdata}\DMSProvider\config"" -ConfigRoot ""{commonappdata}\DMSProvider\config"" -NssmExePath ""{app}\nssm.exe"""; Flags: runhidden waituntilterminated
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install-bridge-service.ps1"" -RuntimeMode User -TaskName ""DmsProviderBridgeUser"" -StartImmediately -BridgeExePath ""{app}\dms-provider-bridge.exe"" -BridgeConfigDirPath ""{commonappdata}\DMSProvider\config"" -ConfigRoot ""{commonappdata}\DMSProvider\config"" -NssmExePath ""{app}\nssm.exe"""; Flags: runhidden waituntilterminated
 
 [UninstallRun]
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\uninstall-bridge-service.ps1"" -NssmExePath ""{app}\nssm.exe"""; Flags: runhidden waituntilterminated; RunOnceId: "DMSProviderBridgeUninstallCleanup"
