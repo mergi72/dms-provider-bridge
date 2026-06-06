@@ -126,6 +126,68 @@ def load_windows_credential(credential_id: str) -> ProviderCredentials:
     return credential
 
 
+def _normalize_win_user_variants(win_user: str | None) -> list[str]:
+    if not win_user:
+        return []
+
+    raw = str(win_user).strip()
+    if not raw:
+        return []
+
+    variants: list[str] = [raw]
+
+    if "\\" in raw:
+        _domain, user = raw.split("\\", 1)
+        if user:
+            variants.append(user)
+    elif "@" in raw:
+        user = raw.split("@", 1)[0]
+        if user:
+            variants.append(user)
+
+    deduped: list[str] = []
+    for item in variants:
+        normalized = item.strip()
+        if normalized and normalized not in deduped:
+            deduped.append(normalized)
+    return deduped
+
+
+def _credential_target_candidates(base_target: str, auth: BridgeAuthContext | None) -> list[str]:
+    base = str(base_target).strip()
+    if not base:
+        return []
+
+    candidates: list[str] = [base]
+    if auth and auth.mode == "winuser":
+        user_variants = _normalize_win_user_variants(auth.win_user)
+        for user in user_variants:
+            candidates.append(f"{base}/{user}")
+            candidates.append(f"{base}:{user}")
+
+    deduped: list[str] = []
+    for item in candidates:
+        if item and item not in deduped:
+            deduped.append(item)
+    return deduped
+
+
+def _load_windows_credential_with_fallback(
+    base_target: str,
+    auth: BridgeAuthContext | None,
+) -> ProviderCredentials | None:
+    last_error: AuthenticationError | None = None
+    for target in _credential_target_candidates(base_target, auth):
+        try:
+            return load_windows_credential(target)
+        except AuthenticationError as exc:
+            last_error = exc
+
+    if last_error is not None:
+        raise last_error
+    return None
+
+
 def resolve_alfresco_credentials(
     auth: BridgeAuthContext | None,
     base_url: str,
@@ -139,7 +201,7 @@ def resolve_alfresco_credentials(
     resolved_windows: ProviderCredentials | None = None
     if isinstance(credentials_cfg, dict) and credentials_cfg.get("mode") == "windows" and credential_target:
         try:
-            resolved_windows = load_windows_credential(str(credential_target))
+            resolved_windows = _load_windows_credential_with_fallback(str(credential_target), auth)
         except AuthenticationError:
             resolved_windows = None
 

@@ -79,3 +79,27 @@ def test_resolve_alfresco_credentials_falls_back_when_windows_target_is_missing(
 
     assert result.username == "env-user"
     assert result.password == "env-pass"
+
+
+def test_resolve_alfresco_credentials_tries_user_specific_target_variants(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+
+    def _load(credential_id: str) -> ProviderCredentials:
+        calls.append(credential_id)
+        if credential_id == "tc-wfx/bridge/tester":
+            return ProviderCredentials(base_url="", username="vault-user", password="vault-pass")
+        raise AuthenticationError(f"missing {credential_id}")
+
+    monkeypatch.setattr(credentials_module, "load_windows_credential", _load)
+
+    auth = BridgeAuthContext(mode="winuser", win_user="DOMAIN\\tester")
+    result = credentials_module.resolve_alfresco_credentials(
+        auth,
+        "https://example.test/alfresco",
+        provider_config={"credentials": {"mode": "windows", "target": "tc-wfx/bridge"}},
+    )
+
+    assert result.username == "vault-user"
+    assert result.password == "vault-pass"
+    assert calls[0] == "tc-wfx/bridge"
+    assert "tc-wfx/bridge/tester" in calls
