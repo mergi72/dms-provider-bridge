@@ -2,9 +2,18 @@
 
 [![CI](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Alpha-orange)](https://github.com/mergi72/dms-provider-bridge)
-[![Version](https://img.shields.io/badge/Version-v0.1.0--alpha-blue)](https://github.com/mergi72/dms-provider-bridge)
+[![Bridge Version](https://img.shields.io/badge/Bridge-v0.2.1-blue)](https://github.com/mergi72/dms-provider-bridge)
+[![Installer Release](https://img.shields.io/badge/Installer-v0.2.2--alpha-blueviolet)](https://github.com/mergi72/dms-provider-installer/releases/tag/v0.2.2-alpha)
+
+Current development branch: `develop`  
+Stable release branch: `main`
 
 `dms-provider-bridge` is a base bridge service skeleton for integrating multiple DMS providers (eDoCat, Alfresco, FSO, ...).
+
+Current release mapping:
+
+- Bridge repository latest changelog version: `0.2.1`
+- Latest installer release that bundles bridge + plugin: `v0.2.2-alpha`
 
 ## Related Projects
 
@@ -64,6 +73,30 @@ If you want to clean the local workspace before that, run:
 
 ```powershell
 .\scripts\clean-artifacts.ps1
+```
+
+## Build bridge.exe (Windows)
+
+For a release executable build (PyInstaller onefile), run:
+
+```powershell
+.\scripts\build-bridge.ps1
+```
+
+Output:
+
+- `dist/dms-provider-bridge.exe`
+
+Alternative build (onedir layout) is still available:
+
+```powershell
+.\scripts\build-bridge-exe.ps1
+```
+
+Quick check:
+
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:8765/health
 ```
 
 ## Safe Testing (ENV)
