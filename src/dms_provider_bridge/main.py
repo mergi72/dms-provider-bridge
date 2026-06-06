@@ -22,6 +22,12 @@ def main() -> None:
     config = load_config()
     host = args.host or config.get("server", {}).get("host", HOST)
     port = args.port or config.get("server", {}).get("port", PORT)
+    advertised_host = "127.0.0.1" if str(host) in {"0.0.0.0", "::"} else str(host)
+    base_url = f"http://{advertised_host}:{int(port)}"
+    print("Starting bridge service...")
+    print(f"Health: {base_url}/health")
+    print(f"Swagger UI: {base_url}/docs")
+    print(f"OpenAPI: {base_url}/openapi.json")
     uvicorn.run("dms_provider_bridge.app.server:app", host=host, port=int(port), reload=False)
 
 

@@ -29,6 +29,35 @@ pip install -e .
 python -m uvicorn dms_provider_bridge.app.server:app --host 127.0.0.1 --port 8765
 ```
 
+Verify bridge:
+
+- Health: [http://127.0.0.1:8765/health](http://127.0.0.1:8765/health)
+- Swagger UI: [http://127.0.0.1:8765/docs](http://127.0.0.1:8765/docs)
+- OpenAPI: [http://127.0.0.1:8765/openapi.json](http://127.0.0.1:8765/openapi.json)
+
+The Swagger UI is the fastest way to:
+
+- test provider connectivity
+- test credentials
+- browse providers
+- validate request payloads before integrating clients
+
+Standalone executable quick run:
+
+```powershell
+.\dist\dms-provider-bridge.exe
+```
+
+## Testing the Bridge
+
+Use these endpoints first when diagnosing install/config/auth problems:
+
+- Swagger UI: [http://127.0.0.1:8765/docs](http://127.0.0.1:8765/docs)
+- OpenAPI: [http://127.0.0.1:8765/openapi.json](http://127.0.0.1:8765/openapi.json)
+- Health: [http://127.0.0.1:8765/health](http://127.0.0.1:8765/health)
+
+Most recent bridge issues were diagnosable directly through Swagger UI without adding debug code, including credential resolution, LocalSystem visibility, root path handling, and provider config problems.
+
 ## VS Code (Windows)
 
 The workspace is preconfigured to use the `.venv312` interpreter in `.vscode/settings.json`.
@@ -93,7 +122,7 @@ Alternative build (onedir layout) is still available:
 .\scripts\build-bridge-exe.ps1
 ```
 
-Quick check:
+Quick health check:
 
 ```powershell
 Invoke-RestMethod -Uri http://127.0.0.1:8765/health
