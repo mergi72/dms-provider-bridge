@@ -38,6 +38,17 @@ function Wait-BridgeHealth {
     throw "Bridge health check did not pass within $TimeoutSeconds s: $Url"
 }
 
+function Resolve-BridgeBaseUrl {
+    param([string]$Url)
+
+    $uri = [Uri]$Url
+    $builder = [UriBuilder]::new($uri)
+    $builder.Path = ""
+    $builder.Query = ""
+    $builder.Fragment = ""
+    return $builder.Uri.AbsoluteUri.TrimEnd('/')
+}
+
 function Resolve-ServiceUserName {
     param([string]$Mode, [string]$ExplicitUserName)
     if ($Mode -eq "CustomUser") {
@@ -138,12 +149,16 @@ else {
 & $NssmExePath start $ServiceName
 Wait-BridgeHealth -Url $HealthUrl -TimeoutSeconds $HealthTimeoutSeconds
 
+$bridgeBaseUrl = Resolve-BridgeBaseUrl -Url $HealthUrl
+
 Write-Host ""
-Write-Host "Bridge service installed."
+Write-Host "Bridge started successfully."
 Write-Host "Service:        $ServiceName"
 Write-Host "Install root:   $InstallRoot"
 Write-Host "Config root:    $bridgeConfigTargetDir"
 Write-Host "Bridge exe:     $bridgeExeTargetPath"
-Write-Host "Bridge URL:     $HealthUrl"
+Write-Host "Health:         $HealthUrl"
+Write-Host "Swagger UI:     $bridgeBaseUrl/docs"
+Write-Host "OpenAPI:        $bridgeBaseUrl/openapi.json"
 Write-Host "Service user:   $(if ($ServiceAccount -eq 'LocalSystem') { 'LocalSystem' } elseif ($ServiceAccount -eq 'CurrentUser') { Resolve-ServiceUserName -Mode 'CurrentUser' -ExplicitUserName '' } else { $ServiceUserName })"
 Write-Host "Logs:           $bridgeLogs"
