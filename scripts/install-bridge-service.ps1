@@ -229,41 +229,53 @@ if ([string]::IsNullOrWhiteSpace($ConfigRoot)) {
 
 $bridgeExeTargetPath = Join-Path $InstallRoot "dms-provider-bridge.exe"
 $bridgeConfigTargetDir = $ConfigRoot
+$machineConfigTargetDir = Join-Path $env:ProgramData "DMSProvider\config"
 $bridgeLogs = Join-Path $InstallRoot "logs"
 $stdoutLog = Join-Path $bridgeLogs "bridge-stdout.log"
 $stderrLog = Join-Path $bridgeLogs "bridge-stderr.log"
+$allowedMachineConfigFiles = @(
+    "default.json",
+    "alfresco.json",
+    "edocat.json",
+    "fso.json"
+)
 
 New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $bridgeLogs -Force | Out-Null
 New-Item -ItemType Directory -Path $bridgeConfigTargetDir -Force | Out-Null
+New-Item -ItemType Directory -Path $machineConfigTargetDir -Force | Out-Null
 
 Copy-Item -Path $BridgeExePath -Destination $bridgeExeTargetPath -Force
 
 if (-not [string]::IsNullOrWhiteSpace($BridgeConfigDirPath) -and (Test-Path $BridgeConfigDirPath)) {
-    $configFiles = Get-ChildItem -Path $BridgeConfigDirPath -Filter "*.json" -File
-    if ($RuntimeMode -eq "Service") {
-        $configFiles = $configFiles | Where-Object { $_.Name -notlike "*.local.json" -and $_.Name -ne "user.json" }
-        $configFiles | ForEach-Object {
-            Copy-Item -Path $_.FullName -Destination (Join-Path $bridgeConfigTargetDir $_.Name) -Force
-        }
-    }
-    else {
-        $machineTemplateFiles = $configFiles | Where-Object {
-            $_.Name -in @("default.json", "alfresco.json", "edocat.json", "fso.json")
+    foreach ($configName in $allowedMachineConfigFiles) {
+        $sourcePath = Join-Path $BridgeConfigDirPath $configName
+        if (-not (Test-Path $sourcePath)) {
+            continue
         }
 
-        foreach ($machineTemplate in $machineTemplateFiles) {
-            $targetPath = Join-Path $bridgeConfigTargetDir $machineTemplate.Name
-            if (-not (Test-Path $targetPath)) {
-                Copy-Item -Path $machineTemplate.FullName -Destination $targetPath
-            }
+        $targetPath = if ($RuntimeMode -eq "Service") {
+            Join-Path $bridgeConfigTargetDir $configName
+        }
+        else {
+            Join-Path $machineConfigTargetDir $configName
+        }
+
+        if ((Resolve-Path $sourcePath).Path -ne $targetPath) {
+            Copy-Item -Path $sourcePath -Destination $targetPath -Force
         }
     }
-    Write-Host "Bridge config copied from: $BridgeConfigDirPath"
+    Write-Host "Bridge machine config synchronized from: $BridgeConfigDirPath"
 }
 else {
     Write-Host "Bridge config directory not provided or not found, skipping config copy."
-    Write-Host "Place config files manually into: $bridgeConfigTargetDir"
+    Write-Host "Place machine config files manually into: $machineConfigTargetDir"
+}
+
+$invalidMachineUserConfig = Join-Path $machineConfigTargetDir "user.json"
+if (Test-Path $invalidMachineUserConfig) {
+    Remove-Item -Path $invalidMachineUserConfig -Force -ErrorAction SilentlyContinue
+    Write-Host "Removed invalid machine-scoped user config: $invalidMachineUserConfig"
 }
 
 if ($RuntimeMode -eq "User") {
