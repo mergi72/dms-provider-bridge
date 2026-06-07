@@ -30,6 +30,36 @@ function Resolve-NssmPath {
     return $null
 }
 
+function New-ZipFromDirectory {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SourceDir,
+        [Parameter(Mandatory = $true)]
+        [string]$DestinationPath
+    )
+
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+    $resolvedSource = (Resolve-Path $SourceDir).Path
+    $sourcePrefix = $resolvedSource.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+
+    if (Test-Path $DestinationPath) {
+        Remove-Item -Path $DestinationPath -Force
+    }
+
+    $zip = [System.IO.Compression.ZipFile]::Open($DestinationPath, [System.IO.Compression.ZipArchiveMode]::Create)
+    try {
+        Get-ChildItem -Path $resolvedSource -File -Recurse | Sort-Object FullName | ForEach-Object {
+            $relativePath = $_.FullName.Substring($sourcePrefix.Length).Replace([System.IO.Path]::DirectorySeparatorChar, "/")
+            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, $relativePath, [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
+        }
+    }
+    finally {
+        $zip.Dispose()
+    }
+}
+
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 
 if (-not [System.IO.Path]::IsPathRooted($BridgeExePath)) {
@@ -90,10 +120,6 @@ foreach ($configName in $userProviderLocalConfigNames) {
     Set-Content -Path (Join-Path $userConfigTarget $configName) -Value "{}" -Encoding ASCII
 }
 
-if (Test-Path $zipPath) {
-    Remove-Item -Path $zipPath -Force
-}
-
-Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $zipPath -Force
+New-ZipFromDirectory -SourceDir $staging -DestinationPath $zipPath
 
 Write-Host "Bridge service package created: $zipPath"
