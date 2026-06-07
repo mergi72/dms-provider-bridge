@@ -291,7 +291,14 @@ begin
     'Write-ServiceControlShortcut "stop-bridge-service" "DMS Provider Bridge - Stop Service"' + #13#10 +
     'Write-ServiceControlShortcut "status-bridge-service" "DMS Provider Bridge - Service Status"' + #13#10 +
     'Write-InstallLog "[STEP] Starting Windows service"' + #13#10 +
-    'Invoke-Nssm @("start", $serviceName)' + #13#10 +
+    'try {' + #13#10 +
+    '    Write-InstallLog "[INFO] Start-Service: $serviceName"' + #13#10 +
+    '    Start-Service -Name $serviceName -ErrorAction Stop' + #13#10 +
+    '    Write-InstallLog "[INFO] Start-Service returned"' + #13#10 +
+    '}' + #13#10 +
+    'catch {' + #13#10 +
+    '    Write-InstallLog "[WARN] Start-Service reported: $($_.Exception.Message)"' + #13#10 +
+    '}' + #13#10 +
     'for ($attempt = 1; $attempt -le 15; $attempt++) {' + #13#10 +
     '    $serviceState = Get-Service -Name $serviceName -ErrorAction SilentlyContinue' + #13#10 +
     '    if ($null -ne $serviceState) { Write-InstallLog "[INFO] Service status attempt $attempt/15: $($serviceState.Status)" }' + #13#10 +
