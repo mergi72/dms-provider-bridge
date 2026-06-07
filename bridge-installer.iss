@@ -179,8 +179,8 @@ begin
     'Write-InstallLog "[INFO] AppDirectory: $appRoot"' + #13#10 +
     'Write-InstallLog "[INFO] Machine config: $machineConfigRoot"' + #13#10 +
     'Write-InstallLog "[INFO] User config: $userConfigRoot"' + #13#10 +
-    'Invoke-Nssm @("stop", $serviceName) $true' + #13#10 +
-    'Invoke-Nssm @("remove", $serviceName, "confirm") $true' + #13#10 +
+    '$existingService = Get-Service -Name $serviceName -ErrorAction SilentlyContinue' + #13#10 +
+    'if ($null -ne $existingService) { throw "Service already exists, registration block will not stop/remove it: $serviceName" }' + #13#10 +
     'Invoke-Nssm @("install", $serviceName, $bridgeExe)' + #13#10 +
     'Invoke-Nssm @("set", $serviceName, "AppDirectory", $appRoot)' + #13#10 +
     'Invoke-Nssm @("set", $serviceName, "DisplayName", $serviceDisplayName)' + #13#10 +
