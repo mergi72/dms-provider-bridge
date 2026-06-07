@@ -71,6 +71,55 @@ def test_bridge_providers() -> None:
     assert body["default_provider"] == body["data"]["default_provider"]
 
 
+def test_bridge_provider_detail_returns_auth_and_capabilities() -> None:
+    client = TestClient(create_app())
+    response = client.get("/bridge/wfx/providers/alfresco")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["data"]["name"] == "alfresco"
+    assert body["data"]["enabled"] is True
+    assert body["data"]["auth"] == {
+        "mode": "windows",
+        "target": "tc-wfx/bridge",
+        "required": True,
+    }
+    assert body["data"]["capabilities"] == {
+        "list": True,
+        "stat": True,
+        "download": True,
+        "upload": True,
+        "mkdir": True,
+        "delete": True,
+        "rename": True,
+        "copy": True,
+    }
+    assert body["metadata"]["operation"] == "provider_detail"
+
+
+def test_bridge_provider_detail_returns_none_auth_for_fso() -> None:
+    client = TestClient(create_app())
+    response = client.get("/bridge/wfx/providers/fso")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["data"]["name"] == "fso"
+    assert body["data"]["auth"] == {"mode": "none", "required": False}
+
+
+def test_bridge_provider_detail_unknown_provider() -> None:
+    client = TestClient(create_app())
+    response = client.get("/bridge/wfx/providers/unknown")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is False
+    assert body["error_code"] == 1
+    assert "not registered" in body["message"]
+
+
 def test_bridge_root_list_returns_provider_folders_without_auth() -> None:
     client = TestClient(create_app())
     response = client.post("/bridge/wfx/list", json={"path": "/"})

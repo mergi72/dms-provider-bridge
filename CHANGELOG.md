@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.5 - 2026-06-08
+
+### Changed
+- Release/version bump to `0.4.5`.
+- Added `GET /bridge/wfx/providers/{provider}` provider detail endpoint for TC-WFX discovery.
+- Provider detail exposes provider auth requirements from merged config and operation capabilities.
+
+---
+
 ## 0.4.4 - 2026-06-07
 
 ### Changed

@@ -76,6 +76,43 @@ def _provider_root_listing() -> ListingResult:
     return ListingResult(provider="bridge", path="/", total=len(items), items=items)
 
 
+def _provider_capabilities(provider) -> dict[str, bool]:
+    method_by_operation = {
+        "list": "list_items",
+        "stat": "stat_item",
+        "download": "download_item",
+        "upload": "upload_item",
+        "mkdir": "make_dir",
+        "delete": "delete_item",
+        "rename": "rename_item",
+        "copy": "copy_item",
+    }
+    return {
+        operation: callable(getattr(provider, method_name, None))
+        for operation, method_name in method_by_operation.items()
+    }
+
+
+def _provider_auth_requirements(provider) -> dict[str, object]:
+    config = getattr(provider, "config", {})
+    credentials = config.get("credentials") if isinstance(config, dict) else None
+    auth: dict[str, object] = {}
+    if isinstance(credentials, dict):
+        mode = str(credentials.get("mode") or "").strip() or "credentials"
+        auth["mode"] = mode
+        for key in ("target", "targetBase"):
+            value = credentials.get(key)
+            if isinstance(value, str) and value.strip():
+                auth[key] = value
+        required = credentials.get("required")
+        auth["required"] = bool(required) if isinstance(required, bool) else mode.lower() != "none"
+        return auth
+
+    if getattr(provider, "upstream_auth_scheme", "unknown") == "none":
+        return {"mode": "none", "required": False}
+    return {"mode": "credentials", "required": True}
+
+
 def _log_and_return(
     operation: str,
     provider: str | None,
@@ -111,6 +148,25 @@ def providers_path() -> WfxResponse:
         metadata={"operation": "providers"},
     )
     return _log_and_return("providers", None, "/", started_at, response)
+
+
+def provider_detail_path(provider_name: str) -> WfxResponse:
+    started_at = time.perf_counter()
+    try:
+        provider = get_provider(provider_name)
+        response = _success(
+            data={
+                "name": provider.name,
+                "enabled": provider.name in list_registered_providers(),
+                "auth": _provider_auth_requirements(provider),
+                "capabilities": _provider_capabilities(provider),
+            },
+            metadata={"operation": "provider_detail", "provider": provider.name},
+        )
+        return _log_and_return("provider_detail", provider.name, "/", started_at, response)
+    except ProviderNotFoundError as exc:
+        response = _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
+        return _log_and_return("provider_detail", provider_name, "/", started_at, response, str(exc))
 
 
 def list_path(path: str, auth: BridgeAuthContext | None) -> WfxResponse:

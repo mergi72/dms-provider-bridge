@@ -15,7 +15,7 @@ from dms_provider_bridge.adapters.commander_api import WfxErrorCode
 from dms_provider_bridge.core.config_loader import load_config
 from dms_provider_bridge.core.logging import get_logger
 from dms_provider_bridge.models.bridge import BridgeAuthContext, WfxMoveRequest, WfxPathRequest, WfxShareUrlBrowseRequest, WfxShareUrlRequest, WfxShareUrlValidateRequest, WfxUploadRequest
-from dms_provider_bridge.services.bridge_service import browse_share_url, copy_path, delete_path, download_path, list_path, mkdir_path, providers_path, rename_path, resolve_share_url, stat_path, upload_path
+from dms_provider_bridge.services.bridge_service import browse_share_url, copy_path, delete_path, download_path, list_path, mkdir_path, provider_detail_path, providers_path, rename_path, resolve_share_url, stat_path, upload_path
 
 router = APIRouter()
 share_url_router = APIRouter()
@@ -218,6 +218,11 @@ def bridge_providers() -> dict:
         payload["providers"] = data.get("providers", [])
         payload["default_provider"] = data.get("default_provider")
     return payload
+
+
+@router.get("/providers/{provider_name}")
+def bridge_provider_detail(provider_name: str) -> dict:
+    return provider_detail_path(provider_name).model_dump()
 
 
 @share_url_router.post(
