@@ -206,6 +206,16 @@ function Remove-ExistingBridgeService {
 
     sc.exe stop $Name | Out-Null 2>&1
     sc.exe delete $Name | Out-Null 2>&1
+
+    $deadline = (Get-Date).AddSeconds(15)
+    while ((Get-Date) -lt $deadline) {
+        if (-not (Get-Service -Name $Name -ErrorAction SilentlyContinue)) {
+            return
+        }
+        Start-Sleep -Milliseconds 500
+    }
+
+    throw "Service '$Name' could not be removed before reinstall."
 }
 
 function Remove-LegacyBridgeServices {
@@ -274,6 +284,32 @@ if (-not (Test-IsAdministrator)) {
     throw "Install requires elevated PowerShell (Run as Administrator)."
 }
 
+function Invoke-Nssm {
+    param(
+        [string[]]$Arguments,
+        [switch]$IgnoreFailure
+    )
+
+    $commandText = "$NssmExePath $($Arguments -join ' ')"
+    Write-Info "NSSM: $commandText"
+    $output = & $NssmExePath @Arguments 2>&1
+    $exitCode = $LASTEXITCODE
+
+    foreach ($line in @($output)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$line)) {
+            Write-Info "NSSM output: $line"
+        }
+    }
+
+    if ($exitCode -ne 0 -and -not $IgnoreFailure) {
+        throw "NSSM command failed with exit code $exitCode`: $commandText"
+    }
+
+    if ($exitCode -ne 0) {
+        Write-Warn "NSSM command ignored exit code $exitCode`: $commandText"
+    }
+}
+
 Write-Info "Starting installation..."
 Write-Info "Runtime mode: $RuntimeMode"
 Write-Info "Install root: $InstallRoot"
@@ -317,19 +353,39 @@ if ([string]::IsNullOrWhiteSpace($BridgeConfigDirPath)) {
     }
 }
 
+if ([string]::IsNullOrWhiteSpace($UserConfigSourceDirPath)) {
+    Write-Step "Resolving user config payload..."
+    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+    $candidates = @(
+        (Join-Path $scriptDir "user-config"),
+        (Join-Path $scriptDir "..\user-config")
+    )
+    foreach ($c in $candidates) {
+        if (Test-Path $c) { $UserConfigSourceDirPath = (Resolve-Path $c).Path; break }
+    }
+}
+
 if ($RuntimeMode -eq "User" -and [string]::IsNullOrWhiteSpace($RunAsUser)) {
     $RunAsUser = Resolve-CurrentUserName
 }
 
 if ([string]::IsNullOrWhiteSpace($ConfigRoot)) {
-    if ($RuntimeMode -eq "User") {
-        $userRoamingAppData = Resolve-UserRoamingAppDataPath -UserName $RunAsUser
-        if ([string]::IsNullOrWhiteSpace($userRoamingAppData)) {
-            throw "RuntimeMode=User could not resolve roaming AppData for '$RunAsUser'. Provide -ConfigRoot explicitly."
-        }
+    $userConfigOwner = $RunAsUser
+    if ([string]::IsNullOrWhiteSpace($userConfigOwner)) {
+        $userConfigOwner = Resolve-CurrentUserName
+    }
+
+    $userRoamingAppData = Resolve-UserRoamingAppDataPath -UserName $userConfigOwner
+    if (-not [string]::IsNullOrWhiteSpace($userRoamingAppData)) {
         $ConfigRoot = Join-Path $userRoamingAppData "DMS Provider\config"
     }
+    elseif ($RuntimeMode -eq "User") {
+        if ([string]::IsNullOrWhiteSpace($userRoamingAppData)) {
+            throw "RuntimeMode=User could not resolve roaming AppData for '$userConfigOwner'. Provide -ConfigRoot explicitly."
+        }
+    }
     else {
+        Write-Warn "Could not resolve user AppData for '$userConfigOwner'. Falling back to ProgramData user config root."
         $ConfigRoot = Join-Path $env:ProgramData "DMS Provider\config"
     }
 }
@@ -362,7 +418,11 @@ $machineConfigNames = @(
     "fso.json"
 )
 
-$userConfigNames = @()
+$userConfigNames = @(
+    "alfresco.local.json",
+    "edocat.local.json",
+    "fso.local.json"
+)
 
 Write-Step "Copying default configuration..."
 $machineCopied = Copy-ConfigFilesByName -SourceDir $BridgeConfigDirPath -TargetDir $machineConfigRoot -FileNames $machineConfigNames -Overwrite
@@ -376,16 +436,14 @@ else {
     Write-Warn "Machine bridge config directory not provided or not found. Expected target: $machineConfigRoot"
 }
 
-if ($RuntimeMode -eq "User") {
-    Write-Step "Creating AppData structure..."
-    Write-Ok $userConfigRoot
-    $userCopied = Copy-ConfigFilesByName -SourceDir $UserConfigSourceDirPath -TargetDir $userConfigRoot -FileNames $userConfigNames
-    if ($userCopied -gt 0) {
-        Write-Ok "User bridge config seeded from: $UserConfigSourceDirPath"
-    }
-    elseif (-not [string]::IsNullOrWhiteSpace($UserConfigSourceDirPath) -and (Test-Path $UserConfigSourceDirPath)) {
-        Write-Ok "User bridge config already present or no seed file found: $UserConfigSourceDirPath"
-    }
+Write-Step "Creating AppData structure..."
+Write-Ok $userConfigRoot
+$userCopied = Copy-ConfigFilesByName -SourceDir $UserConfigSourceDirPath -TargetDir $userConfigRoot -FileNames $userConfigNames
+if ($userCopied -gt 0) {
+    Write-Ok "User bridge config seeded from: $UserConfigSourceDirPath"
+}
+elseif (-not [string]::IsNullOrWhiteSpace($UserConfigSourceDirPath) -and (Test-Path $UserConfigSourceDirPath)) {
+    Write-Ok "User bridge config already present or no seed file found: $UserConfigSourceDirPath"
 }
 
 $bridgeBaseUrl = Resolve-BridgeBaseUrl -Url $HealthUrl
@@ -431,20 +489,20 @@ if ($RuntimeMode -eq "User") {
 
 Write-Step "Registering Windows service..."
 Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
-& $NssmExePath stop $ServiceName | Out-Null 2>&1
-& $NssmExePath remove $ServiceName confirm | Out-Null 2>&1
+Invoke-Nssm -Arguments @("stop", $ServiceName) -IgnoreFailure
+Invoke-Nssm -Arguments @("remove", $ServiceName, "confirm") -IgnoreFailure
 Remove-LegacyBridgeServices -CurrentName $ServiceName
 
-& $NssmExePath install $ServiceName $bridgeExeTargetPath
-& $NssmExePath set $ServiceName AppDirectory $InstallRoot
-& $NssmExePath set $ServiceName DisplayName $ServiceDisplayName
-& $NssmExePath set $ServiceName AppStdout $stdoutLog
-& $NssmExePath set $ServiceName AppStderr $stderrLog
-& $NssmExePath set $ServiceName AppEnvironmentExtra "DMS_PROVIDER_MACHINE_CONFIG_DIR=$machineConfigRoot" "DMS_PROVIDER_USER_CONFIG_DIR=$userConfigRoot"
+Invoke-Nssm -Arguments @("install", $ServiceName, $bridgeExeTargetPath)
+Invoke-Nssm -Arguments @("set", $ServiceName, "AppDirectory", $InstallRoot)
+Invoke-Nssm -Arguments @("set", $ServiceName, "DisplayName", $ServiceDisplayName)
+Invoke-Nssm -Arguments @("set", $ServiceName, "AppStdout", $stdoutLog)
+Invoke-Nssm -Arguments @("set", $ServiceName, "AppStderr", $stderrLog)
+Invoke-Nssm -Arguments @("set", $ServiceName, "AppEnvironmentExtra", "DMS_PROVIDER_MACHINE_CONFIG_DIR=$machineConfigRoot", "DMS_PROVIDER_USER_CONFIG_DIR=$userConfigRoot")
 Write-Ok "$ServiceDisplayName registered"
 
 if ($ServiceAccount -eq "LocalSystem") {
-    & $NssmExePath set $ServiceName ObjectName LocalSystem
+    Invoke-Nssm -Arguments @("set", $ServiceName, "ObjectName", "LocalSystem")
 }
 else {
     $resolvedServiceUser = Resolve-ServiceUserName -Mode $ServiceAccount -ExplicitUserName $ServiceUserName
@@ -452,12 +510,18 @@ else {
         throw "ServiceAccount=$ServiceAccount requires -ServicePassword."
     }
     Write-Info "Service account: $resolvedServiceUser"
-    & $NssmExePath set $ServiceName ObjectName $resolvedServiceUser $ServicePassword
+    Invoke-Nssm -Arguments @("set", $ServiceName, "ObjectName", $resolvedServiceUser, $ServicePassword)
 }
 
-& $NssmExePath set $ServiceName Start SERVICE_AUTO_START
+$registeredService = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+if ($null -eq $registeredService) {
+    throw "Service '$ServiceName' was not found after NSSM registration."
+}
+Write-Ok "Service exists: $ServiceName"
+
+Invoke-Nssm -Arguments @("set", $ServiceName, "Start", "SERVICE_AUTO_START")
 Write-Step "Starting service..."
-& $NssmExePath start $ServiceName
+Invoke-Nssm -Arguments @("start", $ServiceName)
 Write-Ok "Service start requested: $ServiceName"
 Wait-BridgeHealth -Url $HealthUrl -TimeoutSeconds $HealthTimeoutSeconds | Out-Null
 Test-BridgeProviders -BaseUrl $bridgeBaseUrl | Out-Null

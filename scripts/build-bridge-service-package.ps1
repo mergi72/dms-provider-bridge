@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "v0.3.1",
+    [string]$Version = "v0.3.2",
     [string]$BridgeExePath = "dist\dms-provider-bridge.exe",
     [string]$NssmExePath,
     [string]$OutputDir = "artifacts\service-package"
@@ -51,12 +51,18 @@ if (-not [System.IO.Path]::IsPathRooted($OutputDir)) {
 
 $staging = Join-Path $OutputDir "staging"
 $configTarget = Join-Path $staging "config"
+$userConfigTarget = Join-Path $staging "user-config"
 $zipPath = Join-Path $OutputDir "DmsProviderBridgeService-$Version.zip"
 $configWhitelist = @(
     "bridge.json",
     "alfresco.json",
     "edocat.json",
     "fso.json"
+)
+$userProviderLocalConfigNames = @(
+    "alfresco.local.json",
+    "edocat.local.json",
+    "fso.local.json"
 )
 
 if (Test-Path $staging) {
@@ -65,6 +71,7 @@ if (Test-Path $staging) {
 
 New-Item -ItemType Directory -Path $staging -Force | Out-Null
 New-Item -ItemType Directory -Path $configTarget -Force | Out-Null
+New-Item -ItemType Directory -Path $userConfigTarget -Force | Out-Null
 
 Copy-Item -Path $BridgeExePath -Destination (Join-Path $staging "dms-provider-bridge.exe") -Force
 Copy-Item -Path $resolvedNssm -Destination (Join-Path $staging "nssm.exe") -Force
@@ -77,6 +84,10 @@ foreach ($configName in $configWhitelist) {
         throw "Required config template missing: $configSource"
     }
     Copy-Item -Path $configSource -Destination (Join-Path $configTarget $configName) -Force
+}
+
+foreach ($configName in $userProviderLocalConfigNames) {
+    Set-Content -Path (Join-Path $userConfigTarget $configName) -Value "{}" -Encoding ASCII
 }
 
 if (Test-Path $zipPath) {

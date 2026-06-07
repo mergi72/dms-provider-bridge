@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.2 - 2026-06-07
+
+### Changed
+- Release/version bump to `0.3.2`.
+- Installer now stages empty user `*.local.json` placeholders under the application `user-config` directory and lets the PowerShell install script create/seed the resolved user AppData config directory.
+- Service ZIP now includes the same `user-config` placeholder payload as the Inno installer.
+- Install script can resolve a sibling `user-config` payload automatically when `-UserConfigSourceDirPath` is not passed.
+- Install script now checks NSSM exit codes and verifies that `DMSProviderBridge` exists immediately after service registration.
+
+---
+
 ## 0.3.1 - 2026-06-07
 
 ### Changed
