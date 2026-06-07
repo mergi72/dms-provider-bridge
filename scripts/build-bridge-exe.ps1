@@ -35,6 +35,13 @@ $targetRoot = Join-Path $repoRoot $OutputDir
 $distPath = Join-Path $targetRoot "dist"
 $buildPath = Join-Path $targetRoot "build"
 $specPath = Join-Path $targetRoot "spec"
+$configStageDir = Join-Path $targetRoot "config"
+$configWhitelist = @(
+    "bridge.json",
+    "alfresco.json",
+    "edocat.json",
+    "fso.json"
+)
 
 if (-not (Test-Path $entryScript)) {
     throw "Entry script not found: $entryScript"
@@ -48,6 +55,18 @@ New-Item -ItemType Directory -Path $targetRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $distPath -Force | Out-Null
 New-Item -ItemType Directory -Path $buildPath -Force | Out-Null
 New-Item -ItemType Directory -Path $specPath -Force | Out-Null
+if (Test-Path $configStageDir) {
+    Remove-Item -Path $configStageDir -Recurse -Force
+}
+New-Item -ItemType Directory -Path $configStageDir -Force | Out-Null
+
+foreach ($configName in $configWhitelist) {
+    $configSource = Join-Path $configDir $configName
+    if (-not (Test-Path $configSource)) {
+        throw "Required config template missing: $configSource"
+    }
+    Copy-Item -Path $configSource -Destination (Join-Path $configStageDir $configName) -Force
+}
 
 if (-not $SkipPyInstallerInstall) {
     Write-Host "Installing/updating PyInstaller in selected environment..."
@@ -58,7 +77,7 @@ if (-not $SkipPyInstallerInstall) {
 }
 
 $separator = [IO.Path]::PathSeparator
-$addData = "$configDir${separator}config"
+$addData = "$configStageDir${separator}config"
 
 Write-Host "Building bridge executable (onedir)..."
 & $pythonExe -m PyInstaller `
