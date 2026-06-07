@@ -5,7 +5,6 @@ AppVersion=0.3.5
 AppPublisher=mergi72
 DefaultDirName={autopf}\DMS Provider
 DefaultGroupName=DMS Provider Bridge
-DisableDirPage=yes
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -101,16 +100,14 @@ begin
   Result := '"' + Value + '"';
 end;
 
-procedure WriteAdminStructureScript(ScriptPath: String; PayloadRoot: String; DefaultAppRoot: String; UserLogPath: String);
+procedure WriteAdminStructureScript(ScriptPath: String; PayloadRoot: String; AppRoot: String; UserLogPath: String);
 var
   Script: String;
 begin
   Script :=
     '$ErrorActionPreference = "Stop"' + #13#10 +
     '$payloadRoot = ' + Quote(PayloadRoot) + #13#10 +
-    '$defaultAppRoot = ' + Quote(DefaultAppRoot) + #13#10 +
-    '$appRootInput = Read-Host "Install path [$defaultAppRoot]"' + #13#10 +
-    'if ([string]::IsNullOrWhiteSpace($appRootInput)) { $appRoot = $defaultAppRoot } else { $appRoot = $appRootInput }' + #13#10 +
+    '$appRoot = ' + Quote(AppRoot) + #13#10 +
     '$logDir = Join-Path $appRoot "logs"' + #13#10 +
     'New-Item -ItemType Directory -Path $logDir -Force | Out-Null' + #13#10 +
     '$logPath = Join-Path $logDir "installer-structure-admin.log"' + #13#10 +
@@ -156,18 +153,18 @@ procedure RunAdminStructurePhase();
 var
   ResultCode: Integer;
   PayloadRoot: String;
-  DefaultAppRoot: String;
+  AppRoot: String;
   ScriptPath: String;
   Params: String;
   UserLogPath: String;
 begin
   PayloadRoot := ExpandConstant('{tmp}\dms-provider-payload');
-  DefaultAppRoot := ExpandConstant('{commonpf}\DMS Provider');
+  AppRoot := ExpandConstant('{app}');
   ScriptPath := ExpandConstant('{tmp}\dms-provider-admin-structure.ps1');
   UserLogPath := ExpandConstant('{userappdata}\DMS provider\installer-structure.log');
 
   WizardForm.StatusLabel.Caption := 'Requesting administrator rights for app structure...';
-  WriteAdminStructureScript(ScriptPath, PayloadRoot, DefaultAppRoot, UserLogPath);
+  WriteAdminStructureScript(ScriptPath, PayloadRoot, AppRoot, UserLogPath);
 
   Params := '-NoProfile -ExecutionPolicy Bypass -File ' + Quote(ScriptPath);
   if not ShellExec('runas', ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Params, '', SW_SHOW, ewWaitUntilTerminated, ResultCode) then begin
