@@ -290,7 +290,31 @@ begin
     'Write-ServiceControlShortcut "start-bridge-service" "DMS Provider Bridge - Start Service"' + #13#10 +
     'Write-ServiceControlShortcut "stop-bridge-service" "DMS Provider Bridge - Stop Service"' + #13#10 +
     'Write-ServiceControlShortcut "status-bridge-service" "DMS Provider Bridge - Service Status"' + #13#10 +
-    'Write-InstallLog "[INFO] Service start intentionally skipped in this block"' + #13#10 +
+    'Write-InstallLog "[STEP] Starting Windows service"' + #13#10 +
+    'Invoke-Nssm @("start", $serviceName)' + #13#10 +
+    'for ($attempt = 1; $attempt -le 15; $attempt++) {' + #13#10 +
+    '    $serviceState = Get-Service -Name $serviceName -ErrorAction SilentlyContinue' + #13#10 +
+    '    if ($null -ne $serviceState) { Write-InstallLog "[INFO] Service status attempt $attempt/15: $($serviceState.Status)" }' + #13#10 +
+    '    if ($null -ne $serviceState -and $serviceState.Status -eq "Running") {' + #13#10 +
+    '        Write-InstallLog "[ OK ] Service started: $serviceName"' + #13#10 +
+    '        break' + #13#10 +
+    '    }' + #13#10 +
+    '    Start-Sleep -Seconds 1' + #13#10 +
+    '}' + #13#10 +
+    '$serviceState = Get-Service -Name $serviceName -ErrorAction SilentlyContinue' + #13#10 +
+    'if ($null -eq $serviceState -or $serviceState.Status -ne "Running") {' + #13#10 +
+    '    Write-InstallLog "[FAIL] Service did not reach Running state: $serviceName"' + #13#10 +
+    '    foreach ($logPathToRead in @($stdoutLog, $stderrLog)) {' + #13#10 +
+    '        if (Test-Path $logPathToRead) {' + #13#10 +
+    '            Write-InstallLog "[INFO] Tail: $logPathToRead"' + #13#10 +
+    '            foreach ($line in @(Get-Content -Path $logPathToRead -Tail 80 -ErrorAction SilentlyContinue)) { Write-InstallLog "[INFO] $line" }' + #13#10 +
+    '        }' + #13#10 +
+    '        else { Write-InstallLog "[INFO] Log file not found: $logPathToRead" }' + #13#10 +
+    '    }' + #13#10 +
+    '    $nssmDump = & $nssm dump $serviceName 2>&1' + #13#10 +
+    '    foreach ($line in @($nssmDump)) { if (-not [string]::IsNullOrWhiteSpace([string]$line)) { Write-InstallLog "[INFO] NSSM dump: $line" } }' + #13#10 +
+    '    throw "Service did not start: $serviceName"' + #13#10 +
+    '}' + #13#10 +
     'Write-InstallLog "[INFO] Admin structure phase completed successfully"' + #13#10;
 
   SaveStringToFile(ScriptPath, Script, False);
