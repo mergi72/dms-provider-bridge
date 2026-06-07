@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "v0.2.6-alpha",
+    [string]$Version = "v0.2.7-alpha",
     [string]$BridgeExePath = "dist\dms-provider-bridge.exe",
     [string]$NssmExePath,
     [string]$OutputDir = "artifacts\service-package"

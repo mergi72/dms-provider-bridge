@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.7-alpha - 2026-06-07
+
+### Fixed
+- Installer config seeding is now split by scope: machine templates remain in `C:\ProgramData\DMSProvider\config`, while `user.json` is seeded to the user config path (`%APPDATA%\DMS Bridge\config`).
+- `install-bridge-service.ps1` now resolves the User mode config root from the effective `RunAsUser` profile and seeds user config from a dedicated user template source.
+- Service mode config copy now excludes both `*.local.json` and `user.json` from machine-wide config deployment.
+
+---
+
 ## 0.2.6-alpha - 2026-06-07
 
 ### Fixed
