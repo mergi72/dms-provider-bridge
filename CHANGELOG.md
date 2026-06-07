@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.5-alpha - 2026-06-07
+
+### Changed
+- User mode config target was moved to `%APPDATA%\DMS Bridge\config` for per-user bridge preferences and overrides.
+- Installer config split was aligned to machine-wide templates in `C:\ProgramData\DMSProvider\config` and user-specific config in `%APPDATA%\DMS Bridge\config`.
+- Config copy behavior in install script now keeps `*.local.json` for **User mode**, while **Service mode** still excludes local config files.
+
+---
+
 ## 0.2.4-alpha - 2026-06-06
 
 ### Added
