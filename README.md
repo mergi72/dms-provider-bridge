@@ -307,14 +307,15 @@ FSO security notes:
 
 - FSO provider supports local path restrictions via `allowedRoots` in `config/fso.json`.
 - Operations outside these roots are blocked (`ProviderOperationError`).
-- For local environments, set your own absolute paths (Windows example):
+- The packaged default is an empty list because FSO is disabled until you choose explicit local roots.
+- For local environments, set your own absolute paths in `fso.local.json` (Windows example):
 
 ```json
 {
   "key": "fso",
   "fso": {
     "allowedRoots": [
-      "C:/MyDocuments"
+      "C:/Users/<user>/Documents"
     ]
   }
 }
