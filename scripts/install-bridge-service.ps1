@@ -230,22 +230,24 @@ if ([string]::IsNullOrWhiteSpace($ConfigRoot)) {
         if ([string]::IsNullOrWhiteSpace($userRoamingAppData)) {
             throw "RuntimeMode=User could not resolve roaming AppData for '$RunAsUser'. Provide -ConfigRoot explicitly."
         }
-        $ConfigRoot = Join-Path $userRoamingAppData "DMS Bridge\config"
+        $ConfigRoot = Join-Path $userRoamingAppData "DMS Provider\config"
     }
     else {
-        $ConfigRoot = Join-Path $env:ProgramData "DMSProvider\config"
+        $ConfigRoot = Join-Path $env:ProgramData "DMS Provider\config"
     }
 }
 
 $bridgeExeTargetPath = Join-Path $InstallRoot "dms-provider-bridge.exe"
-$bridgeConfigTargetDir = $ConfigRoot
+$machineConfigRoot = Join-Path $env:ProgramData "DMS Provider\config"
+$userConfigRoot = $ConfigRoot
 $bridgeLogs = Join-Path $InstallRoot "logs"
 $stdoutLog = Join-Path $bridgeLogs "bridge-stdout.log"
 $stderrLog = Join-Path $bridgeLogs "bridge-stderr.log"
 
 New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $bridgeLogs -Force | Out-Null
-New-Item -ItemType Directory -Path $bridgeConfigTargetDir -Force | Out-Null
+New-Item -ItemType Directory -Path $machineConfigRoot -Force | Out-Null
+New-Item -ItemType Directory -Path $userConfigRoot -Force | Out-Null
 
 Copy-Item -Path $BridgeExePath -Destination $bridgeExeTargetPath -Force
 
@@ -260,7 +262,7 @@ $userConfigNames = @(
     "user.json"
 )
 
-$machineCopied = Copy-ConfigFilesByName -SourceDir $BridgeConfigDirPath -TargetDir $bridgeConfigTargetDir -FileNames $machineConfigNames -Overwrite
+$machineCopied = Copy-ConfigFilesByName -SourceDir $BridgeConfigDirPath -TargetDir $machineConfigRoot -FileNames $machineConfigNames -Overwrite
 if ($machineCopied -gt 0) {
     Write-Host "Machine bridge config templates copied from: $BridgeConfigDirPath"
 }
@@ -268,11 +270,11 @@ elseif (-not [string]::IsNullOrWhiteSpace($BridgeConfigDirPath) -and (Test-Path 
     Write-Host "Machine bridge config templates already present or source equals target: $BridgeConfigDirPath"
 }
 else {
-    Write-Host "Machine bridge config directory not provided or not found. Expected target: $bridgeConfigTargetDir"
+    Write-Host "Machine bridge config directory not provided or not found. Expected target: $machineConfigRoot"
 }
 
 if ($RuntimeMode -eq "User") {
-    $userCopied = Copy-ConfigFilesByName -SourceDir $UserConfigSourceDirPath -TargetDir $bridgeConfigTargetDir -FileNames $userConfigNames
+    $userCopied = Copy-ConfigFilesByName -SourceDir $UserConfigSourceDirPath -TargetDir $userConfigRoot -FileNames $userConfigNames
     if ($userCopied -gt 0) {
         Write-Host "User bridge config seeded from: $UserConfigSourceDirPath"
     }
@@ -289,7 +291,7 @@ if ($RuntimeMode -eq "User") {
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
 
     $launcherPath = Join-Path $InstallRoot "start-bridge-usermode.ps1"
-    Write-UserModeLauncher -Path $launcherPath -BridgeExe $bridgeExeTargetPath -ConfigDir $bridgeConfigTargetDir -WorkingDir $InstallRoot
+    Write-UserModeLauncher -Path $launcherPath -BridgeExe $bridgeExeTargetPath -ConfigDir $userConfigRoot -WorkingDir $InstallRoot
 
     $taskAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$launcherPath`""
     $taskTrigger = New-ScheduledTaskTrigger -AtLogOn -User $RunAsUser
@@ -308,7 +310,7 @@ if ($RuntimeMode -eq "User") {
     Write-Host "Task:            $TaskName"
     Write-Host "Run as user:     $RunAsUser"
     Write-Host "Install root:    $InstallRoot"
-    Write-Host "Config root:     $bridgeConfigTargetDir"
+    Write-Host "Config root:     $userConfigRoot"
     Write-Host "Bridge exe:      $bridgeExeTargetPath"
     Write-Host "Health:          $HealthUrl"
     Write-Host "Swagger UI:      $bridgeBaseUrl/docs"
@@ -325,7 +327,7 @@ Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction Silent
 & $NssmExePath set $ServiceName AppDirectory $InstallRoot
 & $NssmExePath set $ServiceName AppStdout $stdoutLog
 & $NssmExePath set $ServiceName AppStderr $stderrLog
-& $NssmExePath set $ServiceName AppEnvironmentExtra "DMS_PROVIDER_CONFIG_DIR=$bridgeConfigTargetDir"
+& $NssmExePath set $ServiceName AppEnvironmentExtra "DMS_PROVIDER_CONFIG_DIR=$machineConfigRoot"
 
 if ($ServiceAccount -eq "LocalSystem") {
     & $NssmExePath set $ServiceName ObjectName LocalSystem
@@ -347,7 +349,7 @@ Write-Host "Bridge started successfully."
 Write-Host "Runtime mode:    Service"
 Write-Host "Service:        $ServiceName"
 Write-Host "Install root:   $InstallRoot"
-Write-Host "Config root:    $bridgeConfigTargetDir"
+Write-Host "Config root:    $machineConfigRoot"
 Write-Host "Bridge exe:     $bridgeExeTargetPath"
 Write-Host "Health:         $HealthUrl"
 Write-Host "Swagger UI:     $bridgeBaseUrl/docs"
