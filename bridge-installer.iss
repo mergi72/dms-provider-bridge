@@ -1,7 +1,7 @@
 [Setup]
 AppId={{CFD8BDCC-B59A-4CB3-93D7-530BB5283773}
 AppName=DMS Provider Bridge Setup
-AppVersion=0.3.5
+AppVersion=0.3.6
 AppPublisher=mergi72
 DefaultDirName={autopf}\DMS Provider
 DefaultGroupName=DMS Provider Bridge
@@ -10,7 +10,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=artifacts\installer
-OutputBaseFilename=DmsProviderBridgeSetup-v0.3.5-debug
+OutputBaseFilename=DmsProviderBridgeSetup-v0.3.6-debug
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -101,7 +101,7 @@ begin
   Result := '"' + Value + '"';
 end;
 
-procedure WriteAdminStructureScript(ScriptPath: String; PayloadRoot: String; DefaultAppRoot: String; UserLogPath: String);
+procedure WriteAdminStructureScript(ScriptPath: String; PayloadRoot: String; DefaultAppRoot: String; UserLogPath: String; UserConfigRoot: String);
 var
   Script: String;
 begin
@@ -137,6 +137,16 @@ begin
     '    if (-not (Test-Path $Target)) { throw "File was not copied: $Target" }' + #13#10 +
     '    Write-InstallLog "[ OK ] $Target"' + #13#10 +
     '}' + #13#10 +
+    'function Invoke-Nssm([string[]]$Arguments, [bool]$IgnoreFailure = $false) {' + #13#10 +
+    '    $nssm = Join-Path $appRoot "nssm.exe"' + #13#10 +
+    '    $commandText = "$nssm $($Arguments -join '' '')"' + #13#10 +
+    '    Write-InstallLog "[INFO] NSSM: $commandText"' + #13#10 +
+    '    $output = & $nssm @Arguments 2>&1' + #13#10 +
+    '    $exitCode = $LASTEXITCODE' + #13#10 +
+    '    foreach ($line in @($output)) { if (-not [string]::IsNullOrWhiteSpace([string]$line)) { Write-InstallLog "[INFO] NSSM output: $line" } }' + #13#10 +
+    '    if ($exitCode -ne 0 -and -not $IgnoreFailure) { throw "NSSM command failed with exit code $exitCode`: $commandText" }' + #13#10 +
+    '    if ($exitCode -ne 0) { Write-InstallLog "[WARN] NSSM command ignored exit code $exitCode`: $commandText" }' + #13#10 +
+    '}' + #13#10 +
     'Ensure-Dir $appRoot' + #13#10 +
     'Ensure-Dir (Join-Path $appRoot "config")' + #13#10 +
     'Ensure-Dir (Join-Path $appRoot "logs")' + #13#10 +
@@ -154,6 +164,35 @@ begin
     'Write-InstallLog "[STEP] Setting machine environment: DMS_PROVIDER_MACHINE_CONFIG_DIR=$appRoot\config"' + #13#10 +
     '[Environment]::SetEnvironmentVariable("DMS_PROVIDER_MACHINE_CONFIG_DIR", (Join-Path $appRoot "config"), "Machine")' + #13#10 +
     'Write-InstallLog "[ OK ] DMS_PROVIDER_MACHINE_CONFIG_DIR"' + #13#10 +
+    '$serviceName = "DMSProviderBridge"' + #13#10 +
+    '$serviceDisplayName = "DMS Provider Bridge"' + #13#10 +
+    '$bridgeExe = Join-Path $appRoot "dms-provider-bridge.exe"' + #13#10 +
+    '$machineConfigRoot = Join-Path $appRoot "config"' + #13#10 +
+    '$userConfigRoot = ' + Quote(UserConfigRoot) + #13#10 +
+    '$stdoutLog = Join-Path $appRoot "logs\bridge-stdout.log"' + #13#10 +
+    '$stderrLog = Join-Path $appRoot "logs\bridge-stderr.log"' + #13#10 +
+    'Write-InstallLog "[STEP] Registering Windows service"' + #13#10 +
+    'Write-InstallLog "[INFO] Service name: $serviceName"' + #13#10 +
+    'Write-InstallLog "[INFO] Display name: $serviceDisplayName"' + #13#10 +
+    'Write-InstallLog "[INFO] Account: LocalSystem"' + #13#10 +
+    'Write-InstallLog "[INFO] App: $bridgeExe"' + #13#10 +
+    'Write-InstallLog "[INFO] AppDirectory: $appRoot"' + #13#10 +
+    'Write-InstallLog "[INFO] Machine config: $machineConfigRoot"' + #13#10 +
+    'Write-InstallLog "[INFO] User config: $userConfigRoot"' + #13#10 +
+    'Invoke-Nssm @("stop", $serviceName) $true' + #13#10 +
+    'Invoke-Nssm @("remove", $serviceName, "confirm") $true' + #13#10 +
+    'Invoke-Nssm @("install", $serviceName, $bridgeExe)' + #13#10 +
+    'Invoke-Nssm @("set", $serviceName, "AppDirectory", $appRoot)' + #13#10 +
+    'Invoke-Nssm @("set", $serviceName, "DisplayName", $serviceDisplayName)' + #13#10 +
+    'Invoke-Nssm @("set", $serviceName, "AppStdout", $stdoutLog)' + #13#10 +
+    'Invoke-Nssm @("set", $serviceName, "AppStderr", $stderrLog)' + #13#10 +
+    'Invoke-Nssm @("set", $serviceName, "AppEnvironmentExtra", "DMS_PROVIDER_MACHINE_CONFIG_DIR=$machineConfigRoot", "DMS_PROVIDER_USER_CONFIG_DIR=$userConfigRoot")' + #13#10 +
+    'Invoke-Nssm @("set", $serviceName, "ObjectName", "LocalSystem")' + #13#10 +
+    'Invoke-Nssm @("set", $serviceName, "Start", "SERVICE_AUTO_START")' + #13#10 +
+    '$registeredService = Get-Service -Name $serviceName -ErrorAction SilentlyContinue' + #13#10 +
+    'if ($null -eq $registeredService) { throw "Service was not found after registration: $serviceName" }' + #13#10 +
+    'Write-InstallLog "[ OK ] Service registered: $serviceName"' + #13#10 +
+    'Write-InstallLog "[INFO] Service start intentionally skipped in this block"' + #13#10 +
     'Write-InstallLog "[INFO] Admin structure phase completed successfully"' + #13#10;
 
   SaveStringToFile(ScriptPath, Script, False);
@@ -167,14 +206,16 @@ var
   ScriptPath: String;
   Params: String;
   UserLogPath: String;
+  UserConfigRoot: String;
 begin
   PayloadRoot := ExpandConstant('{tmp}\dms-provider-payload');
   DefaultAppRoot := ExpandConstant('{commonpf}\DMS Provider');
   ScriptPath := ExpandConstant('{tmp}\dms-provider-admin-structure.ps1');
   UserLogPath := ExpandConstant('{userappdata}\DMS provider\installer-structure.log');
+  UserConfigRoot := ExpandConstant('{userappdata}\DMS provider\config');
 
   WizardForm.StatusLabel.Caption := 'Requesting administrator rights for app structure...';
-  WriteAdminStructureScript(ScriptPath, PayloadRoot, DefaultAppRoot, UserLogPath);
+  WriteAdminStructureScript(ScriptPath, PayloadRoot, DefaultAppRoot, UserLogPath, UserConfigRoot);
 
   Params := '-STA -NoProfile -ExecutionPolicy Bypass -File ' + Quote(ScriptPath);
   if not ShellExec('runas', ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Params, '', SW_SHOW, ewWaitUntilTerminated, ResultCode) then begin
