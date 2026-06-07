@@ -1,7 +1,7 @@
 [Setup]
 AppId={{CFD8BDCC-B59A-4CB3-93D7-530BB5283773}
 AppName=DMS Provider Bridge Setup
-AppVersion=0.3.6
+AppVersion=0.4.0
 AppPublisher=mergi72
 DefaultDirName={autopf}\DMS Provider
 DefaultGroupName=DMS Provider Bridge
@@ -10,7 +10,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=artifacts\installer
-OutputBaseFilename=DmsProviderBridgeSetup-v0.3.6-debug
+OutputBaseFilename=DmsProviderBridgeSetup-v0.4.0
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -293,7 +293,9 @@ begin
     'Write-InstallLog "[STEP] Starting Windows service"' + #13#10 +
     'try {' + #13#10 +
     '    Write-InstallLog "[INFO] Start-Service: $serviceName"' + #13#10 +
-    '    Start-Service -Name $serviceName -ErrorAction Stop' + #13#10 +
+    '    $startWarnings = @()' + #13#10 +
+    '    Start-Service -Name $serviceName -ErrorAction Stop -WarningAction Continue -WarningVariable startWarnings' + #13#10 +
+    '    foreach ($warning in @($startWarnings)) { if (-not [string]::IsNullOrWhiteSpace([string]$warning)) { Write-InstallLog "[WARN] Start-Service warning: $warning" } }' + #13#10 +
     '    Write-InstallLog "[INFO] Start-Service returned"' + #13#10 +
     '}' + #13#10 +
     'catch {' + #13#10 +

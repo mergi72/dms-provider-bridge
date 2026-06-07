@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.0 - 2026-06-07
+
+### Changed
+- Release/version bump to `0.4.0`.
+- Installer now creates the active-user config structure before elevation, then installs application files and machine config during the admin phase.
+- Installer registers `DMSProviderBridge` as an automatic `LocalSystem` Windows service, replaces an existing service when present, starts it, and validates the real service state.
+- Installer writes service control helpers and Start Menu shortcuts for start/stop/status with UAC elevation.
+- Installer logs PowerShell warning stream output from service startup into the admin installer log.
+- Bridge and Uvicorn runtime logs are routed to stdout so normal startup and health output are written to `bridge-stdout.log`.
+- `/health` now logs a successful health check to stdout.
+
+---
+
 ## 0.3.3 - 2026-06-07
 
 ### Changed
