@@ -147,6 +147,36 @@ begin
     '    if ($exitCode -ne 0 -and -not $IgnoreFailure) { throw "NSSM command failed with exit code $exitCode`: $commandText" }' + #13#10 +
     '    if ($exitCode -ne 0) { Write-InstallLog "[WARN] NSSM command ignored exit code $exitCode`: $commandText" }' + #13#10 +
     '}' + #13#10 +
+    'function Write-ServiceControlScript([string]$FileBase, [string]$Action) {' + #13#10 +
+    '    $psPath = Join-Path $appRoot "$FileBase.ps1"' + #13#10 +
+    '    $cmdPath = Join-Path $appRoot "$FileBase.cmd"' + #13#10 +
+    '    $psContent = @(' + #13#10 +
+    '        ''$ErrorActionPreference = "Stop"''' + #13#10 +
+    '        ''$serviceName = "DMSProviderBridge"''' + #13#10 +
+    '        ''$action = "ActionPlaceholder"''' + #13#10 +
+    '        ''$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())''' + #13#10 +
+    '        ''if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {''' + #13#10 +
+    '        ''    Start-Process -FilePath "powershell.exe" -Verb RunAs -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $PSCommandPath)''' + #13#10 +
+    '        ''    exit''' + #13#10 +
+    '        ''}''' + #13#10 +
+    '        ''try {''' + #13#10 +
+    '        ''    if ($action -eq "start") { Start-Service -Name $serviceName }''' + #13#10 +
+    '        ''    elseif ($action -eq "stop") { Stop-Service -Name $serviceName -ErrorAction Stop }''' + #13#10 +
+    '        ''    elseif ($action -ne "status") { throw "Unsupported action: $action" }''' + #13#10 +
+    '        ''    Get-Service -Name $serviceName | Format-List Name, DisplayName, Status, StartType''' + #13#10 +
+    '        ''}''' + #13#10 +
+    '        ''catch {''' + #13#10 +
+    '        ''    Write-Host $_.Exception.Message -ForegroundColor Red''' + #13#10 +
+    '        ''    exit 1''' + #13#10 +
+    '        ''}''' + #13#10 +
+    '        ''Read-Host "Press Enter to close"''' + #13#10 +
+    '    )' + #13#10 +
+    '    $psContent = $psContent -replace "ActionPlaceholder", $Action' + #13#10 +
+    '    Set-Content -Path $psPath -Value $psContent -Encoding UTF8' + #13#10 +
+    '    $cmdContent = @("@echo off", "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ""%~dp0$FileBase.ps1""")' + #13#10 +
+    '    Set-Content -Path $cmdPath -Value $cmdContent -Encoding ASCII' + #13#10 +
+    '    Write-InstallLog "[ OK ] Service control script: $cmdPath"' + #13#10 +
+    '}' + #13#10 +
     'Ensure-Dir $appRoot' + #13#10 +
     'Ensure-Dir (Join-Path $appRoot "config")' + #13#10 +
     'Ensure-Dir (Join-Path $appRoot "logs")' + #13#10 +
@@ -192,6 +222,10 @@ begin
     '$registeredService = Get-Service -Name $serviceName -ErrorAction SilentlyContinue' + #13#10 +
     'if ($null -eq $registeredService) { throw "Service was not found after registration: $serviceName" }' + #13#10 +
     'Write-InstallLog "[ OK ] Service registered: $serviceName"' + #13#10 +
+    'Write-InstallLog "[STEP] Writing service control scripts"' + #13#10 +
+    'Write-ServiceControlScript "start-bridge-service" "start"' + #13#10 +
+    'Write-ServiceControlScript "stop-bridge-service" "stop"' + #13#10 +
+    'Write-ServiceControlScript "status-bridge-service" "status"' + #13#10 +
     'Write-InstallLog "[INFO] Service start intentionally skipped in this block"' + #13#10 +
     'Write-InstallLog "[INFO] Admin structure phase completed successfully"' + #13#10;
 
