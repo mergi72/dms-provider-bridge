@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "v0.2.8-alpha",
+    [string]$Version = "v0.2.9-alpha",
     [string]$BridgeExePath = "dist\dms-provider-bridge.exe",
     [string]$NssmExePath,
     [string]$InnoCompilerPath,
@@ -70,11 +70,14 @@ if ([string]::IsNullOrWhiteSpace($resolvedNssm)) {
 
 $payloadDir = Join-Path $repoRoot "artifacts\bridge-installer-payload"
 $configPayloadDir = Join-Path $payloadDir "config"
-$configWhitelist = @(
+$userConfigPayloadDir = Join-Path $payloadDir "user-config"
+$machineConfigWhitelist = @(
     "default.json",
     "alfresco.json",
     "edocat.json",
-    "fso.json",
+    "fso.json"
+)
+$userConfigWhitelist = @(
     "user.json"
 )
 
@@ -84,18 +87,27 @@ if (Test-Path $payloadDir) {
 
 New-Item -ItemType Directory -Path $payloadDir -Force | Out-Null
 New-Item -ItemType Directory -Path $configPayloadDir -Force | Out-Null
+New-Item -ItemType Directory -Path $userConfigPayloadDir -Force | Out-Null
 
 Copy-Item -Path $BridgeExePath -Destination (Join-Path $payloadDir "dms-provider-bridge.exe") -Force
 Copy-Item -Path $resolvedNssm -Destination (Join-Path $payloadDir "nssm.exe") -Force
 Copy-Item -Path (Join-Path $repoRoot "scripts\install-bridge-service.ps1") -Destination (Join-Path $payloadDir "install-bridge-service.ps1") -Force
 Copy-Item -Path (Join-Path $repoRoot "scripts\uninstall-bridge-service.ps1") -Destination (Join-Path $payloadDir "uninstall-bridge-service.ps1") -Force
 
-foreach ($configName in $configWhitelist) {
+foreach ($configName in $machineConfigWhitelist) {
     $configSource = Join-Path $repoRoot (Join-Path "config" $configName)
     if (-not (Test-Path $configSource)) {
-        throw "Required config template missing: $configSource"
+        throw "Required machine config template missing: $configSource"
     }
     Copy-Item -Path $configSource -Destination (Join-Path $configPayloadDir $configName) -Force
+}
+
+foreach ($configName in $userConfigWhitelist) {
+    $configSource = Join-Path $repoRoot (Join-Path "config" $configName)
+    if (-not (Test-Path $configSource)) {
+        throw "Required user config seed missing: $configSource"
+    }
+    Copy-Item -Path $configSource -Destination (Join-Path $userConfigPayloadDir $configName) -Force
 }
 
 Write-Host "Installer payload prepared: $payloadDir"

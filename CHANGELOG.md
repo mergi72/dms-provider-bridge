@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.9-alpha - 2026-06-07
+
+### Changed
+- Release/version bump.
+
+---
+
 ## 0.2.8-alpha - 2026-06-07
 
 ### Fixed
