@@ -5,7 +5,7 @@
 ### Changed
 - Release/version bump to `0.3.0`.
 - Bridge config loading now uses `bridge.json` as the system config, with provider configs kept in same-named provider JSON files.
-- Machine config is loaded from `C:\ProgramData\DMS Provider\config`; user overrides are loaded from `%APPDATA%\DMS Provider\config` only when the same machine JSON exists.
+- Machine config is loaded from `C:\ProgramData\DMS Provider\config`; user `*.local.json` overrides are loaded from `%APPDATA%\DMS Provider\config` only when the matching machine JSON exists.
 - Installer and service launcher environment now use `DMS_PROVIDER_MACHINE_CONFIG_DIR` and `DMS_PROVIDER_USER_CONFIG_DIR`.
 - Distribution builds now stage only explicit public config templates, preventing `*.local.json` files from entering release artifacts.
 

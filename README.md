@@ -185,12 +185,13 @@ Configuration is loaded from two fixed Windows scopes:
 - Machine config: `%ProgramData%\DMS Provider\config`
 - User config: `%APPDATA%\DMS Provider\config`
 
-The machine config is authoritative. For each config file, the bridge loads the machine JSON first, then merges the same-named user JSON only if the machine JSON exists.
+The machine config is authoritative. For each config file, the bridge loads the machine JSON first, then merges the matching user `*.local.json` only if the machine JSON exists.
 
 - Bridge/system config: `bridge.json`
 - Provider config (`edocat`, `alfresco`, `fso`, ...): `<provider>.json`
+- User overrides: `bridge.local.json`, `<provider>.local.json`
 
-User JSON values override existing machine keys and may add missing keys. If the machine JSON file is missing, the matching user JSON is ignored.
+User `*.local.json` values override existing machine keys and may add missing keys. If the machine JSON file is missing, the matching user `*.local.json` is ignored.
 
 For local development, set `DMS_PROVIDER_MACHINE_CONFIG_DIR` and optionally `DMS_PROVIDER_USER_CONFIG_DIR` to test config directories.
 
@@ -260,7 +261,7 @@ Transfer operations:
 
 Raw upload limits:
 
-- Config key: `upload.raw.maxBytes` in machine `bridge.json` (can be overridden by user `bridge.json`)
+- Config key: `upload.raw.maxBytes` in machine `bridge.json` (can be overridden by user `bridge.local.json`)
 - Default: `536870912` (512 MB)
 - Stream chunk size key: `upload.raw.chunkBytes` (clamped to 1-4 MB, default `1048576` = 1 MB)
 - Bridge rejects larger payloads before provider upload and logs `bytes`, `max_bytes`, and `duration_ms`

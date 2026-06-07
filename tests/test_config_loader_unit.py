@@ -28,7 +28,7 @@ def test_load_provider_config_accepts_utf8_bom(tmp_path: Path, monkeypatch: pyte
     assert config["allowedRoots"] == ["C:/MyDocuments"]
 
 
-def test_load_config_merges_user_bridge_json_over_machine_bridge_json(
+def test_load_config_merges_user_bridge_local_json_over_machine_bridge_json(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     machine_dir = tmp_path / "machine"
@@ -40,7 +40,7 @@ def test_load_config_merges_user_bridge_json_over_machine_bridge_json(
         '{"upload": {"raw": {"maxBytes": 100, "chunkBytes": 1048576}}, "x": 1}',
         encoding="utf-8",
     )
-    (user_dir / "bridge.json").write_text(
+    (user_dir / "bridge.local.json").write_text(
         '{"upload": {"raw": {"maxBytes": 200}}, "x": 2}',
         encoding="utf-8",
     )
@@ -55,7 +55,7 @@ def test_load_config_merges_user_bridge_json_over_machine_bridge_json(
     assert config["x"] == 2
 
 
-def test_load_config_ignores_user_bridge_json_when_machine_bridge_json_is_missing(
+def test_load_config_ignores_user_bridge_local_json_when_machine_bridge_json_is_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     machine_dir = tmp_path / "machine"
@@ -63,7 +63,7 @@ def test_load_config_ignores_user_bridge_json_when_machine_bridge_json_is_missin
     machine_dir.mkdir()
     user_dir.mkdir()
 
-    (user_dir / "bridge.json").write_text('{"x": 2}', encoding="utf-8")
+    (user_dir / "bridge.local.json").write_text('{"x": 2}', encoding="utf-8")
 
     monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
     monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_dir))
@@ -71,7 +71,7 @@ def test_load_config_ignores_user_bridge_json_when_machine_bridge_json_is_missin
     assert config_loader.load_config() == {}
 
 
-def test_load_provider_config_merges_user_provider_json_over_machine_provider_json(
+def test_load_provider_config_merges_user_provider_local_json_over_machine_provider_json(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     machine_dir = tmp_path / "machine"
@@ -83,7 +83,7 @@ def test_load_provider_config_merges_user_provider_json_over_machine_provider_js
         '{"key": "edocat", "edocat": {"base_url": "https://generic.edocat.net", "transfer": {"maxNodes": 100}}}',
         encoding="utf-8",
     )
-    (user_dir / "edocat.json").write_text(
+    (user_dir / "edocat.local.json").write_text(
         '{"key": "edocat", "edocat": {"base_url": "https://local.edocat.net", "transfer": {"maxBase64Bytes": 42}}}',
         encoding="utf-8",
     )
@@ -98,7 +98,7 @@ def test_load_provider_config_merges_user_provider_json_over_machine_provider_js
     assert config["transfer"]["maxBase64Bytes"] == 42
 
 
-def test_load_provider_config_ignores_user_provider_json_when_machine_provider_json_is_missing(
+def test_load_provider_config_ignores_user_provider_local_json_when_machine_provider_json_is_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     machine_dir = tmp_path / "machine"
@@ -106,7 +106,7 @@ def test_load_provider_config_ignores_user_provider_json_when_machine_provider_j
     machine_dir.mkdir()
     user_dir.mkdir()
 
-    (user_dir / "edocat.json").write_text(
+    (user_dir / "edocat.local.json").write_text(
         '{"key": "edocat", "edocat": {"base_url": "https://local.edocat.net"}}',
         encoding="utf-8",
     )

@@ -59,7 +59,7 @@ def load_config() -> dict[str, Any]:
     if user_dir is None:
         return base
 
-    user = _read_json(user_dir / "bridge.json")
+    user = _read_json(user_dir / "bridge.local.json")
     if user is None:
         return base
 
@@ -80,7 +80,7 @@ def load_provider_config(provider_name: str) -> dict[str, Any]:
     if user_dir is None:
         return base_section
 
-    user_path = user_dir / f"{provider_name}.json"
+    user_path = user_dir / f"{provider_name}.local.json"
     user_payload = _read_json(user_path)
     if user_payload is None:
         return base_section
