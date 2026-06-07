@@ -9,6 +9,8 @@ from dms_provider_bridge.core.logging import get_logger
 from dms_provider_bridge.core.paths import MACHINE_CONFIG_DIR, USER_CONFIG_DIR
 
 _LOGGER = get_logger(__name__)
+_SENSITIVE_CONFIG_KEY_PARTS = ("password", "secret", "token", "apikey")
+_MASKED_CONFIG_VALUE = "***"
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -48,11 +50,28 @@ def _extract_provider_section(payload: dict[str, Any], provider_name: str) -> di
     return {}
 
 
+def _is_sensitive_config_key(key: str) -> bool:
+    normalized = key.replace("_", "").replace("-", "").casefold()
+    return any(part in normalized for part in _SENSITIVE_CONFIG_KEY_PARTS)
+
+
+def sanitize_config_for_logging(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _MASKED_CONFIG_VALUE if _is_sensitive_config_key(str(key)) else sanitize_config_for_logging(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [sanitize_config_for_logging(item) for item in value]
+    return value
+
+
 def _log_provider_config(provider_name: str, config: dict[str, Any], machine_path: Path, user_path: Path | None) -> None:
+    sanitized_config = sanitize_config_for_logging(config)
     try:
-        rendered = json.dumps(config, ensure_ascii=False, indent=2, sort_keys=True)
+        rendered = json.dumps(sanitized_config, ensure_ascii=False, indent=2, sort_keys=True)
     except TypeError:
-        rendered = repr(config)
+        rendered = repr(sanitized_config)
     _LOGGER.info(
         "provider_config_loaded provider=%s machine_path=%s user_path=%s config=%s",
         provider_name,

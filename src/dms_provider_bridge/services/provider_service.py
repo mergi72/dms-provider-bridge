@@ -8,7 +8,7 @@ from collections.abc import Callable
 
 import dms_provider_bridge.providers as providers_package
 from dms_provider_bridge.core.config_loader import list_provider_config_names, load_config
-from dms_provider_bridge.core.errors import ProviderNotFoundError
+from dms_provider_bridge.core.errors import ConfigurationError, ProviderNotFoundError
 from dms_provider_bridge.providers.base import Provider
 
 
@@ -48,7 +48,7 @@ def _normalize_provider_name(provider_name: str | None) -> str | None:
 
 
 def _resolve_default_provider_name() -> str:
-    """Return default provider name from config, then env var, then built-in fallback."""
+    """Return default provider name from config or DMS_PROVIDER_DEFAULT_PROVIDER."""
     registered = set(list_registered_providers())
     try:
         config = load_config()
@@ -57,14 +57,15 @@ def _resolve_default_provider_name() -> str:
             return from_config
     except Exception:
         pass
-    from_env = _normalize_provider_name(os.getenv("EDOCAT_PROVIDER"))
+    from_env = _normalize_provider_name(os.getenv("DMS_PROVIDER_DEFAULT_PROVIDER"))
     if from_env and from_env in registered:
         return from_env
-    if "edocat" in registered:
-        return "edocat"
     if registered:
-        return sorted(registered)[0]
-    return "edocat"
+        raise ConfigurationError(
+            "Default provider is not configured. Set provider.default in bridge.json "
+            "or DMS_PROVIDER_DEFAULT_PROVIDER."
+        )
+    raise ConfigurationError("No providers are registered.")
 
 
 def get_provider(provider_name: str | None = None) -> Provider:

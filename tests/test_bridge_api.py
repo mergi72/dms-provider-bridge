@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,6 +12,13 @@ from dms_provider_bridge.models.bridge import WfxResponse
 
 
 pytestmark = pytest.mark.integration
+
+
+@pytest.fixture(autouse=True)
+def _use_repo_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    repo_config = Path(__file__).resolve().parents[1] / "config"
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(repo_config))
+    monkeypatch.delenv("DMS_PROVIDER_USER_CONFIG_DIR", raising=False)
 
 
 def _auth() -> dict[str, str]:

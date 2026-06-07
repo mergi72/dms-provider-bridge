@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # pyright: reportMissingTypeStubs=false
 
+import logging
 import pytest
 from pathlib import Path
 
@@ -166,4 +167,38 @@ def test_load_provider_config_ignores_user_provider_local_json_when_machine_prov
     monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_dir))
 
     assert config_loader.load_provider_config("edocat") == {}
+
+
+def test_load_provider_config_masks_sensitive_values_in_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    machine_dir = tmp_path / "machine"
+    user_dir = tmp_path / "user"
+    machine_dir.mkdir()
+    user_dir.mkdir()
+    (machine_dir / "alfresco.json").write_text(
+        '{"key": "alfresco", "alfresco": {"base_url": "https://example.test", "password": "machine-pass", "nested": {"api_key": "machine-api-key"}}}',
+        encoding="utf-8",
+    )
+    (user_dir / "alfresco.local.json").write_text(
+        '{"key": "alfresco", "alfresco": {"token": "local-token", "nested": {"clientSecret": "local-secret"}}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
+    monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_dir))
+
+    with caplog.at_level(logging.INFO, logger="dms_provider_bridge.core.config_loader"):
+        config = config_loader.load_provider_config("alfresco")
+
+    assert config["password"] == "machine-pass"
+    assert config["token"] == "local-token"
+    logged = "\n".join(record.getMessage() for record in caplog.records)
+    assert "machine-pass" not in logged
+    assert "machine-api-key" not in logged
+    assert "local-token" not in logged
+    assert "local-secret" not in logged
+    assert '"password": "***"' in logged
+    assert '"api_key": "***"' in logged
+    assert '"token": "***"' in logged
+    assert '"clientSecret": "***"' in logged
 

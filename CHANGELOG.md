@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.4 - 2026-06-07
+
+### Changed
+- Release/version bump to `0.4.4`.
+- Runtime temporary files now default to `%TEMP%\DMS Provider` instead of the project/install directory, with `DMS_PROVIDER_TEMP_DIR` available as an override.
+- Provider config diagnostic logging now masks sensitive keys such as password, secret, token, and API key values.
+- Default provider environment override is now `DMS_PROVIDER_DEFAULT_PROVIDER`; the legacy `EDOCAT_PROVIDER` fallback has been removed.
+- Default provider resolution no longer silently falls back to `edocat`; missing or invalid defaults now raise a configuration error.
+
+---
+
 ## 0.4.3 - 2026-06-07
 
 ### Changed
