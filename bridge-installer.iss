@@ -147,6 +147,38 @@ begin
     '    if ($exitCode -ne 0 -and -not $IgnoreFailure) { throw "NSSM command failed with exit code $exitCode`: $commandText" }' + #13#10 +
     '    if ($exitCode -ne 0) { Write-InstallLog "[WARN] NSSM command ignored exit code $exitCode`: $commandText" }' + #13#10 +
     '}' + #13#10 +
+    'function Remove-ExistingService([string]$ServiceName) {' + #13#10 +
+    '    $existingService = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue' + #13#10 +
+    '    if ($null -eq $existingService) {' + #13#10 +
+    '        Write-InstallLog "[INFO] Existing service not found: $ServiceName"' + #13#10 +
+    '        return' + #13#10 +
+    '    }' + #13#10 +
+    '    Write-InstallLog "[STEP] Removing existing Windows service"' + #13#10 +
+    '    Write-InstallLog "[INFO] Existing service status: $($existingService.Status)"' + #13#10 +
+    '    if ($existingService.Status -ne "Stopped") {' + #13#10 +
+    '        Invoke-Nssm @("stop", $ServiceName) $true' + #13#10 +
+    '        Start-Sleep -Seconds 2' + #13#10 +
+    '    }' + #13#10 +
+    '    Invoke-Nssm @("remove", $ServiceName, "confirm") $true' + #13#10 +
+    '    Start-Sleep -Seconds 2' + #13#10 +
+    '    $remainingService = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue' + #13#10 +
+    '    if ($null -ne $remainingService) {' + #13#10 +
+    '        Write-InstallLog "[WARN] NSSM remove did not remove service, trying sc.exe delete"' + #13#10 +
+    '        $scOutput = & sc.exe delete $ServiceName 2>&1' + #13#10 +
+    '        foreach ($line in @($scOutput)) { if (-not [string]::IsNullOrWhiteSpace([string]$line)) { Write-InstallLog "[INFO] sc.exe output: $line" } }' + #13#10 +
+    '        Start-Sleep -Seconds 2' + #13#10 +
+    '    }' + #13#10 +
+    '    for ($attempt = 1; $attempt -le 10; $attempt++) {' + #13#10 +
+    '        $remainingService = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue' + #13#10 +
+    '        if ($null -eq $remainingService) {' + #13#10 +
+    '            Write-InstallLog "[ OK ] Existing service removed: $ServiceName"' + #13#10 +
+    '            return' + #13#10 +
+    '        }' + #13#10 +
+    '        Write-InstallLog "[INFO] Waiting for service removal attempt $attempt/10"' + #13#10 +
+    '        Start-Sleep -Seconds 1' + #13#10 +
+    '    }' + #13#10 +
+    '    throw "Existing service could not be removed: $ServiceName"' + #13#10 +
+    '}' + #13#10 +
     'function Write-ServiceControlScript([string]$FileBase, [string]$Action) {' + #13#10 +
     '    $psPath = Join-Path $appRoot "$FileBase.ps1"' + #13#10 +
     '    $cmdPath = Join-Path $appRoot "$FileBase.cmd"' + #13#10 +
@@ -154,19 +186,35 @@ begin
     '        ''$ErrorActionPreference = "Stop"''' + #13#10 +
     '        ''$serviceName = "DMSProviderBridge"''' + #13#10 +
     '        ''$action = "ActionPlaceholder"''' + #13#10 +
+    '        ''$appRoot = Split-Path -Parent $PSCommandPath''' + #13#10 +
     '        ''$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())''' + #13#10 +
     '        ''if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {''' + #13#10 +
     '        ''    Start-Process -FilePath "powershell.exe" -Verb RunAs -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $PSCommandPath)''' + #13#10 +
     '        ''    exit''' + #13#10 +
     '        ''}''' + #13#10 +
     '        ''try {''' + #13#10 +
-    '        ''    if ($action -eq "start") { Start-Service -Name $serviceName }''' + #13#10 +
-    '        ''    elseif ($action -eq "stop") { Stop-Service -Name $serviceName -ErrorAction Stop }''' + #13#10 +
+    '        ''    Write-Host "Service action: $action"''' + #13#10 +
+    '        ''    if ($action -eq "start") { Start-Service -Name $serviceName -ErrorAction Stop; Start-Sleep -Seconds 2 }''' + #13#10 +
+    '        ''    elseif ($action -eq "stop") { Stop-Service -Name $serviceName -ErrorAction Stop; Start-Sleep -Seconds 2 }''' + #13#10 +
     '        ''    elseif ($action -ne "status") { throw "Unsupported action: $action" }''' + #13#10 +
     '        ''    Get-Service -Name $serviceName | Format-List Name, DisplayName, Status, StartType''' + #13#10 +
+    '        ''    Write-Host ""''' + #13#10 +
+    '        ''    Write-Host "SCM query:"''' + #13#10 +
+    '        ''    sc.exe queryex $serviceName''' + #13#10 +
+    '        ''    $nssm = Join-Path $appRoot "nssm.exe"''' + #13#10 +
+    '        ''    if (Test-Path $nssm) { Write-Host ""; Write-Host "NSSM dump:"; & $nssm dump $serviceName }''' + #13#10 +
+    '        ''    $stdout = Join-Path $appRoot "logs\bridge-stdout.log"''' + #13#10 +
+    '        ''    $stderr = Join-Path $appRoot "logs\bridge-stderr.log"''' + #13#10 +
+    '        ''    if (Test-Path $stdout) { Write-Host ""; Write-Host "bridge-stdout.log tail:"; Get-Content $stdout -Tail 40 }''' + #13#10 +
+    '        ''    if (Test-Path $stderr) { Write-Host ""; Write-Host "bridge-stderr.log tail:"; Get-Content $stderr -Tail 80 }''' + #13#10 +
+    '        ''    Write-Host ""; Write-Host "Service Control Manager events:"''' + #13#10 +
+    '        ''    Get-WinEvent -FilterHashtable @{LogName="System"; ProviderName="Service Control Manager"} -MaxEvents 30 -ErrorAction SilentlyContinue | Where-Object { $_.Message -like "*$serviceName*" } | Select-Object -First 8 TimeCreated, Id, Message | Format-List''' + #13#10 +
     '        ''}''' + #13#10 +
     '        ''catch {''' + #13#10 +
     '        ''    Write-Host $_.Exception.Message -ForegroundColor Red''' + #13#10 +
+    '        ''    Write-Host ""''' + #13#10 +
+    '        ''    Write-Host "Service state after failure:"''' + #13#10 +
+    '        ''    sc.exe queryex $serviceName''' + #13#10 +
     '        ''    exit 1''' + #13#10 +
     '        ''}''' + #13#10 +
     '        ''Read-Host "Press Enter to close"''' + #13#10 +
@@ -176,6 +224,20 @@ begin
     '    $cmdContent = @("@echo off", "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ""%~dp0$FileBase.ps1""")' + #13#10 +
     '    Set-Content -Path $cmdPath -Value $cmdContent -Encoding ASCII' + #13#10 +
     '    Write-InstallLog "[ OK ] Service control script: $cmdPath"' + #13#10 +
+    '}' + #13#10 +
+    'function Write-ServiceControlShortcut([string]$FileBase, [string]$Title) {' + #13#10 +
+    '    $programs = [Environment]::GetFolderPath("CommonPrograms")' + #13#10 +
+    '    if ([string]::IsNullOrWhiteSpace($programs)) { $programs = Join-Path $env:ProgramData "Microsoft\Windows\Start Menu\Programs" }' + #13#10 +
+    '    $shortcutDir = Join-Path $programs "DMS Provider"' + #13#10 +
+    '    Ensure-Dir $shortcutDir' + #13#10 +
+    '    $shortcutPath = Join-Path $shortcutDir "$Title.lnk"' + #13#10 +
+    '    $shell = New-Object -ComObject WScript.Shell' + #13#10 +
+    '    $shortcut = $shell.CreateShortcut($shortcutPath)' + #13#10 +
+    '    $shortcut.TargetPath = Join-Path $appRoot "$FileBase.cmd"' + #13#10 +
+    '    $shortcut.WorkingDirectory = $appRoot' + #13#10 +
+    '    $shortcut.Description = $Title' + #13#10 +
+    '    $shortcut.Save()' + #13#10 +
+    '    Write-InstallLog "[ OK ] Service control shortcut: $shortcutPath"' + #13#10 +
     '}' + #13#10 +
     'Ensure-Dir $appRoot' + #13#10 +
     'Ensure-Dir (Join-Path $appRoot "config")' + #13#10 +
@@ -209,8 +271,7 @@ begin
     'Write-InstallLog "[INFO] AppDirectory: $appRoot"' + #13#10 +
     'Write-InstallLog "[INFO] Machine config: $machineConfigRoot"' + #13#10 +
     'Write-InstallLog "[INFO] User config: $userConfigRoot"' + #13#10 +
-    '$existingService = Get-Service -Name $serviceName -ErrorAction SilentlyContinue' + #13#10 +
-    'if ($null -ne $existingService) { throw "Service already exists, registration block will not stop/remove it: $serviceName" }' + #13#10 +
+    'Remove-ExistingService $serviceName' + #13#10 +
     'Invoke-Nssm @("install", $serviceName, $bridgeExe)' + #13#10 +
     'Invoke-Nssm @("set", $serviceName, "AppDirectory", $appRoot)' + #13#10 +
     'Invoke-Nssm @("set", $serviceName, "DisplayName", $serviceDisplayName)' + #13#10 +
@@ -226,6 +287,9 @@ begin
     'Write-ServiceControlScript "start-bridge-service" "start"' + #13#10 +
     'Write-ServiceControlScript "stop-bridge-service" "stop"' + #13#10 +
     'Write-ServiceControlScript "status-bridge-service" "status"' + #13#10 +
+    'Write-ServiceControlShortcut "start-bridge-service" "DMS Provider Bridge - Start Service"' + #13#10 +
+    'Write-ServiceControlShortcut "stop-bridge-service" "DMS Provider Bridge - Stop Service"' + #13#10 +
+    'Write-ServiceControlShortcut "status-bridge-service" "DMS Provider Bridge - Service Status"' + #13#10 +
     'Write-InstallLog "[INFO] Service start intentionally skipped in this block"' + #13#10 +
     'Write-InstallLog "[INFO] Admin structure phase completed successfully"' + #13#10;
 
