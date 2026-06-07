@@ -8,6 +8,7 @@ param(
     [string]$ConfigRoot,
     [string]$BridgeExePath,
     [string]$BridgeConfigDirPath,
+    [string]$UserConfigTemplatePath,
     [string]$NssmExePath,
     [ValidateSet("LocalSystem", "CurrentUser", "CustomUser")]
     [string]$ServiceAccount = "LocalSystem",
@@ -127,6 +128,36 @@ Start-Process -FilePath '$BridgeExe' -WorkingDirectory '$WorkingDir' -WindowStyl
     Set-Content -Path $Path -Value $launcher -Encoding ASCII
 }
 
+function Resolve-UserConfigTemplate {
+    param(
+        [string]$ExplicitPath,
+        [string]$ScriptDir,
+        [string]$MachineConfigDir
+    )
+
+    $candidates = @()
+    if (-not [string]::IsNullOrWhiteSpace($ExplicitPath)) {
+        $candidates += $ExplicitPath
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($ScriptDir)) {
+        $candidates += (Join-Path $ScriptDir "config\user.json")
+        $candidates += (Join-Path $ScriptDir "..\config\user.json")
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($MachineConfigDir)) {
+        $candidates += (Join-Path $MachineConfigDir "user.json")
+    }
+
+    foreach ($candidate in $candidates) {
+        if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path $candidate)) {
+            return (Resolve-Path $candidate).Path
+        }
+    }
+
+    return $null
+}
+
 function Remove-ExistingBridgeService {
     param([string]$Name)
 
@@ -177,6 +208,8 @@ if ([string]::IsNullOrWhiteSpace($BridgeConfigDirPath)) {
     }
 }
 
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+
 if ($RuntimeMode -eq "User" -and [string]::IsNullOrWhiteSpace($RunAsUser)) {
     $RunAsUser = Resolve-CurrentUserName
 }
@@ -209,17 +242,36 @@ Copy-Item -Path $BridgeExePath -Destination $bridgeExeTargetPath -Force
 if (-not [string]::IsNullOrWhiteSpace($BridgeConfigDirPath) -and (Test-Path $BridgeConfigDirPath)) {
     $configFiles = Get-ChildItem -Path $BridgeConfigDirPath -Filter "*.json" -File
     if ($RuntimeMode -eq "Service") {
-        $configFiles = $configFiles | Where-Object { $_.Name -notlike "*.local.json" }
+        $configFiles = $configFiles | Where-Object { $_.Name -notlike "*.local.json" -and $_.Name -ne "user.json" }
+        $configFiles | ForEach-Object {
+            Copy-Item -Path $_.FullName -Destination (Join-Path $bridgeConfigTargetDir $_.Name) -Force
+        }
     }
+    else {
+        $machineTemplateFiles = $configFiles | Where-Object {
+            $_.Name -in @("default.json", "alfresco.json", "edocat.json", "fso.json")
+        }
 
-    $configFiles | ForEach-Object {
-        Copy-Item -Path $_.FullName -Destination (Join-Path $bridgeConfigTargetDir $_.Name) -Force
+        foreach ($machineTemplate in $machineTemplateFiles) {
+            $targetPath = Join-Path $bridgeConfigTargetDir $machineTemplate.Name
+            if (-not (Test-Path $targetPath)) {
+                Copy-Item -Path $machineTemplate.FullName -Destination $targetPath
+            }
+        }
     }
     Write-Host "Bridge config copied from: $BridgeConfigDirPath"
 }
 else {
     Write-Host "Bridge config directory not provided or not found, skipping config copy."
     Write-Host "Place config files manually into: $bridgeConfigTargetDir"
+}
+
+if ($RuntimeMode -eq "User") {
+    $resolvedUserConfigTemplate = Resolve-UserConfigTemplate -ExplicitPath $UserConfigTemplatePath -ScriptDir $scriptDir -MachineConfigDir $BridgeConfigDirPath
+    $userConfigTarget = Join-Path $bridgeConfigTargetDir "user.json"
+    if (-not (Test-Path $userConfigTarget) -and -not [string]::IsNullOrWhiteSpace($resolvedUserConfigTemplate)) {
+        Copy-Item -Path $resolvedUserConfigTemplate -Destination $userConfigTarget
+    }
 }
 
 $bridgeBaseUrl = Resolve-BridgeBaseUrl -Url $HealthUrl
