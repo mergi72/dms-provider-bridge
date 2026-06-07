@@ -19,13 +19,13 @@ Source: "artifacts\bridge-installer-payload\dms-provider-bridge.exe"; DestDir: "
 Source: "artifacts\bridge-installer-payload\nssm.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "artifacts\bridge-installer-payload\install-bridge-service.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "artifacts\bridge-installer-payload\uninstall-bridge-service.ps1"; DestDir: "{app}"; Flags: ignoreversion
-Source: "artifacts\bridge-installer-payload\config\bridge.json"; DestDir: "{commonappdata}\DMS Provider\config"; Flags: ignoreversion onlyifdoesntexist
-Source: "artifacts\bridge-installer-payload\config\alfresco.json"; DestDir: "{commonappdata}\DMS Provider\config"; Flags: ignoreversion onlyifdoesntexist
-Source: "artifacts\bridge-installer-payload\config\edocat.json"; DestDir: "{commonappdata}\DMS Provider\config"; Flags: ignoreversion onlyifdoesntexist
-Source: "artifacts\bridge-installer-payload\config\fso.json"; DestDir: "{commonappdata}\DMS Provider\config"; Flags: ignoreversion onlyifdoesntexist
+Source: "artifacts\bridge-installer-payload\config\bridge.json"; DestDir: "{app}\config"; Flags: ignoreversion
+Source: "artifacts\bridge-installer-payload\config\alfresco.json"; DestDir: "{app}\config"; Flags: ignoreversion
+Source: "artifacts\bridge-installer-payload\config\edocat.json"; DestDir: "{app}\config"; Flags: ignoreversion
+Source: "artifacts\bridge-installer-payload\config\fso.json"; DestDir: "{app}\config"; Flags: ignoreversion
 
 [Run]
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install-bridge-service.ps1"" -RuntimeMode User -TaskName ""DmsProviderBridgeUser"" -StartImmediately -BridgeExePath ""{app}\dms-provider-bridge.exe"" -BridgeConfigDirPath ""{commonappdata}\DMS Provider\config"" -UserConfigSourceDirPath ""{userappdata}\DMS Provider\config"" -NssmExePath ""{app}\nssm.exe"""; Flags: runhidden waituntilterminated
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install-bridge-service.ps1"" -RuntimeMode User -TaskName ""DmsProviderBridgeUser"" -StartImmediately -BridgeExePath ""{app}\dms-provider-bridge.exe"" -BridgeConfigDirPath ""{app}\config"" -UserConfigSourceDirPath ""{userappdata}\DMS Provider\config"" -NssmExePath ""{app}\nssm.exe"""; Flags: runhidden waituntilterminated
 
 [UninstallRun]
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\uninstall-bridge-service.ps1"" -KeepConfigFiles -NssmExePath ""{app}\nssm.exe"""; Flags: runhidden waituntilterminated; RunOnceId: "DMSProviderBridgeUninstallCleanup"
