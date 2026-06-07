@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "v0.2.10-alpha",
+    [string]$Version = "v0.3.0",
     [string]$BridgeExePath = "dist\dms-provider-bridge.exe",
     [string]$NssmExePath,
     [string]$OutputDir = "artifacts\service-package"
@@ -53,11 +53,10 @@ $staging = Join-Path $OutputDir "staging"
 $configTarget = Join-Path $staging "config"
 $zipPath = Join-Path $OutputDir "DmsProviderBridgeService-$Version.zip"
 $configWhitelist = @(
-    "default.json",
+    "bridge.json",
     "alfresco.json",
     "edocat.json",
-    "fso.json",
-    "user.json"
+    "fso.json"
 )
 
 if (Test-Path $staging) {

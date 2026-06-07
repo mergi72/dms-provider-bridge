@@ -115,13 +115,15 @@ function Write-UserModeLauncher {
     param(
         [string]$Path,
         [string]$BridgeExe,
-        [string]$ConfigDir,
+        [string]$MachineConfigDir,
+        [string]$UserConfigDir,
         [string]$WorkingDir
     )
 
     $launcher = @"
 
-$env:DMS_PROVIDER_CONFIG_DIR = '$ConfigDir'
+$env:DMS_PROVIDER_MACHINE_CONFIG_DIR = '$MachineConfigDir'
+$env:DMS_PROVIDER_USER_CONFIG_DIR = '$UserConfigDir'
 Start-Process -FilePath '$BridgeExe' -WorkingDirectory '$WorkingDir' -WindowStyle Hidden
 "@
 
@@ -252,15 +254,13 @@ New-Item -ItemType Directory -Path $userConfigRoot -Force | Out-Null
 Copy-Item -Path $BridgeExePath -Destination $bridgeExeTargetPath -Force
 
 $machineConfigNames = @(
-    "default.json",
+    "bridge.json",
     "alfresco.json",
     "edocat.json",
     "fso.json"
 )
 
-$userConfigNames = @(
-    "user.json"
-)
+$userConfigNames = @()
 
 $machineCopied = Copy-ConfigFilesByName -SourceDir $BridgeConfigDirPath -TargetDir $machineConfigRoot -FileNames $machineConfigNames -Overwrite
 if ($machineCopied -gt 0) {
@@ -291,7 +291,7 @@ if ($RuntimeMode -eq "User") {
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
 
     $launcherPath = Join-Path $InstallRoot "start-bridge-usermode.ps1"
-    Write-UserModeLauncher -Path $launcherPath -BridgeExe $bridgeExeTargetPath -ConfigDir $userConfigRoot -WorkingDir $InstallRoot
+    Write-UserModeLauncher -Path $launcherPath -BridgeExe $bridgeExeTargetPath -MachineConfigDir $machineConfigRoot -UserConfigDir $userConfigRoot -WorkingDir $InstallRoot
 
     $taskAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$launcherPath`""
     $taskTrigger = New-ScheduledTaskTrigger -AtLogOn -User $RunAsUser
@@ -327,7 +327,7 @@ Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction Silent
 & $NssmExePath set $ServiceName AppDirectory $InstallRoot
 & $NssmExePath set $ServiceName AppStdout $stdoutLog
 & $NssmExePath set $ServiceName AppStderr $stderrLog
-& $NssmExePath set $ServiceName AppEnvironmentExtra "DMS_PROVIDER_CONFIG_DIR=$machineConfigRoot"
+& $NssmExePath set $ServiceName AppEnvironmentExtra "DMS_PROVIDER_MACHINE_CONFIG_DIR=$machineConfigRoot"
 
 if ($ServiceAccount -eq "LocalSystem") {
     & $NssmExePath set $ServiceName ObjectName LocalSystem

@@ -4,7 +4,7 @@ param(
     [string]$ServiceName = "DmsProviderBridge",
     [string]$TaskName = "DmsProviderBridgeUser",
     [string]$InstallRoot = "$env:ProgramFiles\DMS Provider",
-    [string]$ConfigRoot = "$env:ProgramData\DMSProvider\config",
+    [string]$ConfigRoot = "$env:ProgramData\DMS Provider\config",
     [string]$NssmExePath,
     [switch]$KeepBridgeFiles,
     [switch]$KeepConfigFiles

@@ -24,8 +24,9 @@ env/
 .env.*
 !.env.example
 
-# Local config overrides (keep generic config/*.json in repo)
+# Legacy/local config overrides (runtime user config belongs under %APPDATA%)
 config/local.json
+config/user.json
 config/user.local.json
 config/*.local.json
 

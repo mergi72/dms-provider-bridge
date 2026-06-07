@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
-from dms_provider_bridge.core.paths import CONFIG_DIR
+from dms_provider_bridge.core.paths import MACHINE_CONFIG_DIR, USER_CONFIG_DIR
 
 
-def _read_json(path: Path) -> dict[str, Any]:
+def _read_json(path: Path) -> dict[str, Any] | None:
     if not path.exists():
-        return {}
-    # Accept UTF-8 with optional BOM to avoid startup failures on externally rewritten config files.
+        return None
     with path.open("r", encoding="utf-8-sig") as handle:
         return json.load(handle)
 
@@ -36,31 +36,55 @@ def _extract_provider_section(payload: dict[str, Any], provider_name: str) -> di
     section = payload.get(provider_name)
     if isinstance(section, dict):
         return section
+
     return {}
 
 
-def load_config() -> dict[str, Any]:
-    default_cfg = _read_json(CONFIG_DIR / "default.json")
-    user_cfg = _read_json(CONFIG_DIR / "user.json")
-    user_local_cfg = _read_json(CONFIG_DIR / "user.local.json")
-    local_cfg = _read_json(CONFIG_DIR / "local.json")
+def _config_dirs() -> tuple[Path, Path | None]:
+    machine_dir = Path(os.environ.get("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(MACHINE_CONFIG_DIR)))
 
-    merged = _merge_dicts(default_cfg, user_cfg)
-    merged = _merge_dicts(merged, user_local_cfg)
-    merged = _merge_dicts(merged, local_cfg)
-    return merged
+    user_dir_raw = os.environ.get("DMS_PROVIDER_USER_CONFIG_DIR")
+    user_dir = Path(user_dir_raw) if user_dir_raw else USER_CONFIG_DIR
+
+    return machine_dir, user_dir
+
+
+def load_config() -> dict[str, Any]:
+    machine_dir, user_dir = _config_dirs()
+
+    base = _read_json(machine_dir / "bridge.json")
+    if base is None:
+        return {}
+
+    if user_dir is None:
+        return base
+
+    user = _read_json(user_dir / "bridge.json")
+    if user is None:
+        return base
+
+    return _merge_dicts(base, user)
 
 
 def load_provider_config(provider_name: str) -> dict[str, Any]:
-    """Load provider vendor config from config/<provider>.json.
+    machine_dir, user_dir = _config_dirs()
 
-    File format is expected to contain either a "key" pointing to provider section
-    or the provider section directly under provider_name.
-    """
-    base_payload = _read_json(CONFIG_DIR / f"{provider_name}.json")
-    local_payload = _read_json(CONFIG_DIR / f"{provider_name}.local.json")
+    base_path = machine_dir / f"{provider_name}.json"
+    base_payload = _read_json(base_path)
+
+    if base_payload is None:
+        return {}
 
     base_section = _extract_provider_section(base_payload, provider_name)
-    local_section = _extract_provider_section(local_payload, provider_name)
-    return _merge_dicts(base_section, local_section)
 
+    if user_dir is None:
+        return base_section
+
+    user_path = user_dir / f"{provider_name}.json"
+    user_payload = _read_json(user_path)
+    if user_payload is None:
+        return base_section
+
+    local_section = _extract_provider_section(user_payload, provider_name)
+
+    return _merge_dicts(base_section, local_section)

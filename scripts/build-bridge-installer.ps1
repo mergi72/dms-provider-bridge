@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "v0.2.10-alpha",
+    [string]$Version = "v0.3.0",
     [string]$BridgeExePath = "dist\dms-provider-bridge.exe",
     [string]$NssmExePath,
     [string]$InnoCompilerPath,
@@ -72,14 +72,12 @@ $payloadDir = Join-Path $repoRoot "artifacts\bridge-installer-payload"
 $configPayloadDir = Join-Path $payloadDir "config"
 $userConfigPayloadDir = Join-Path $payloadDir "user-config"
 $machineConfigWhitelist = @(
-    "default.json",
+    "bridge.json",
     "alfresco.json",
     "edocat.json",
     "fso.json"
 )
-$userConfigWhitelist = @(
-    "user.json"
-)
+$userConfigWhitelist = @()
 
 if (Test-Path $payloadDir) {
     Remove-Item -Path $payloadDir -Recurse -Force
