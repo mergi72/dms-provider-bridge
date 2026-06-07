@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.3 - 2026-06-07
+
+### Changed
+- Release/version bump to `0.4.3`.
+- Default FSO config no longer points to `C:/MyDocuments`; packaged `allowedRoots` is empty until a local override enables explicit roots.
+- Service ZIP build now writes archive entry paths with `/` separators for better compatibility with GitHub release and CI tooling.
+
+---
+
 ## 0.4.2 - 2026-06-07
 
 ### Changed
@@ -10,8 +19,6 @@
 - Provider config loading logs the final merged provider config, including machine and user config paths, to simplify local diagnostics.
 - Provider config loading accepts wrapped provider sections and direct provider payloads while preserving the machine-first, user-local override rule.
 - VS Code bridge start/restart/debug tasks now set `DMS_PROVIDER_MACHINE_CONFIG_DIR` to the repo `config` directory and `DMS_PROVIDER_USER_CONFIG_DIR` to `%APPDATA%\DMS Provider\config`.
-- Default FSO config no longer points to `C:/MyDocuments`; packaged `allowedRoots` is empty until a local override enables explicit roots.
-- Service ZIP build now writes archive entry paths with `/` separators for better compatibility with GitHub release and CI tooling.
 
 ---
 
