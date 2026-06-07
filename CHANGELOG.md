@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.6-alpha - 2026-06-07
+
+### Fixed
+- User mode config root is now resolved against the effective `RunAsUser` profile (`%APPDATA%\DMS Bridge\config`) instead of relying on installer process context.
+- Bridge setup no longer passes `-ConfigRoot` explicitly in `[Run]`, preventing per-user path mismatches during elevated install execution.
+
+---
+
 ## 0.2.5-alpha - 2026-06-07
 
 ### Changed

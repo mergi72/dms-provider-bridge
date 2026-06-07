@@ -1,7 +1,7 @@
 [Setup]
 AppId={{CFD8BDCC-B59A-4CB3-93D7-530BB5283773}
 AppName=DMS Provider Bridge Setup
-AppVersion=0.2.5-alpha
+AppVersion=0.2.6-alpha
 AppPublisher=mergi72
 DefaultDirName={autopf}\DMS Provider
 DefaultGroupName=DMS Provider Bridge
@@ -9,7 +9,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=artifacts\installer
-OutputBaseFilename=DmsProviderBridgeSetup-v0.2.5-alpha
+OutputBaseFilename=DmsProviderBridgeSetup-v0.2.6-alpha
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -26,7 +26,7 @@ Source: "artifacts\bridge-installer-payload\config\fso.json"; DestDir: "{commona
 Source: "artifacts\bridge-installer-payload\config\user.json"; DestDir: "{commonappdata}\DMSProvider\config"; Flags: ignoreversion onlyifdoesntexist
 
 [Run]
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install-bridge-service.ps1"" -RuntimeMode User -TaskName ""DmsProviderBridgeUser"" -StartImmediately -BridgeExePath ""{app}\dms-provider-bridge.exe"" -BridgeConfigDirPath ""{commonappdata}\DMSProvider\config"" -ConfigRoot ""{userappdata}\DMS Bridge\config"" -NssmExePath ""{app}\nssm.exe"""; Flags: runhidden waituntilterminated
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install-bridge-service.ps1"" -RuntimeMode User -TaskName ""DmsProviderBridgeUser"" -StartImmediately -BridgeExePath ""{app}\dms-provider-bridge.exe"" -BridgeConfigDirPath ""{commonappdata}\DMSProvider\config"" -NssmExePath ""{app}\nssm.exe"""; Flags: runhidden waituntilterminated
 
 [UninstallRun]
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\uninstall-bridge-service.ps1"" -NssmExePath ""{app}\nssm.exe"""; Flags: runhidden waituntilterminated; RunOnceId: "DMSProviderBridgeUninstallCleanup"
