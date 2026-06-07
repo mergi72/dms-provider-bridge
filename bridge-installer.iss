@@ -27,6 +27,9 @@ Source: "artifacts\bridge-installer-payload\config\bridge.json"; DestDir: "{app}
 Source: "artifacts\bridge-installer-payload\config\alfresco.json"; DestDir: "{app}\config"; Flags: ignoreversion
 Source: "artifacts\bridge-installer-payload\config\edocat.json"; DestDir: "{app}\config"; Flags: ignoreversion
 Source: "artifacts\bridge-installer-payload\config\fso.json"; DestDir: "{app}\config"; Flags: ignoreversion
+Source: "artifacts\bridge-installer-payload\user-config\alfresco.local.json"; DestDir: "{userappdata}\DMS Provider\config"; Flags: ignoreversion onlyifdoesntexist
+Source: "artifacts\bridge-installer-payload\user-config\edocat.local.json"; DestDir: "{userappdata}\DMS Provider\config"; Flags: ignoreversion onlyifdoesntexist
+Source: "artifacts\bridge-installer-payload\user-config\fso.local.json"; DestDir: "{userappdata}\DMS Provider\config"; Flags: ignoreversion onlyifdoesntexist
 
 [Run]
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install-bridge-service.ps1"" -RuntimeMode User -TaskName ""DmsProviderBridgeUser"" -StartImmediately -BridgeExePath ""{app}\dms-provider-bridge.exe"" -BridgeConfigDirPath ""{app}\config"" -ConfigRoot ""{userappdata}\DMS Provider\config"" -UserConfigSourceDirPath ""{userappdata}\DMS Provider\config"" -NssmExePath ""{app}\nssm.exe"""; Flags: runhidden waituntilterminated

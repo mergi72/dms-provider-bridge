@@ -11,6 +11,7 @@
 - Distribution builds now stage only explicit public config templates, preventing `*.local.json` files from entering release artifacts.
 - Inno Setup payload now installs the public config templates under the application `config` directory before the install script copies them to the machine config directory.
 - Inno Setup now explicitly creates both machine and user config directories, including `%APPDATA%\DMS Provider\config` for user `*.local.json` overrides.
+- Inno Setup seeds empty provider user override files (`alfresco.local.json`, `edocat.local.json`, `fso.local.json`) with `{}` only when they do not already exist.
 
 ---
 
