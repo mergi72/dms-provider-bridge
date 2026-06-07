@@ -5,6 +5,7 @@ AppVersion=0.3.5
 AppPublisher=mergi72
 DefaultDirName={autopf}\DMS Provider
 DefaultGroupName=DMS Provider Bridge
+DisableDirPage=yes
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -68,7 +69,7 @@ var
   PayloadUserConfig: String;
   LogPath: String;
 begin
-  UserRoot := ExpandConstant('{userappdata}\DMS bridge');
+  UserRoot := ExpandConstant('{userappdata}\DMS provider');
   UserConfigRoot := UserRoot + '\config';
   PayloadUserConfig := ExpandConstant('{tmp}\dms-provider-payload\user-config');
   LogPath := UserRoot + '\installer-structure.log';
@@ -85,6 +86,13 @@ begin
   CopyFileChecked(PayloadUserConfig + '\edocat.local.json', UserConfigRoot + '\edocat.local.json', LogPath, True);
   CopyFileChecked(PayloadUserConfig + '\fso.local.json', UserConfigRoot + '\fso.local.json', LogPath, True);
 
+  WriteLog(LogPath, '[STEP] Setting user environment: DMS_PROVIDER_USER_CONFIG_DIR=' + UserConfigRoot);
+  if not RegWriteStringValue(HKEY_CURRENT_USER, 'Environment', 'DMS_PROVIDER_USER_CONFIG_DIR', UserConfigRoot) then begin
+    WriteLog(LogPath, '[FAIL] User environment was not written: DMS_PROVIDER_USER_CONFIG_DIR');
+    RaiseException('User environment was not written: DMS_PROVIDER_USER_CONFIG_DIR');
+  end;
+  WriteLog(LogPath, '[ OK ] DMS_PROVIDER_USER_CONFIG_DIR');
+
   WriteLog(LogPath, '[INFO] User structure phase completed successfully');
 end;
 
@@ -93,15 +101,19 @@ begin
   Result := '"' + Value + '"';
 end;
 
-procedure WriteAdminStructureScript(ScriptPath: String; PayloadRoot: String; AppRoot: String; UserLogPath: String);
+procedure WriteAdminStructureScript(ScriptPath: String; PayloadRoot: String; DefaultAppRoot: String; UserLogPath: String);
 var
   Script: String;
 begin
   Script :=
     '$ErrorActionPreference = "Stop"' + #13#10 +
     '$payloadRoot = ' + Quote(PayloadRoot) + #13#10 +
-    '$appRoot = ' + Quote(AppRoot) + #13#10 +
-    '$logPath = Join-Path $appRoot "logs\installer-structure-admin.log"' + #13#10 +
+    '$defaultAppRoot = ' + Quote(DefaultAppRoot) + #13#10 +
+    '$appRootInput = Read-Host "Install path [$defaultAppRoot]"' + #13#10 +
+    'if ([string]::IsNullOrWhiteSpace($appRootInput)) { $appRoot = $defaultAppRoot } else { $appRoot = $appRootInput }' + #13#10 +
+    '$logDir = Join-Path $appRoot "logs"' + #13#10 +
+    'New-Item -ItemType Directory -Path $logDir -Force | Out-Null' + #13#10 +
+    '$logPath = Join-Path $logDir "installer-structure-admin.log"' + #13#10 +
     'function Write-InstallLog([string]$Message) {' + #13#10 +
     '    $line = "{0:yyyy-MM-dd HH:mm:ss} {1}" -f (Get-Date), $Message' + #13#10 +
     '    Add-Content -Path $logPath -Value $line -Encoding UTF8' + #13#10 +
@@ -122,6 +134,7 @@ begin
     'Ensure-Dir (Join-Path $appRoot "config")' + #13#10 +
     'Ensure-Dir (Join-Path $appRoot "logs")' + #13#10 +
     'Write-InstallLog "[INFO] Admin structure phase started"' + #13#10 +
+    'Write-InstallLog "[INFO] Install path: $appRoot"' + #13#10 +
     'Write-InstallLog "[INFO] User phase log: ' + UserLogPath + '"' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "app\dms-provider-bridge.exe") (Join-Path $appRoot "dms-provider-bridge.exe")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "app\nssm.exe") (Join-Path $appRoot "nssm.exe")' + #13#10 +
@@ -131,6 +144,9 @@ begin
     'Copy-Checked (Join-Path $payloadRoot "config\alfresco.json") (Join-Path $appRoot "config\alfresco.json")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "config\edocat.json") (Join-Path $appRoot "config\edocat.json")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "config\fso.json") (Join-Path $appRoot "config\fso.json")' + #13#10 +
+    'Write-InstallLog "[STEP] Setting machine environment: DMS_PROVIDER_MACHINE_CONFIG_DIR=$appRoot\config"' + #13#10 +
+    '[Environment]::SetEnvironmentVariable("DMS_PROVIDER_MACHINE_CONFIG_DIR", (Join-Path $appRoot "config"), "Machine")' + #13#10 +
+    'Write-InstallLog "[ OK ] DMS_PROVIDER_MACHINE_CONFIG_DIR"' + #13#10 +
     'Write-InstallLog "[INFO] Admin structure phase completed successfully"' + #13#10;
 
   SaveStringToFile(ScriptPath, Script, False);
@@ -140,18 +156,18 @@ procedure RunAdminStructurePhase();
 var
   ResultCode: Integer;
   PayloadRoot: String;
-  AppRoot: String;
+  DefaultAppRoot: String;
   ScriptPath: String;
   Params: String;
   UserLogPath: String;
 begin
   PayloadRoot := ExpandConstant('{tmp}\dms-provider-payload');
-  AppRoot := ExpandConstant('{commonpf}\DMS Provider');
+  DefaultAppRoot := ExpandConstant('{commonpf}\DMS Provider');
   ScriptPath := ExpandConstant('{tmp}\dms-provider-admin-structure.ps1');
-  UserLogPath := ExpandConstant('{userappdata}\DMS bridge\installer-structure.log');
+  UserLogPath := ExpandConstant('{userappdata}\DMS provider\installer-structure.log');
 
   WizardForm.StatusLabel.Caption := 'Requesting administrator rights for app structure...';
-  WriteAdminStructureScript(ScriptPath, PayloadRoot, AppRoot, UserLogPath);
+  WriteAdminStructureScript(ScriptPath, PayloadRoot, DefaultAppRoot, UserLogPath);
 
   Params := '-NoProfile -ExecutionPolicy Bypass -File ' + Quote(ScriptPath);
   if not ShellExec('runas', ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Params, '', SW_SHOW, ewWaitUntilTerminated, ResultCode) then begin
