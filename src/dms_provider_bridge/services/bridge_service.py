@@ -7,6 +7,8 @@ from dms_provider_bridge.adapters.commander_api import WfxErrorCode, build_wfx_p
 from dms_provider_bridge.core.logging import get_logger
 from dms_provider_bridge.core.errors import AuthenticationError, ProviderNotFoundError
 from dms_provider_bridge.models.bridge import BridgeAuthContext, WfxResponse
+from dms_provider_bridge.models.item import DmsItem
+from dms_provider_bridge.models.listing import ListingResult
 from dms_provider_bridge.services.auth_service import validate_bridge_auth
 from dms_provider_bridge.services.provider_service import get_default_provider_name, get_provider, list_registered_providers
 from dms_provider_bridge.services.bridge_transfer_ops import TransferNotFoundError, TransferPrecheckError, copy_fso_to_edocat, upload_with_preflight
@@ -54,6 +56,26 @@ def _deduplicate_repeated_leaf(path: str) -> str | None:
     return "/" + "/".join(parts[:-1])
 
 
+def _is_provider_root_path(path: str | None) -> bool:
+    normalized = (path or "").strip().replace("\\", "/")
+    return normalized in {"", "/"}
+
+
+def _provider_root_listing() -> ListingResult:
+    providers = list_registered_providers()
+    items = [
+        DmsItem(
+            id=provider_name,
+            name=provider_name,
+            path=build_wfx_path(provider_name, "/"),
+            is_folder=True,
+            mime_type="application/x-dms-provider",
+        )
+        for provider_name in providers
+    ]
+    return ListingResult(provider="bridge", path="/", total=len(items), items=items)
+
+
 def _log_and_return(
     operation: str,
     provider: str | None,
@@ -91,11 +113,25 @@ def providers_path() -> WfxResponse:
     return _log_and_return("providers", None, "/", started_at, response)
 
 
-def list_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
+def list_path(path: str, auth: BridgeAuthContext | None) -> WfxResponse:
     started_at = time.perf_counter()
     provider_name: str | None = None
     resolved_path = path
     try:
+        if _is_provider_root_path(path):
+            response = _success(
+                data=_provider_root_listing().model_dump(),
+                metadata={
+                    "operation": "list",
+                    "provider_root": True,
+                    "providers": list_registered_providers(),
+                    "default_provider": get_default_provider_name(),
+                },
+            )
+            return _log_and_return("list", "bridge", "/", started_at, response)
+        if auth is None:
+            response = _failure(WfxErrorCode.ACCESS_DENIED, "Authentication is required for provider paths.")
+            return _log_and_return("list", provider_name, resolved_path, started_at, response, response.message)
         provider, parsed = _resolve(path)
         provider_name = provider.name
         resolved_path = parsed.path

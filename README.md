@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Alpha-orange)](https://github.com/mergi72/dms-provider-bridge)
-[![Bridge Version](https://img.shields.io/badge/Bridge-v0.2.9--alpha-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.2.9-alpha)
-[![Bridge Setup](https://img.shields.io/badge/Setup-v0.2.9--alpha-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.2.9-alpha)
+[![Bridge Version](https://img.shields.io/badge/Bridge-v0.4.3-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.4.3)
+[![Bridge Setup](https://img.shields.io/badge/Setup-v0.4.3-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.4.3)
 
 Current development branch: `develop`  
 Stable release branch: `main`
@@ -12,23 +12,25 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.2.9-alpha`
-- Latest bridge-only release: `v0.2.9-alpha`
+- Bridge repository latest changelog version: `0.4.3`
+- Latest bridge-only release: `v0.4.3`
 
-## Runtime Modes (Bridge Installer)
+## Runtime Modes
 
-Bridge setup supports two runtime modes:
+Bridge can be run in two different Windows runtime models. Keep them separate:
 
-- User mode (default, recommended for Total Commander):
-  - Creates a Scheduled Task triggered at user logon.
-  - Runs bridge under the interactive user account.
-  - Preserves `credential_id` flow with user Credential Manager entries.
-- Service mode (advanced/server mode):
-  - Runs bridge as a Windows Service via NSSM.
-  - Suitable for server/API scenarios.
-  - Under `LocalSystem`, user-scoped Credential Manager entries are not visible.
+- TC user mode:
+  - Intended for Total Commander / TC-WFX interactive usage.
+  - Runs under the logged-in Windows user, for example from a user startup task.
+  - Can access that user's Windows Credential Manager entries.
+  - This is the right model for `credential_id` values created by the TC-WFX plugin.
+- Service mode:
+  - Intended for server-style local bridge usage.
+  - Runs as the `DMSProviderBridge` Windows Service via NSSM.
+  - Current `v0.4.3` installer installs this service as `LocalSystem`.
+  - `LocalSystem` cannot see credentials stored in an interactive user's Windows Credential Manager.
 
-Installer default is User mode to match TC plugin `credential_id` usage.
+Current setup release `v0.4.3` is the Service mode installer. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
 
 ## Related Projects
 
@@ -178,18 +180,22 @@ curl -sS http://127.0.0.1:8765/bridge/wfx/list \
 
 ## WFX Bridge API (for C# plugin)
 
-## Config Layers (Git vs local)
+## Config Layers
 
-Configuration is loaded in layers, where later files override earlier ones:
+Configuration is loaded from two fixed Windows scopes:
 
-- Global config: `config/default.json` -> `config/user.json` -> `config/user.local.json` -> `config/local.json`
-- Provider config (`edocat`, `alfresco`, `fso`, ...): `config/<provider>.json` -> `config/<provider>.local.json`
+- Machine config: `%ProgramData%\DMS Provider\config`
+- User config: `%APPDATA%\DMS Provider\config`
 
-Recommended workflow:
+The machine config is authoritative. For each config file, the bridge loads the machine JSON first, then merges the matching user `*.local.json` only if the machine JSON exists.
 
-- Keep `config/*.json` in Git generic/safe.
-- Put machine/user specific credentials, hosts, and local paths into `*.local.json` files.
-- `*.local.json` and `config/local.json` are ignored by Git, so functional local settings are not pushed.
+- Bridge/system config: `bridge.json`
+- Provider config (`edocat`, `alfresco`, `fso`, ...): `<provider>.json`
+- User overrides: `bridge.local.json`, `<provider>.local.json`
+
+User `*.local.json` values override existing machine keys and may add missing keys. If the machine JSON file is missing, the matching user `*.local.json` is ignored.
+
+For local development, set `DMS_PROVIDER_MACHINE_CONFIG_DIR` and optionally `DMS_PROVIDER_USER_CONFIG_DIR` to test config directories.
 
 Remote path format:
 
@@ -257,7 +263,7 @@ Transfer operations:
 
 Raw upload limits:
 
-- Config key: `upload.raw.maxBytes` in `config/default.json` (can be overridden in `config/user.json`)
+- Config key: `upload.raw.maxBytes` in machine `bridge.json` (can be overridden by user `bridge.local.json`)
 - Default: `536870912` (512 MB)
 - Stream chunk size key: `upload.raw.chunkBytes` (clamped to 1-4 MB, default `1048576` = 1 MB)
 - Bridge rejects larger payloads before provider upload and logs `bytes`, `max_bytes`, and `duration_ms`
@@ -301,14 +307,15 @@ FSO security notes:
 
 - FSO provider supports local path restrictions via `allowedRoots` in `config/fso.json`.
 - Operations outside these roots are blocked (`ProviderOperationError`).
-- For local environments, set your own absolute paths (Windows example):
+- The packaged default is an empty list because FSO is disabled until you choose explicit local roots.
+- For local environments, set your own absolute paths in `fso.local.json` (Windows example):
 
 ```json
 {
   "key": "fso",
   "fso": {
     "allowedRoots": [
-      "C:/MyDocuments"
+      "C:/Users/<user>/Documents"
     ]
   }
 }

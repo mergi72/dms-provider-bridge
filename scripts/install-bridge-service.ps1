@@ -1,7 +1,8 @@
 param(
     [ValidateSet("User", "Service")]
     [string]$RuntimeMode = "User",
-    [string]$ServiceName = "DmsProviderBridge",
+    [string]$ServiceName = "DMSProviderBridge",
+    [string]$ServiceDisplayName = "DMS Provider Bridge",
     [string]$TaskName = "DmsProviderBridgeUser",
     [string]$RunAsUser,
     [string]$InstallRoot = "$env:ProgramFiles\DMS Provider",
@@ -21,6 +22,36 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Write-InstallLog {
+    param(
+        [ValidateSet("INFO", "STEP", "OK", "WARN", "FAIL")]
+        [string]$Level,
+        [string]$Message
+    )
+
+    Write-Host ("[{0,-5}] {1}" -f $Level, $Message)
+}
+
+function Write-Info {
+    param([string]$Message)
+    Write-InstallLog -Level "INFO" -Message $Message
+}
+
+function Write-Step {
+    param([string]$Message)
+    Write-InstallLog -Level "STEP" -Message $Message
+}
+
+function Write-Ok {
+    param([string]$Message)
+    Write-InstallLog -Level "OK" -Message $Message
+}
+
+function Write-Warn {
+    param([string]$Message)
+    Write-InstallLog -Level "WARN" -Message $Message
+}
+
 function Test-IsAdministrator {
     $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = [Security.Principal.WindowsPrincipal]::new($currentIdentity)
@@ -29,19 +60,55 @@ function Test-IsAdministrator {
 
 function Wait-BridgeHealth {
     param([string]$Url, [int]$TimeoutSeconds)
+    Write-Step "Health check..."
+    Write-Info "Waiting for bridge startup..."
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $attempt = 0
     while ((Get-Date) -lt $deadline) {
+        $attempt++
+        Write-Info "Health attempt $attempt/$TimeoutSeconds"
         try {
             $response = Invoke-RestMethod -Method Get -Uri $Url -TimeoutSec 5
             if ($response.status -eq "ok") {
-                Write-Host "Bridge health check passed: $Url"
-                return
+                Write-Ok "GET $Url"
+                return $response
             }
+            Write-Warn "Health response status was '$($response.status)'"
         }
-        catch { }
+        catch {
+            Write-Warn "Health attempt failed: $($_.Exception.Message)"
+        }
         Start-Sleep -Seconds 1
     }
     throw "Bridge health check did not pass within $TimeoutSeconds s: $Url"
+}
+
+function Test-BridgeProviders {
+    param([string]$BaseUrl)
+
+    $providersUrl = "$BaseUrl/bridge/wfx/providers"
+    Write-Step "Provider check..."
+    try {
+        $response = Invoke-RestMethod -Method Get -Uri $providersUrl -TimeoutSec 10
+        if ($response.ok -ne $true) {
+            throw "Provider endpoint returned ok=$($response.ok)"
+        }
+
+        $providers = @($response.data.providers)
+        if ($providers.Count -eq 0) {
+            throw "Provider endpoint returned no providers."
+        }
+
+        foreach ($provider in $providers) {
+            Write-Ok "$provider"
+        }
+        Write-Info "Providers loaded: $($providers.Count)"
+        return $response
+    }
+    catch {
+        Write-InstallLog -Level "FAIL" -Message "GET $providersUrl"
+        throw
+    }
 }
 
 function Resolve-BridgeBaseUrl {
@@ -83,6 +150,64 @@ function Resolve-CurrentUserName {
     return if ([string]::IsNullOrWhiteSpace($envDomain)) { $envUser } else { "$envDomain\$envUser" }
 }
 
+function Get-UserNameLeaf {
+    param([string]$UserName)
+
+    if ([string]::IsNullOrWhiteSpace($UserName)) {
+        return ""
+    }
+
+    $normalized = $UserName.Trim()
+    if ($normalized.Contains("\")) {
+        return ($normalized.Split("\")[-1])
+    }
+    if ($normalized.Contains("@")) {
+        return ($normalized.Split("@")[0])
+    }
+    return $normalized
+}
+
+function Resolve-ProfilePathByUserNameLeaf {
+    param([string]$UserName)
+
+    $leaf = Get-UserNameLeaf -UserName $UserName
+    if ([string]::IsNullOrWhiteSpace($leaf)) {
+        return $null
+    }
+
+    $profileListRoot = "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList"
+    try {
+        $profiles = Get-ChildItem -Path $profileListRoot -ErrorAction Stop
+        foreach ($profileKey in $profiles) {
+            try {
+                $profile = (Get-ItemProperty -Path $profileKey.PSPath -Name ProfileImagePath -ErrorAction Stop).ProfileImagePath
+                $profilePath = [Environment]::ExpandEnvironmentVariables($profile)
+                if ([string]::IsNullOrWhiteSpace($profilePath)) {
+                    continue
+                }
+
+                $profileLeaf = Split-Path -Leaf $profilePath
+                if ($profileLeaf -ieq $leaf) {
+                    return $profilePath
+                }
+            }
+            catch {
+                continue
+            }
+        }
+    }
+    catch {
+        Write-Warn "Could not read Windows profile list while resolving AppData for '$UserName': $($_.Exception.Message)"
+    }
+
+    $usersPath = Join-Path $env:SystemDrive "Users\$leaf"
+    if (Test-Path $usersPath) {
+        return $usersPath
+    }
+
+    return $null
+}
+
 function Resolve-UserRoamingAppDataPath {
     param([string]$UserName)
 
@@ -108,6 +233,11 @@ function Resolve-UserRoamingAppDataPath {
         }
     }
 
+    $profilePath = Resolve-ProfilePathByUserNameLeaf -UserName $UserName
+    if (-not [string]::IsNullOrWhiteSpace($profilePath)) {
+        return (Join-Path $profilePath "AppData\Roaming")
+    }
+
     return $null
 }
 
@@ -115,13 +245,15 @@ function Write-UserModeLauncher {
     param(
         [string]$Path,
         [string]$BridgeExe,
-        [string]$ConfigDir,
+        [string]$MachineConfigDir,
+        [string]$UserConfigDir,
         [string]$WorkingDir
     )
 
     $launcher = @"
 
-$env:DMS_PROVIDER_CONFIG_DIR = '$ConfigDir'
+$env:DMS_PROVIDER_MACHINE_CONFIG_DIR = '$MachineConfigDir'
+$env:DMS_PROVIDER_USER_CONFIG_DIR = '$UserConfigDir'
 Start-Process -FilePath '$BridgeExe' -WorkingDirectory '$WorkingDir' -WindowStyle Hidden
 "@
 
@@ -138,6 +270,32 @@ function Remove-ExistingBridgeService {
 
     sc.exe stop $Name | Out-Null 2>&1
     sc.exe delete $Name | Out-Null 2>&1
+
+    $deadline = (Get-Date).AddSeconds(15)
+    while ((Get-Date) -lt $deadline) {
+        if (-not (Get-Service -Name $Name -ErrorAction SilentlyContinue)) {
+            return
+        }
+        Start-Sleep -Milliseconds 500
+    }
+
+    throw "Service '$Name' could not be removed before reinstall."
+}
+
+function Remove-LegacyBridgeServices {
+    param([string]$CurrentName)
+
+    $legacyNames = @("DmsProviderBridge")
+    foreach ($legacyName in $legacyNames) {
+        if ($legacyName -ieq $CurrentName) {
+            continue
+        }
+        if (Get-Service -Name $legacyName -ErrorAction SilentlyContinue) {
+            Write-Warn "Removing legacy service: $legacyName"
+            Remove-ExistingBridgeService -Name $legacyName
+            Write-Ok "Legacy service removed: $legacyName"
+        }
+    }
 }
 
 
@@ -157,6 +315,7 @@ function Copy-ConfigFilesByName {
     foreach ($fileName in $FileNames) {
         $sourcePath = Join-Path $SourceDir $fileName
         if (-not (Test-Path $sourcePath)) {
+            Write-Warn "Missing source config: $fileName"
             continue
         }
 
@@ -168,14 +327,17 @@ function Copy-ConfigFilesByName {
         }
 
         if ($sourceResolved -ieq $targetResolved) {
+            Write-Ok "$fileName (source equals target)"
             continue
         }
 
         if ((Test-Path $targetPath) -and -not $Overwrite) {
+            Write-Ok "$fileName (already exists)"
             continue
         }
 
         Copy-Item -Path $sourcePath -Destination $targetPath -Force:$Overwrite
+        Write-Ok $fileName
         $copied++
     }
 
@@ -186,14 +348,47 @@ if (-not (Test-IsAdministrator)) {
     throw "Install requires elevated PowerShell (Run as Administrator)."
 }
 
+function Invoke-Nssm {
+    param(
+        [string[]]$Arguments,
+        [switch]$IgnoreFailure
+    )
+
+    $commandText = "$NssmExePath $($Arguments -join ' ')"
+    Write-Info "NSSM: $commandText"
+    $output = & $NssmExePath @Arguments 2>&1
+    $exitCode = $LASTEXITCODE
+
+    foreach ($line in @($output)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$line)) {
+            Write-Info "NSSM output: $line"
+        }
+    }
+
+    if ($exitCode -ne 0 -and -not $IgnoreFailure) {
+        throw "NSSM command failed with exit code $exitCode`: $commandText"
+    }
+
+    if ($exitCode -ne 0) {
+        Write-Warn "NSSM command ignored exit code $exitCode`: $commandText"
+    }
+}
+
+Write-Info "Starting installation..."
+Write-Info "Runtime mode: $RuntimeMode"
+Write-Info "Install root: $InstallRoot"
+
 if ($RuntimeMode -eq "Service") {
+    Write-Step "Checking NSSM..."
     if ([string]::IsNullOrWhiteSpace($NssmExePath) -or -not (Test-Path $NssmExePath)) {
         throw "NSSM executable not found. Provide -NssmExePath."
     }
+    Write-Ok "NSSM: $NssmExePath"
 }
 
 # Resolve bridge exe: explicit param, then next to this script, then dist/ in repo
 if ([string]::IsNullOrWhiteSpace($BridgeExePath)) {
+    Write-Step "Resolving bridge executable..."
     $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
     $candidates = @(
         (Join-Path $scriptDir "dms-provider-bridge.exe"),
@@ -207,9 +402,11 @@ if ([string]::IsNullOrWhiteSpace($BridgeExePath)) {
 if ([string]::IsNullOrWhiteSpace($BridgeExePath) -or -not (Test-Path $BridgeExePath)) {
     throw "Bridge executable not found. Provide -BridgeExePath."
 }
+Write-Ok "Bridge executable: $BridgeExePath"
 
 # Resolve config dir: explicit param, then config/ next to this script, then config/ in repo
 if ([string]::IsNullOrWhiteSpace($BridgeConfigDirPath)) {
+    Write-Step "Resolving config payload..."
     $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
     $candidates = @(
         (Join-Path $scriptDir "config"),
@@ -220,137 +417,189 @@ if ([string]::IsNullOrWhiteSpace($BridgeConfigDirPath)) {
     }
 }
 
+if ([string]::IsNullOrWhiteSpace($UserConfigSourceDirPath)) {
+    Write-Step "Resolving user config payload..."
+    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+    $candidates = @(
+        (Join-Path $scriptDir "user-config"),
+        (Join-Path $scriptDir "..\user-config")
+    )
+    foreach ($c in $candidates) {
+        if (Test-Path $c) { $UserConfigSourceDirPath = (Resolve-Path $c).Path; break }
+    }
+}
+
 if ($RuntimeMode -eq "User" -and [string]::IsNullOrWhiteSpace($RunAsUser)) {
     $RunAsUser = Resolve-CurrentUserName
 }
 
+$userConfigOwner = $RunAsUser
+if ([string]::IsNullOrWhiteSpace($userConfigOwner)) {
+    $userConfigOwner = Resolve-CurrentUserName
+}
+
 if ([string]::IsNullOrWhiteSpace($ConfigRoot)) {
-    if ($RuntimeMode -eq "User") {
-        $userRoamingAppData = Resolve-UserRoamingAppDataPath -UserName $RunAsUser
+    $userRoamingAppData = Resolve-UserRoamingAppDataPath -UserName $userConfigOwner
+    if (-not [string]::IsNullOrWhiteSpace($userRoamingAppData)) {
+        $ConfigRoot = Join-Path $userRoamingAppData "DMS Provider\config"
+    }
+    elseif ($RuntimeMode -eq "User") {
         if ([string]::IsNullOrWhiteSpace($userRoamingAppData)) {
-            throw "RuntimeMode=User could not resolve roaming AppData for '$RunAsUser'. Provide -ConfigRoot explicitly."
+            throw "RuntimeMode=User could not resolve roaming AppData for '$userConfigOwner'. Provide -ConfigRoot explicitly."
         }
-        $ConfigRoot = Join-Path $userRoamingAppData "DMS Bridge\config"
     }
     else {
-        $ConfigRoot = Join-Path $env:ProgramData "DMSProvider\config"
+        Write-Warn "Could not resolve user AppData for '$userConfigOwner'. Falling back to ProgramData user config root."
+        $ConfigRoot = Join-Path $env:ProgramData "DMS Provider\config"
     }
 }
 
 $bridgeExeTargetPath = Join-Path $InstallRoot "dms-provider-bridge.exe"
-$bridgeConfigTargetDir = $ConfigRoot
+$machineConfigRoot = Join-Path $env:ProgramData "DMS Provider\config"
+$userConfigRoot = $ConfigRoot
 $bridgeLogs = Join-Path $InstallRoot "logs"
 $stdoutLog = Join-Path $bridgeLogs "bridge-stdout.log"
 $stderrLog = Join-Path $bridgeLogs "bridge-stderr.log"
 
+Write-Step "Creating application directories..."
 New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
+Write-Ok $InstallRoot
 New-Item -ItemType Directory -Path $bridgeLogs -Force | Out-Null
-New-Item -ItemType Directory -Path $bridgeConfigTargetDir -Force | Out-Null
+Write-Ok $bridgeLogs
 
+Write-Step "Creating ProgramData config..."
+New-Item -ItemType Directory -Path $machineConfigRoot -Force | Out-Null
+Write-Ok $machineConfigRoot
+
+Write-Step "Creating AppData config..."
+Write-Info "AppData config owner: $userConfigOwner"
+New-Item -ItemType Directory -Path $userConfigRoot -Force | Out-Null
+Write-Ok $userConfigRoot
+
+Write-Step "Copying bridge executable..."
 Copy-Item -Path $BridgeExePath -Destination $bridgeExeTargetPath -Force
+Write-Ok $bridgeExeTargetPath
 
 $machineConfigNames = @(
-    "default.json",
+    "bridge.json",
     "alfresco.json",
     "edocat.json",
     "fso.json"
 )
 
 $userConfigNames = @(
-    "user.json"
+    "alfresco.local.json",
+    "edocat.local.json",
+    "fso.local.json"
 )
 
-$machineCopied = Copy-ConfigFilesByName -SourceDir $BridgeConfigDirPath -TargetDir $bridgeConfigTargetDir -FileNames $machineConfigNames -Overwrite
+Write-Step "Copying default configuration..."
+$machineCopied = Copy-ConfigFilesByName -SourceDir $BridgeConfigDirPath -TargetDir $machineConfigRoot -FileNames $machineConfigNames -Overwrite
 if ($machineCopied -gt 0) {
-    Write-Host "Machine bridge config templates copied from: $BridgeConfigDirPath"
+    Write-Ok "Machine bridge config templates copied from: $BridgeConfigDirPath"
 }
 elseif (-not [string]::IsNullOrWhiteSpace($BridgeConfigDirPath) -and (Test-Path $BridgeConfigDirPath)) {
-    Write-Host "Machine bridge config templates already present or source equals target: $BridgeConfigDirPath"
+    Write-Ok "Machine bridge config templates already present or source equals target: $BridgeConfigDirPath"
 }
 else {
-    Write-Host "Machine bridge config directory not provided or not found. Expected target: $bridgeConfigTargetDir"
+    Write-Warn "Machine bridge config directory not provided or not found. Expected target: $machineConfigRoot"
 }
 
-if ($RuntimeMode -eq "User") {
-    $userCopied = Copy-ConfigFilesByName -SourceDir $UserConfigSourceDirPath -TargetDir $bridgeConfigTargetDir -FileNames $userConfigNames
-    if ($userCopied -gt 0) {
-        Write-Host "User bridge config seeded from: $UserConfigSourceDirPath"
-    }
-    elseif (-not [string]::IsNullOrWhiteSpace($UserConfigSourceDirPath) -and (Test-Path $UserConfigSourceDirPath)) {
-        Write-Host "User bridge config already present or no seed file found: $UserConfigSourceDirPath"
-    }
+$userCopied = Copy-ConfigFilesByName -SourceDir $UserConfigSourceDirPath -TargetDir $userConfigRoot -FileNames $userConfigNames
+if ($userCopied -gt 0) {
+    Write-Ok "User bridge config seeded from: $UserConfigSourceDirPath"
+}
+elseif (-not [string]::IsNullOrWhiteSpace($UserConfigSourceDirPath) -and (Test-Path $UserConfigSourceDirPath)) {
+    Write-Ok "User bridge config already present or no seed file found: $UserConfigSourceDirPath"
 }
 
 $bridgeBaseUrl = Resolve-BridgeBaseUrl -Url $HealthUrl
 
 if ($RuntimeMode -eq "User") {
     # User mode is for interactive desktop usage (for example Total Commander).
+    Write-Step "Removing existing Windows service if present..."
     Remove-ExistingBridgeService -Name $ServiceName
+    Remove-LegacyBridgeServices -CurrentName $ServiceName
+    Write-Ok "Service cleanup: $ServiceName"
+    Write-Step "Registering scheduled task..."
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
 
     $launcherPath = Join-Path $InstallRoot "start-bridge-usermode.ps1"
-    Write-UserModeLauncher -Path $launcherPath -BridgeExe $bridgeExeTargetPath -ConfigDir $bridgeConfigTargetDir -WorkingDir $InstallRoot
+    Write-Step "Writing user mode launcher..."
+    Write-UserModeLauncher -Path $launcherPath -BridgeExe $bridgeExeTargetPath -MachineConfigDir $machineConfigRoot -UserConfigDir $userConfigRoot -WorkingDir $InstallRoot
+    Write-Ok $launcherPath
 
     $taskAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$launcherPath`""
     $taskTrigger = New-ScheduledTaskTrigger -AtLogOn -User $RunAsUser
     $taskPrincipal = New-ScheduledTaskPrincipal -UserId $RunAsUser -LogonType InteractiveToken -RunLevel Highest
 
     Register-ScheduledTask -TaskName $TaskName -Action $taskAction -Trigger $taskTrigger -Principal $taskPrincipal -Force | Out-Null
+    Write-Ok "Scheduled task registered: $TaskName"
 
     if ($StartImmediately) {
+        Write-Step "Starting scheduled task..."
         Start-ScheduledTask -TaskName $TaskName
-        Wait-BridgeHealth -Url $HealthUrl -TimeoutSeconds $HealthTimeoutSeconds
+        Write-Ok "Scheduled task started: $TaskName"
+        Wait-BridgeHealth -Url $HealthUrl -TimeoutSeconds $HealthTimeoutSeconds | Out-Null
+        Test-BridgeProviders -BaseUrl $bridgeBaseUrl | Out-Null
     }
 
-    Write-Host ""
-    Write-Host "Bridge started successfully."
-    Write-Host "Runtime mode:    User"
-    Write-Host "Task:            $TaskName"
-    Write-Host "Run as user:     $RunAsUser"
-    Write-Host "Install root:    $InstallRoot"
-    Write-Host "Config root:     $bridgeConfigTargetDir"
-    Write-Host "Bridge exe:      $bridgeExeTargetPath"
-    Write-Host "Health:          $HealthUrl"
-    Write-Host "Swagger UI:      $bridgeBaseUrl/docs"
-    Write-Host "OpenAPI:         $bridgeBaseUrl/openapi.json"
-    Write-Host "Logs:            $bridgeLogs"
+    Write-Info "Installation completed successfully."
+    Write-Info "Task: $TaskName"
+    Write-Info "Run as user: $RunAsUser"
+    Write-Info "Health: $HealthUrl"
+    Write-Info "Swagger UI: $bridgeBaseUrl/docs"
+    Write-Info "OpenAPI: $bridgeBaseUrl/openapi.json"
+    Write-Info "Logs: $bridgeLogs"
     return
 }
 
+Write-Step "Registering Windows service..."
 Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
-& $NssmExePath stop $ServiceName | Out-Null 2>&1
-& $NssmExePath remove $ServiceName confirm | Out-Null 2>&1
+Invoke-Nssm -Arguments @("stop", $ServiceName) -IgnoreFailure
+Invoke-Nssm -Arguments @("remove", $ServiceName, "confirm") -IgnoreFailure
+Remove-LegacyBridgeServices -CurrentName $ServiceName
 
-& $NssmExePath install $ServiceName $bridgeExeTargetPath
-& $NssmExePath set $ServiceName AppDirectory $InstallRoot
-& $NssmExePath set $ServiceName AppStdout $stdoutLog
-& $NssmExePath set $ServiceName AppStderr $stderrLog
-& $NssmExePath set $ServiceName AppEnvironmentExtra "DMS_PROVIDER_CONFIG_DIR=$bridgeConfigTargetDir"
+Invoke-Nssm -Arguments @("install", $ServiceName, $bridgeExeTargetPath)
+Invoke-Nssm -Arguments @("set", $ServiceName, "AppDirectory", $InstallRoot)
+Invoke-Nssm -Arguments @("set", $ServiceName, "DisplayName", $ServiceDisplayName)
+Invoke-Nssm -Arguments @("set", $ServiceName, "AppStdout", $stdoutLog)
+Invoke-Nssm -Arguments @("set", $ServiceName, "AppStderr", $stderrLog)
+Invoke-Nssm -Arguments @("set", $ServiceName, "AppEnvironmentExtra", "DMS_PROVIDER_MACHINE_CONFIG_DIR=$machineConfigRoot", "DMS_PROVIDER_USER_CONFIG_DIR=$userConfigRoot")
+Write-Ok "$ServiceDisplayName registered"
 
 if ($ServiceAccount -eq "LocalSystem") {
-    & $NssmExePath set $ServiceName ObjectName LocalSystem
+    Invoke-Nssm -Arguments @("set", $ServiceName, "ObjectName", "LocalSystem")
 }
 else {
     $resolvedServiceUser = Resolve-ServiceUserName -Mode $ServiceAccount -ExplicitUserName $ServiceUserName
     if ([string]::IsNullOrWhiteSpace($ServicePassword)) {
         throw "ServiceAccount=$ServiceAccount requires -ServicePassword."
     }
-    & $NssmExePath set $ServiceName ObjectName $resolvedServiceUser $ServicePassword
+    Write-Info "Service account: $resolvedServiceUser"
+    Invoke-Nssm -Arguments @("set", $ServiceName, "ObjectName", $resolvedServiceUser, $ServicePassword)
 }
 
-& $NssmExePath set $ServiceName Start SERVICE_AUTO_START
-& $NssmExePath start $ServiceName
-Wait-BridgeHealth -Url $HealthUrl -TimeoutSeconds $HealthTimeoutSeconds
+$registeredService = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+if ($null -eq $registeredService) {
+    throw "Service '$ServiceName' was not found after NSSM registration."
+}
+Write-Ok "Service exists: $ServiceName"
 
-Write-Host ""
-Write-Host "Bridge started successfully."
-Write-Host "Runtime mode:    Service"
-Write-Host "Service:        $ServiceName"
-Write-Host "Install root:   $InstallRoot"
-Write-Host "Config root:    $bridgeConfigTargetDir"
-Write-Host "Bridge exe:     $bridgeExeTargetPath"
-Write-Host "Health:         $HealthUrl"
-Write-Host "Swagger UI:     $bridgeBaseUrl/docs"
-Write-Host "OpenAPI:        $bridgeBaseUrl/openapi.json"
-Write-Host "Service user:   $(if ($ServiceAccount -eq 'LocalSystem') { 'LocalSystem' } elseif ($ServiceAccount -eq 'CurrentUser') { Resolve-ServiceUserName -Mode 'CurrentUser' -ExplicitUserName '' } else { $ServiceUserName })"
-Write-Host "Logs:           $bridgeLogs"
+Invoke-Nssm -Arguments @("set", $ServiceName, "Start", "SERVICE_AUTO_START")
+Write-Step "Starting service..."
+Invoke-Nssm -Arguments @("start", $ServiceName)
+Write-Ok "Service start requested: $ServiceName"
+Wait-BridgeHealth -Url $HealthUrl -TimeoutSeconds $HealthTimeoutSeconds | Out-Null
+Test-BridgeProviders -BaseUrl $bridgeBaseUrl | Out-Null
+
+Write-Info "Installation completed successfully."
+Write-Info "Service: $ServiceName"
+Write-Info "Install root: $InstallRoot"
+Write-Info "Machine config: $machineConfigRoot"
+Write-Info "Bridge exe: $bridgeExeTargetPath"
+Write-Info "Health: $HealthUrl"
+Write-Info "Swagger UI: $bridgeBaseUrl/docs"
+Write-Info "OpenAPI: $bridgeBaseUrl/openapi.json"
+Write-Info "Service user: $(if ($ServiceAccount -eq 'LocalSystem') { 'LocalSystem' } elseif ($ServiceAccount -eq 'CurrentUser') { Resolve-ServiceUserName -Mode 'CurrentUser' -ExplicitUserName '' } else { $ServiceUserName })"
+Write-Info "Logs: $bridgeLogs"

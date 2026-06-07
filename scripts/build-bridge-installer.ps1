@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "v0.2.9-alpha",
+    [string]$Version = "v0.4.3",
     [string]$BridgeExePath = "dist\dms-provider-bridge.exe",
     [string]$NssmExePath,
     [string]$InnoCompilerPath,
@@ -72,13 +72,15 @@ $payloadDir = Join-Path $repoRoot "artifacts\bridge-installer-payload"
 $configPayloadDir = Join-Path $payloadDir "config"
 $userConfigPayloadDir = Join-Path $payloadDir "user-config"
 $machineConfigWhitelist = @(
-    "default.json",
+    "bridge.json",
     "alfresco.json",
     "edocat.json",
     "fso.json"
 )
-$userConfigWhitelist = @(
-    "user.json"
+$userProviderLocalConfigNames = @(
+    "alfresco.local.json",
+    "edocat.local.json",
+    "fso.local.json"
 )
 
 if (Test-Path $payloadDir) {
@@ -102,12 +104,8 @@ foreach ($configName in $machineConfigWhitelist) {
     Copy-Item -Path $configSource -Destination (Join-Path $configPayloadDir $configName) -Force
 }
 
-foreach ($configName in $userConfigWhitelist) {
-    $configSource = Join-Path $repoRoot (Join-Path "config" $configName)
-    if (-not (Test-Path $configSource)) {
-        throw "Required user config seed missing: $configSource"
-    }
-    Copy-Item -Path $configSource -Destination (Join-Path $userConfigPayloadDir $configName) -Force
+foreach ($configName in $userProviderLocalConfigNames) {
+    Set-Content -Path (Join-Path $userConfigPayloadDir $configName) -Value "{}" -Encoding ASCII
 }
 
 Write-Host "Installer payload prepared: $payloadDir"

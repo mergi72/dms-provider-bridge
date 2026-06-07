@@ -1,9 +1,93 @@
 # Changelog
 
-## 0.2.9-alpha - 2026-06-07
+## 0.4.3 - 2026-06-07
 
 ### Changed
-- Release/version bump.
+- Release/version bump to `0.4.3`.
+- Default FSO config no longer points to `C:/MyDocuments`; packaged `allowedRoots` is empty until a local override enables explicit roots.
+- Service ZIP build now writes archive entry paths with `/` separators for better compatibility with GitHub release and CI tooling.
+
+---
+
+## 0.4.2 - 2026-06-07
+
+### Changed
+- Release/version bump to `0.4.2`.
+- Provider discovery no longer uses a hard-coded provider registry; provider classes are discovered dynamically from `dms_provider_bridge.providers` and filtered by configured provider JSON files.
+- `/bridge/wfx/providers` and root `/bridge/wfx/list` expose the dynamically configured provider list for TC-WFX provider selection.
+- `/bridge/wfx/list` accepts root provider navigation without auth and keeps provider-path operations protected by auth.
+- Provider config loading logs the final merged provider config, including machine and user config paths, to simplify local diagnostics.
+- Provider config loading accepts wrapped provider sections and direct provider payloads while preserving the machine-first, user-local override rule.
+- VS Code bridge start/restart/debug tasks now set `DMS_PROVIDER_MACHINE_CONFIG_DIR` to the repo `config` directory and `DMS_PROVIDER_USER_CONFIG_DIR` to `%APPDATA%\DMS Provider\config`.
+
+---
+
+## 0.4.1 - 2026-06-07
+
+### Changed
+- Release/version bump to `0.4.1`.
+- Default provider tests are isolated from real machine/user config so installed `bridge.json` defaults do not make the test suite environment-dependent.
+- README now clearly separates TC user mode from the current Service mode installer and documents that the `v0.4.1` setup installs `DMSProviderBridge` as `LocalSystem`.
+
+---
+
+## 0.4.0 - 2026-06-07
+
+### Changed
+- Release/version bump to `0.4.0`.
+- Installer now creates the active-user config structure before elevation, then installs application files and machine config during the admin phase.
+- Installer registers `DMSProviderBridge` as an automatic `LocalSystem` Windows service, replaces an existing service when present, starts it, and validates the real service state.
+- Installer writes service control helpers and Start Menu shortcuts for start/stop/status with UAC elevation.
+- Installer logs PowerShell warning stream output from service startup into the admin installer log.
+- Bridge and Uvicorn runtime logs are routed to stdout so normal startup and health output are written to `bridge-stdout.log`.
+- `/health` now logs a successful health check to stdout.
+
+---
+
+## 0.3.3 - 2026-06-07
+
+### Changed
+- Installer now passes `-InstallRoot "{app}"` explicitly to the PowerShell install script, keeping the script install root aligned with the Inno target directory.
+- Install script resolves user AppData more robustly when Inno passes a short `{username}`, using Windows `ProfileList` and `C:\Users\<username>` fallbacks.
+- Installer detail logging now reports ProgramData config, AppData config, service registration, service startup, health check, and provider check as separate `[STEP]` entries.
+
+---
+
+## 0.3.2 - 2026-06-07
+
+### Changed
+- Release/version bump to `0.3.2`.
+- Installer now stages empty user `*.local.json` placeholders under the application `user-config` directory and lets the PowerShell install script create/seed the resolved user AppData config directory.
+- Service ZIP now includes the same `user-config` placeholder payload as the Inno installer.
+- Install script can resolve a sibling `user-config` payload automatically when `-UserConfigSourceDirPath` is not passed.
+- Install script now checks NSSM exit codes and verifies that `DMSProviderBridge` exists immediately after service registration.
+
+---
+
+## 0.3.1 - 2026-06-07
+
+### Changed
+- Release/version bump to `0.3.1`.
+- Installer now registers `DMSProviderBridge` as a Windows Service (`DisplayName`: `DMS Provider Bridge`) using `LocalSystem`, automatic startup, and starts it immediately after installation.
+- Installer detail logging now reports installation steps with `[INFO]`, `[STEP]`, `[OK]`, `[WARN]`, and `[FAIL]` messages.
+- Installer validates startup with `GET /health` and `GET /bridge/wfx/providers`.
+- Installer writes service logs under the application `logs` directory and passes both machine and user config directories to the service environment.
+
+---
+
+## 0.3.0 - 2026-06-07
+
+### Changed
+- Release/version bump to `0.3.0`.
+- Bridge config loading now uses `bridge.json` as the system config, with provider configs kept in same-named provider JSON files.
+- Machine config is loaded from `C:\ProgramData\DMS Provider\config`; user `*.local.json` overrides are loaded from `%APPDATA%\DMS Provider\config` only when the matching machine JSON exists.
+- User config files in `%APPDATA%\DMS Provider\config` must use local override names: `bridge.local.json` and `<provider>.local.json`.
+- Installer and service launcher environment now use `DMS_PROVIDER_MACHINE_CONFIG_DIR` and `DMS_PROVIDER_USER_CONFIG_DIR`.
+- Distribution builds now stage only explicit public config templates, preventing `*.local.json` files from entering release artifacts.
+- Inno Setup payload now installs the public config templates under the application `config` directory before the install script copies them to the machine config directory.
+- Inno Setup now explicitly creates both machine and user config directories, including `%APPDATA%\DMS Provider\config` for user `*.local.json` overrides.
+- Inno Setup seeds empty provider user override files (`alfresco.local.json`, `edocat.local.json`, `fso.local.json`) with `{}` only when they do not already exist.
+- Installer registers `DMSProviderBridge` as a Windows Service using `LocalSystem`, starts it, and verifies `/health` and `/bridge/wfx/providers`.
 
 ---
 
@@ -11,16 +95,16 @@
 
 ### Fixed
 - Installation config copy now uses strict explicit allow-lists only (no wildcard `*.json`, no recursive config copy).
-- Machine config deployment target is fixed to `C:\ProgramData\DMSProvider\config` with allowed files only: `default.json`, `alfresco.json`, `edocat.json`, `fso.json`.
-- User config deployment target remains `%APPDATA%\DMS Bridge\config`; `user.json` is seeded there only, and `*.local.json` is never copied from public payload.
-- Installer self-heals invalid legacy state by removing machine-scoped `user.json` if found in `C:\ProgramData\DMSProvider\config`.
+- Machine config deployment target is fixed to `C:\ProgramData\DMS Provider\config` with allowed files only: `default.json`, `alfresco.json`, `edocat.json`, `fso.json`.
+- User config deployment target remains `%APPDATA%\DMS Provider\config`; `user.json` is seeded there only, and `*.local.json` is never copied from public payload.
+- Installer self-heals invalid legacy state by removing machine-scoped `user.json` if found in `C:\ProgramData\DMS Provider\config`.
 
 ---
 
 ## 0.2.7-alpha - 2026-06-07
 
 ### Fixed
-- Installer config seeding is now split by scope: machine templates remain in `C:\ProgramData\DMSProvider\config`, while `user.json` is seeded to the user config path (`%APPDATA%\DMS Bridge\config`).
+- Installer config seeding is now split by scope: machine templates remain in `C:\ProgramData\DMS Provider\config`, while `user.json` is seeded to the user config path (`%APPDATA%\DMS Provider\config`).
 - `install-bridge-service.ps1` now resolves the User mode config root from the effective `RunAsUser` profile and seeds user config from a dedicated user template source.
 - Service mode config copy now excludes both `*.local.json` and `user.json` from machine-wide config deployment.
 
@@ -29,7 +113,7 @@
 ## 0.2.6-alpha - 2026-06-07
 
 ### Fixed
-- User mode config root is now resolved against the effective `RunAsUser` profile (`%APPDATA%\DMS Bridge\config`) instead of relying on installer process context.
+- User mode config root is now resolved against the effective `RunAsUser` profile (`%APPDATA%\DMS Provider\config`) instead of relying on installer process context.
 - Bridge setup no longer passes `-ConfigRoot` explicitly in `[Run]`, preventing per-user path mismatches during elevated install execution.
 
 ---
@@ -37,8 +121,8 @@
 ## 0.2.5-alpha - 2026-06-07
 
 ### Changed
-- User mode config target was moved to `%APPDATA%\DMS Bridge\config` for per-user bridge preferences and overrides.
-- Installer config split was aligned to machine-wide templates in `C:\ProgramData\DMSProvider\config` and user-specific config in `%APPDATA%\DMS Bridge\config`.
+- User mode config target was moved to `%APPDATA%\DMS Provider\config` for per-user bridge preferences and overrides.
+- Installer config split was aligned to machine-wide templates in `C:\ProgramData\DMS Provider\config` and user-specific config in `%APPDATA%\DMS Provider\config`.
 - Config copy behavior in install script now keeps `*.local.json` for **User mode**, while **Service mode** still excludes local config files.
 
 ---

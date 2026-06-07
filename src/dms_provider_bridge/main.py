@@ -1,13 +1,26 @@
 from __future__ import annotations
 
 import argparse
+from copy import deepcopy
 
 import uvicorn
+from uvicorn.config import LOGGING_CONFIG
 
 from dms_provider_bridge.core.config_loader import load_config
 
 HOST = "127.0.0.1"
 PORT = 8765
+
+
+def _uvicorn_stdout_log_config() -> dict[str, object]:
+    log_config = deepcopy(LOGGING_CONFIG)
+    handlers = log_config.get("handlers", {})
+    if isinstance(handlers, dict):
+        for handler_name in ("default", "access"):
+            handler = handlers.get(handler_name)
+            if isinstance(handler, dict):
+                handler["stream"] = "ext://sys.stdout"
+    return log_config
 
 
 def parse_args() -> argparse.Namespace:
@@ -28,7 +41,13 @@ def main() -> None:
     print(f"Health: {base_url}/health")
     print(f"Swagger UI: {base_url}/docs")
     print(f"OpenAPI: {base_url}/openapi.json")
-    uvicorn.run("dms_provider_bridge.app.server:app", host=host, port=int(port), reload=False)
+    uvicorn.run(
+        "dms_provider_bridge.app.server:app",
+        host=host,
+        port=int(port),
+        reload=False,
+        log_config=_uvicorn_stdout_log_config(),
+    )
 
 
 if __name__ == "__main__":

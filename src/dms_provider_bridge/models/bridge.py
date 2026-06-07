@@ -17,10 +17,10 @@ class BridgeAuthContext(BaseModel):
 
 class WfxPathRequest(BaseModel):
     path: str = Field(
-        min_length=3,
-        description="Path in format provider:/path. Use edocat:/..., alfresco:/..., or fso:/... to select the provider.",
+        min_length=0,
+        description="Path in format provider:/path. Use / or an empty path to list available providers.",
     )
-    auth: BridgeAuthContext
+    auth: BridgeAuthContext | None = None
 
 
 class WfxMoveRequest(BaseModel):

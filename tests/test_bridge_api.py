@@ -59,6 +59,23 @@ def test_bridge_providers() -> None:
     assert body["ok"] is True
     assert set(body["data"]["providers"]) >= {"edocat", "alfresco", "fso"}
     assert body["data"]["default_provider"] in body["data"]["providers"]
+    assert body["providers"] == body["data"]["providers"]
+    assert body["default_provider"] == body["data"]["default_provider"]
+
+
+def test_bridge_root_list_returns_provider_folders_without_auth() -> None:
+    client = TestClient(create_app())
+    response = client.post("/bridge/wfx/list", json={"path": "/"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["data"]["provider"] == "bridge"
+    assert body["data"]["path"] == "/"
+    provider_names = {item["name"] for item in body["data"]["items"]}
+    assert provider_names >= {"edocat", "alfresco", "fso"}
+    assert all(item["is_folder"] is True for item in body["data"]["items"])
+    assert body["metadata"]["provider_root"] is True
 
 
 def test_resolve_share_url() -> None:

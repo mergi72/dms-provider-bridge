@@ -212,7 +212,12 @@ async def bridge_upload_raw(
 
 @router.get("/providers")
 def bridge_providers() -> dict:
-    return providers_path().model_dump()
+    payload = providers_path().model_dump()
+    data = payload.get("data")
+    if isinstance(data, dict):
+        payload["providers"] = data.get("providers", [])
+        payload["default_provider"] = data.get("default_provider")
+    return payload
 
 
 @share_url_router.post(
