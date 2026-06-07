@@ -15,7 +15,9 @@
       ],
       "cwd": "${workspaceFolder}",
       "env": {
-        "PYTHONPATH": "${workspaceFolder}/src"
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "DMS_PROVIDER_MACHINE_CONFIG_DIR": "${workspaceFolder}/config",
+        "DMS_PROVIDER_USER_CONFIG_DIR": "${env:APPDATA}/DMS Provider/config"
       },
       "justMyCode": true
     },
@@ -34,7 +36,9 @@
       ],
       "cwd": "${workspaceFolder}",
       "env": {
-        "PYTHONPATH": "${workspaceFolder}/src"
+        "PYTHONPATH": "${workspaceFolder}/src",
+        "DMS_PROVIDER_MACHINE_CONFIG_DIR": "${workspaceFolder}/config",
+        "DMS_PROVIDER_USER_CONFIG_DIR": "${env:APPDATA}/DMS Provider/config"
       },
       "justMyCode": true
     }

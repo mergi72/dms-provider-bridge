@@ -29,6 +29,14 @@ def test_list_registered_providers_contains_known() -> None:
     assert set(providers) >= {"edocat", "alfresco", "fso"}
 
 
+def test_list_registered_providers_uses_configured_machine_providers(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(provider_service_module, "list_provider_config_names", lambda: ["alfresco", "unknown"])
+
+    providers = provider_service_module.list_registered_providers()
+
+    assert providers == ["alfresco"]
+
+
 def test_get_default_provider_name_uses_env_when_registered(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(provider_service_module, "load_config", lambda: {})
     monkeypatch.setenv("EDOCAT_PROVIDER", "alfresco")

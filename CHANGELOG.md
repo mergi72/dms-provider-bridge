@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.2 - 2026-06-07
+
+### Changed
+- Release/version bump to `0.4.2`.
+- Provider discovery no longer uses a hard-coded provider registry; provider classes are discovered dynamically from `dms_provider_bridge.providers` and filtered by configured provider JSON files.
+- `/bridge/wfx/providers` and root `/bridge/wfx/list` expose the dynamically configured provider list for TC-WFX provider selection.
+- `/bridge/wfx/list` accepts root provider navigation without auth and keeps provider-path operations protected by auth.
+- Provider config loading logs the final merged provider config, including machine and user config paths, to simplify local diagnostics.
+- Provider config loading accepts wrapped provider sections and direct provider payloads while preserving the machine-first, user-local override rule.
+- VS Code bridge start/restart/debug tasks now set `DMS_PROVIDER_MACHINE_CONFIG_DIR` to the repo `config` directory and `DMS_PROVIDER_USER_CONFIG_DIR` to `%APPDATA%\DMS Provider\config`.
+
+---
+
 ## 0.4.1 - 2026-06-07
 
 ### Changed

@@ -98,6 +98,57 @@ def test_load_provider_config_merges_user_provider_local_json_over_machine_provi
     assert config["transfer"]["maxBase64Bytes"] == 42
 
 
+def test_load_provider_config_accepts_direct_provider_payload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine_dir = tmp_path / "machine"
+    user_dir = tmp_path / "user"
+    machine_dir.mkdir()
+    user_dir.mkdir()
+    (machine_dir / "alfresco.json").write_text(
+        '{"base_url": "https://machine.alfresco.net", "api": {"repo_root": "/repo"}}',
+        encoding="utf-8",
+    )
+    (user_dir / "alfresco.local.json").write_text(
+        '{"base_url": "https://local.alfresco.net", "timeouts": {"requestSeconds": 60}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
+    monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_dir))
+
+    config = config_loader.load_provider_config("alfresco")
+
+    assert config["base_url"] == "https://local.alfresco.net"
+    assert config["api"]["repo_root"] == "/repo"
+    assert config["timeouts"]["requestSeconds"] == 60
+
+
+def test_load_provider_config_accepts_keyed_direct_provider_payload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine_dir = tmp_path / "machine"
+    user_dir = tmp_path / "user"
+    machine_dir.mkdir()
+    user_dir.mkdir()
+    (machine_dir / "alfresco.json").write_text(
+        '{"key": "alfresco", "_comment": "metadata", "base_url": "https://machine.alfresco.net", "api": {"repo_root": "/repo"}}',
+        encoding="utf-8",
+    )
+    (user_dir / "alfresco.local.json").write_text(
+        '{"key": "alfresco", "base_url": "https://local.alfresco.net"}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
+    monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_dir))
+
+    config = config_loader.load_provider_config("alfresco")
+
+    assert config == {
+        "base_url": "https://local.alfresco.net",
+        "api": {"repo_root": "/repo"},
+    }
+
+
 def test_load_provider_config_ignores_user_provider_local_json_when_machine_provider_json_is_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
