@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.8-alpha - 2026-06-07
+
+### Fixed
+- Installation config copy now uses strict explicit allow-lists only (no wildcard `*.json`, no recursive config copy).
+- Machine config deployment target is fixed to `C:\ProgramData\DMSProvider\config` with allowed files only: `default.json`, `alfresco.json`, `edocat.json`, `fso.json`.
+- User config deployment target remains `%APPDATA%\DMS Bridge\config`; `user.json` is seeded there only, and `*.local.json` is never copied from public payload.
+- Installer self-heals invalid legacy state by removing machine-scoped `user.json` if found in `C:\ProgramData\DMSProvider\config`.
+
+---
+
 ## 0.2.7-alpha - 2026-06-07
 
 ### Fixed
