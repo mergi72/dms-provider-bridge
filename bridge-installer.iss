@@ -109,10 +109,15 @@ begin
     '$ErrorActionPreference = "Stop"' + #13#10 +
     '$payloadRoot = ' + Quote(PayloadRoot) + #13#10 +
     '$defaultAppRoot = ' + Quote(DefaultAppRoot) + #13#10 +
-    'Add-Type -AssemblyName Microsoft.VisualBasic' + #13#10 +
-    '$appRootInput = [Microsoft.VisualBasic.Interaction]::InputBox("Installation path:", "DMS Provider Bridge admin install", $defaultAppRoot)' + #13#10 +
-    'if ([string]::IsNullOrWhiteSpace($appRootInput)) { throw "Installation path was cancelled." }' + #13#10 +
-    '$appRoot = $appRootInput.Trim()' + #13#10 +
+    'Add-Type -AssemblyName System.Windows.Forms' + #13#10 +
+    '$dialog = New-Object System.Windows.Forms.FolderBrowserDialog' + #13#10 +
+    '$dialog.Description = "Select parent folder for DMS Provider"' + #13#10 +
+    '$dialog.SelectedPath = [System.IO.Path]::GetDirectoryName($defaultAppRoot)' + #13#10 +
+    '$dialog.ShowNewFolderButton = $true' + #13#10 +
+    '$dialogResult = $dialog.ShowDialog()' + #13#10 +
+    'if ($dialogResult -ne [System.Windows.Forms.DialogResult]::OK -or [string]::IsNullOrWhiteSpace($dialog.SelectedPath)) { throw "Installation folder selection was cancelled." }' + #13#10 +
+    '$selectedPath = $dialog.SelectedPath.TrimEnd("\")' + #13#10 +
+    'if ([System.IO.Path]::GetFileName($selectedPath) -ieq "DMS Provider") { $appRoot = $selectedPath } else { $appRoot = Join-Path $selectedPath "DMS Provider" }' + #13#10 +
     '$logDir = Join-Path $appRoot "logs"' + #13#10 +
     'New-Item -ItemType Directory -Path $logDir -Force | Out-Null' + #13#10 +
     '$logPath = Join-Path $logDir "installer-structure-admin.log"' + #13#10 +
