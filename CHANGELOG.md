@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.3 - 2026-06-07
+
+### Changed
+- Installer now passes `-InstallRoot "{app}"` explicitly to the PowerShell install script, keeping the script install root aligned with the Inno target directory.
+- Install script resolves user AppData more robustly when Inno passes a short `{username}`, using Windows `ProfileList` and `C:\Users\<username>` fallbacks.
+- Installer detail logging now reports ProgramData config, AppData config, service registration, service startup, health check, and provider check as separate `[STEP]` entries.
+
+---
+
 ## 0.3.2 - 2026-06-07
 
 ### Changed

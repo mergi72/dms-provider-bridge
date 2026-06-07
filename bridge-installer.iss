@@ -1,7 +1,7 @@
 [Setup]
 AppId={{CFD8BDCC-B59A-4CB3-93D7-530BB5283773}
 AppName=DMS Provider Bridge Setup
-AppVersion=0.3.2
+AppVersion=0.3.3
 AppPublisher=mergi72
 DefaultDirName={autopf}\DMS Provider
 DefaultGroupName=DMS Provider Bridge
@@ -9,7 +9,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=artifacts\installer
-OutputBaseFilename=DmsProviderBridgeSetup-v0.3.2
+OutputBaseFilename=DmsProviderBridgeSetup-v0.3.3
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -31,7 +31,7 @@ Source: "artifacts\bridge-installer-payload\user-config\edocat.local.json"; Dest
 Source: "artifacts\bridge-installer-payload\user-config\fso.local.json"; DestDir: "{app}\user-config"; Flags: ignoreversion
 
 [Run]
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install-bridge-service.ps1"" -RuntimeMode Service -ServiceName ""DMSProviderBridge"" -ServiceDisplayName ""DMS Provider Bridge"" -ServiceAccount LocalSystem -RunAsUser ""{username}"" -StartImmediately -BridgeExePath ""{app}\dms-provider-bridge.exe"" -BridgeConfigDirPath ""{app}\config"" -UserConfigSourceDirPath ""{app}\user-config"" -NssmExePath ""{app}\nssm.exe"""; Flags: waituntilterminated logoutput
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install-bridge-service.ps1"" -RuntimeMode Service -InstallRoot ""{app}"" -ServiceName ""DMSProviderBridge"" -ServiceDisplayName ""DMS Provider Bridge"" -ServiceAccount LocalSystem -RunAsUser ""{username}"" -StartImmediately -BridgeExePath ""{app}\dms-provider-bridge.exe"" -BridgeConfigDirPath ""{app}\config"" -UserConfigSourceDirPath ""{app}\user-config"" -NssmExePath ""{app}\nssm.exe"""; Flags: waituntilterminated logoutput
 
 [UninstallRun]
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\uninstall-bridge-service.ps1"" -ServiceName ""DMSProviderBridge"" -KeepConfigFiles -NssmExePath ""{app}\nssm.exe"""; Flags: runhidden waituntilterminated; RunOnceId: "DMSProviderBridgeUninstallCleanup"

@@ -60,7 +60,8 @@ function Test-IsAdministrator {
 
 function Wait-BridgeHealth {
     param([string]$Url, [int]$TimeoutSeconds)
-    Write-Step "Waiting for bridge startup..."
+    Write-Step "Health check..."
+    Write-Info "Waiting for bridge startup..."
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     $attempt = 0
     while ((Get-Date) -lt $deadline) {
@@ -149,6 +150,64 @@ function Resolve-CurrentUserName {
     return if ([string]::IsNullOrWhiteSpace($envDomain)) { $envUser } else { "$envDomain\$envUser" }
 }
 
+function Get-UserNameLeaf {
+    param([string]$UserName)
+
+    if ([string]::IsNullOrWhiteSpace($UserName)) {
+        return ""
+    }
+
+    $normalized = $UserName.Trim()
+    if ($normalized.Contains("\")) {
+        return ($normalized.Split("\")[-1])
+    }
+    if ($normalized.Contains("@")) {
+        return ($normalized.Split("@")[0])
+    }
+    return $normalized
+}
+
+function Resolve-ProfilePathByUserNameLeaf {
+    param([string]$UserName)
+
+    $leaf = Get-UserNameLeaf -UserName $UserName
+    if ([string]::IsNullOrWhiteSpace($leaf)) {
+        return $null
+    }
+
+    $profileListRoot = "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList"
+    try {
+        $profiles = Get-ChildItem -Path $profileListRoot -ErrorAction Stop
+        foreach ($profileKey in $profiles) {
+            try {
+                $profile = (Get-ItemProperty -Path $profileKey.PSPath -Name ProfileImagePath -ErrorAction Stop).ProfileImagePath
+                $profilePath = [Environment]::ExpandEnvironmentVariables($profile)
+                if ([string]::IsNullOrWhiteSpace($profilePath)) {
+                    continue
+                }
+
+                $profileLeaf = Split-Path -Leaf $profilePath
+                if ($profileLeaf -ieq $leaf) {
+                    return $profilePath
+                }
+            }
+            catch {
+                continue
+            }
+        }
+    }
+    catch {
+        Write-Warn "Could not read Windows profile list while resolving AppData for '$UserName': $($_.Exception.Message)"
+    }
+
+    $usersPath = Join-Path $env:SystemDrive "Users\$leaf"
+    if (Test-Path $usersPath) {
+        return $usersPath
+    }
+
+    return $null
+}
+
 function Resolve-UserRoamingAppDataPath {
     param([string]$UserName)
 
@@ -172,6 +231,11 @@ function Resolve-UserRoamingAppDataPath {
         if ($UserName -ieq (Resolve-CurrentUserName) -and -not [string]::IsNullOrWhiteSpace($env:APPDATA)) {
             return $env:APPDATA
         }
+    }
+
+    $profilePath = Resolve-ProfilePathByUserNameLeaf -UserName $UserName
+    if (-not [string]::IsNullOrWhiteSpace($profilePath)) {
+        return (Join-Path $profilePath "AppData\Roaming")
     }
 
     return $null
@@ -369,12 +433,12 @@ if ($RuntimeMode -eq "User" -and [string]::IsNullOrWhiteSpace($RunAsUser)) {
     $RunAsUser = Resolve-CurrentUserName
 }
 
-if ([string]::IsNullOrWhiteSpace($ConfigRoot)) {
-    $userConfigOwner = $RunAsUser
-    if ([string]::IsNullOrWhiteSpace($userConfigOwner)) {
-        $userConfigOwner = Resolve-CurrentUserName
-    }
+$userConfigOwner = $RunAsUser
+if ([string]::IsNullOrWhiteSpace($userConfigOwner)) {
+    $userConfigOwner = Resolve-CurrentUserName
+}
 
+if ([string]::IsNullOrWhiteSpace($ConfigRoot)) {
     $userRoamingAppData = Resolve-UserRoamingAppDataPath -UserName $userConfigOwner
     if (-not [string]::IsNullOrWhiteSpace($userRoamingAppData)) {
         $ConfigRoot = Join-Path $userRoamingAppData "DMS Provider\config"
@@ -397,13 +461,18 @@ $bridgeLogs = Join-Path $InstallRoot "logs"
 $stdoutLog = Join-Path $bridgeLogs "bridge-stdout.log"
 $stderrLog = Join-Path $bridgeLogs "bridge-stderr.log"
 
-Write-Step "Creating directory structure..."
+Write-Step "Creating application directories..."
 New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
 Write-Ok $InstallRoot
 New-Item -ItemType Directory -Path $bridgeLogs -Force | Out-Null
 Write-Ok $bridgeLogs
+
+Write-Step "Creating ProgramData config..."
 New-Item -ItemType Directory -Path $machineConfigRoot -Force | Out-Null
 Write-Ok $machineConfigRoot
+
+Write-Step "Creating AppData config..."
+Write-Info "AppData config owner: $userConfigOwner"
 New-Item -ItemType Directory -Path $userConfigRoot -Force | Out-Null
 Write-Ok $userConfigRoot
 
@@ -436,8 +505,6 @@ else {
     Write-Warn "Machine bridge config directory not provided or not found. Expected target: $machineConfigRoot"
 }
 
-Write-Step "Creating AppData structure..."
-Write-Ok $userConfigRoot
 $userCopied = Copy-ConfigFilesByName -SourceDir $UserConfigSourceDirPath -TargetDir $userConfigRoot -FileNames $userConfigNames
 if ($userCopied -gt 0) {
     Write-Ok "User bridge config seeded from: $UserConfigSourceDirPath"
