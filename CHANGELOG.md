@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.1 - 2026-06-07
+
+### Changed
+- Release/version bump to `0.3.1`.
+- Installer now registers `DMSProviderBridge` as a Windows Service (`DisplayName`: `DMS Provider Bridge`) using `LocalSystem`, automatic startup, and starts it immediately after installation.
+- Installer detail logging now reports installation steps with `[INFO]`, `[STEP]`, `[OK]`, `[WARN]`, and `[FAIL]` messages.
+- Installer validates startup with `GET /health` and `GET /bridge/wfx/providers`.
+- Installer writes service logs under the application `logs` directory and passes both machine and user config directories to the service environment.
+
+---
+
 ## 0.3.0 - 2026-06-07
 
 ### Changed
@@ -12,6 +23,7 @@
 - Inno Setup payload now installs the public config templates under the application `config` directory before the install script copies them to the machine config directory.
 - Inno Setup now explicitly creates both machine and user config directories, including `%APPDATA%\DMS Provider\config` for user `*.local.json` overrides.
 - Inno Setup seeds empty provider user override files (`alfresco.local.json`, `edocat.local.json`, `fso.local.json`) with `{}` only when they do not already exist.
+- Installer registers `DMSProviderBridge` as a Windows Service using `LocalSystem`, starts it, and verifies `/health` and `/bridge/wfx/providers`.
 
 ---
 

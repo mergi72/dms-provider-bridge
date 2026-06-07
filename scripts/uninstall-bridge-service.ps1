@@ -1,7 +1,7 @@
 param(
     [ValidateSet("Auto", "User", "Service")]
     [string]$RuntimeMode = "Auto",
-    [string]$ServiceName = "DmsProviderBridge",
+    [string]$ServiceName = "DMSProviderBridge",
     [string]$TaskName = "DmsProviderBridgeUser",
     [string]$InstallRoot = "$env:ProgramFiles\DMS Provider",
     [string]$ConfigRoot = "$env:ProgramData\DMS Provider\config",
