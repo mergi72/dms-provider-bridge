@@ -10,6 +10,7 @@
 - Installer and service launcher environment now use `DMS_PROVIDER_MACHINE_CONFIG_DIR` and `DMS_PROVIDER_USER_CONFIG_DIR`.
 - Distribution builds now stage only explicit public config templates, preventing `*.local.json` files from entering release artifacts.
 - Inno Setup payload now installs the public config templates under the application `config` directory before the install script copies them to the machine config directory.
+- Inno Setup now explicitly creates both machine and user config directories, including `%APPDATA%\DMS Provider\config` for user `*.local.json` overrides.
 
 ---
 

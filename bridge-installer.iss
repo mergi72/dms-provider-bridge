@@ -14,6 +14,10 @@ Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 
+[Dirs]
+Name: "{commonappdata}\DMS Provider\config"; Flags: uninsneveruninstall
+Name: "{userappdata}\DMS Provider\config"; Flags: uninsneveruninstall
+
 [Files]
 Source: "artifacts\bridge-installer-payload\dms-provider-bridge.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "artifacts\bridge-installer-payload\nssm.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -25,7 +29,7 @@ Source: "artifacts\bridge-installer-payload\config\edocat.json"; DestDir: "{app}
 Source: "artifacts\bridge-installer-payload\config\fso.json"; DestDir: "{app}\config"; Flags: ignoreversion
 
 [Run]
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install-bridge-service.ps1"" -RuntimeMode User -TaskName ""DmsProviderBridgeUser"" -StartImmediately -BridgeExePath ""{app}\dms-provider-bridge.exe"" -BridgeConfigDirPath ""{app}\config"" -UserConfigSourceDirPath ""{userappdata}\DMS Provider\config"" -NssmExePath ""{app}\nssm.exe"""; Flags: runhidden waituntilterminated
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install-bridge-service.ps1"" -RuntimeMode User -TaskName ""DmsProviderBridgeUser"" -StartImmediately -BridgeExePath ""{app}\dms-provider-bridge.exe"" -BridgeConfigDirPath ""{app}\config"" -ConfigRoot ""{userappdata}\DMS Provider\config"" -UserConfigSourceDirPath ""{userappdata}\DMS Provider\config"" -NssmExePath ""{app}\nssm.exe"""; Flags: runhidden waituntilterminated
 
 [UninstallRun]
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\uninstall-bridge-service.ps1"" -KeepConfigFiles -NssmExePath ""{app}\nssm.exe"""; Flags: runhidden waituntilterminated; RunOnceId: "DMSProviderBridgeUninstallCleanup"
