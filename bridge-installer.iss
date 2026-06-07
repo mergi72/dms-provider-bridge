@@ -1,110 +1,171 @@
 [Setup]
 AppId={{CFD8BDCC-B59A-4CB3-93D7-530BB5283773}
 AppName=DMS Provider Bridge Setup
-AppVersion=0.3.4
+AppVersion=0.3.5
 AppPublisher=mergi72
 DefaultDirName={autopf}\DMS Provider
 DefaultGroupName=DMS Provider Bridge
 DisableProgramGroupPage=yes
-PrivilegesRequired=admin
+PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=artifacts\installer
-OutputBaseFilename=DmsProviderBridgeSetup-v0.3.4-debug
+OutputBaseFilename=DmsProviderBridgeSetup-v0.3.5-debug
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 
-[Dirs]
-Name: "{app}"; Flags: uninsneveruninstall
-Name: "{app}\config"; Flags: uninsneveruninstall
-Name: "{app}\logs"; Flags: uninsneveruninstall
-Name: "{userappdata}\DMS bridge"; Flags: uninsneveruninstall
-Name: "{userappdata}\DMS bridge\config"; Flags: uninsneveruninstall
-
 [Files]
-Source: "artifacts\bridge-installer-payload\dms-provider-bridge.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "artifacts\bridge-installer-payload\nssm.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "artifacts\bridge-installer-payload\install-bridge-service.ps1"; DestDir: "{app}"; Flags: ignoreversion
-Source: "artifacts\bridge-installer-payload\uninstall-bridge-service.ps1"; DestDir: "{app}"; Flags: ignoreversion
-Source: "artifacts\bridge-installer-payload\config\bridge.json"; DestDir: "{app}\config"; Flags: ignoreversion
-Source: "artifacts\bridge-installer-payload\config\alfresco.json"; DestDir: "{app}\config"; Flags: ignoreversion
-Source: "artifacts\bridge-installer-payload\config\edocat.json"; DestDir: "{app}\config"; Flags: ignoreversion
-Source: "artifacts\bridge-installer-payload\config\fso.json"; DestDir: "{app}\config"; Flags: ignoreversion
-Source: "artifacts\bridge-installer-payload\user-config\alfresco.local.json"; DestDir: "{userappdata}\DMS bridge\config"; Flags: ignoreversion onlyifdoesntexist
-Source: "artifacts\bridge-installer-payload\user-config\edocat.local.json"; DestDir: "{userappdata}\DMS bridge\config"; Flags: ignoreversion onlyifdoesntexist
-Source: "artifacts\bridge-installer-payload\user-config\fso.local.json"; DestDir: "{userappdata}\DMS bridge\config"; Flags: ignoreversion onlyifdoesntexist
+Source: "artifacts\bridge-installer-payload\dms-provider-bridge.exe"; DestDir: "{tmp}\dms-provider-payload\app"; Flags: ignoreversion deleteafterinstall
+Source: "artifacts\bridge-installer-payload\nssm.exe"; DestDir: "{tmp}\dms-provider-payload\app"; Flags: ignoreversion deleteafterinstall
+Source: "artifacts\bridge-installer-payload\install-bridge-service.ps1"; DestDir: "{tmp}\dms-provider-payload\app"; Flags: ignoreversion deleteafterinstall
+Source: "artifacts\bridge-installer-payload\uninstall-bridge-service.ps1"; DestDir: "{tmp}\dms-provider-payload\app"; Flags: ignoreversion deleteafterinstall
+Source: "artifacts\bridge-installer-payload\config\bridge.json"; DestDir: "{tmp}\dms-provider-payload\config"; Flags: ignoreversion deleteafterinstall
+Source: "artifacts\bridge-installer-payload\config\alfresco.json"; DestDir: "{tmp}\dms-provider-payload\config"; Flags: ignoreversion deleteafterinstall
+Source: "artifacts\bridge-installer-payload\config\edocat.json"; DestDir: "{tmp}\dms-provider-payload\config"; Flags: ignoreversion deleteafterinstall
+Source: "artifacts\bridge-installer-payload\config\fso.json"; DestDir: "{tmp}\dms-provider-payload\config"; Flags: ignoreversion deleteafterinstall
+Source: "artifacts\bridge-installer-payload\user-config\alfresco.local.json"; DestDir: "{tmp}\dms-provider-payload\user-config"; Flags: ignoreversion deleteafterinstall
+Source: "artifacts\bridge-installer-payload\user-config\edocat.local.json"; DestDir: "{tmp}\dms-provider-payload\user-config"; Flags: ignoreversion deleteafterinstall
+Source: "artifacts\bridge-installer-payload\user-config\fso.local.json"; DestDir: "{tmp}\dms-provider-payload\user-config"; Flags: ignoreversion deleteafterinstall
 
 [Code]
-procedure WriteBlockLog(Message: String);
+procedure WriteLog(LogPath: String; Message: String);
 var
-  LogPath: String;
   Line: String;
 begin
-  LogPath := ExpandConstant('{app}\logs\installer-block2.log');
   Line := GetDateTimeString('yyyy-mm-dd hh:nn:ss', '-', ':') + ' ' + Message + #13#10;
   SaveStringToFile(LogPath, Line, True);
   Log(Message);
 end;
 
-procedure VerifyDir(Path: String);
+procedure EnsureDir(Path: String; LogPath: String);
 begin
-  WriteBlockLog('[STEP] Verify directory: ' + Path);
-  if DirExists(Path) then begin
-    WriteBlockLog('[ OK ] ' + Path);
-  end else begin
-    WriteBlockLog('[FAIL] Missing directory: ' + Path);
-    RaiseException('Missing directory: ' + Path);
+  WriteLog(LogPath, '[STEP] Creating directory: ' + Path);
+  if not ForceDirectories(Path) then begin
+    WriteLog(LogPath, '[FAIL] Directory was not created: ' + Path);
+    RaiseException('Directory was not created: ' + Path);
   end;
+  WriteLog(LogPath, '[ OK ] ' + Path);
 end;
 
-procedure VerifyFile(Path: String);
+procedure CopyFileChecked(SourcePath: String; TargetPath: String; LogPath: String; PreserveExisting: Boolean);
 begin
-  WriteBlockLog('[STEP] Verify file: ' + Path);
-  if FileExists(Path) then begin
-    WriteBlockLog('[ OK ] ' + Path);
-  end else begin
-    WriteBlockLog('[FAIL] Missing file: ' + Path);
-    RaiseException('Missing file: ' + Path);
+  WriteLog(LogPath, '[STEP] Copying file: ' + SourcePath + ' -> ' + TargetPath);
+  if PreserveExisting and FileExists(TargetPath) then begin
+    WriteLog(LogPath, '[ OK ] Existing file preserved: ' + TargetPath);
+    exit;
   end;
+  if not CopyFile(SourcePath, TargetPath, False) then begin
+    WriteLog(LogPath, '[FAIL] File was not copied: ' + TargetPath);
+    RaiseException('File was not copied: ' + TargetPath);
+  end;
+  WriteLog(LogPath, '[ OK ] ' + TargetPath);
 end;
 
-procedure VerifyBlock2Install();
+procedure RunUserStructurePhase();
+var
+  UserRoot: String;
+  UserConfigRoot: String;
+  PayloadUserConfig: String;
+  LogPath: String;
 begin
-  WizardForm.StatusLabel.Caption := 'Verifying DMS Provider Bridge files...';
-  WriteBlockLog('[INFO] Block 2 verification started');
+  UserRoot := ExpandConstant('{userappdata}\DMS bridge');
+  UserConfigRoot := UserRoot + '\config';
+  PayloadUserConfig := ExpandConstant('{tmp}\dms-provider-payload\user-config');
+  LogPath := UserRoot + '\installer-structure.log';
 
-  WriteBlockLog('[STEP] Verifying application directories');
-  VerifyDir(ExpandConstant('{app}'));
-  VerifyDir(ExpandConstant('{app}\config'));
-  VerifyDir(ExpandConstant('{app}\logs'));
+  WizardForm.StatusLabel.Caption := 'Creating user config structure...';
+  ForceDirectories(UserRoot);
+  WriteLog(LogPath, '[INFO] User structure phase started');
+  WriteLog(LogPath, '[INFO] Effective user AppData: ' + ExpandConstant('{userappdata}'));
 
-  WriteBlockLog('[STEP] Verifying user AppData directories');
-  VerifyDir(ExpandConstant('{userappdata}\DMS bridge'));
-  VerifyDir(ExpandConstant('{userappdata}\DMS bridge\config'));
+  EnsureDir(UserRoot, LogPath);
+  EnsureDir(UserConfigRoot, LogPath);
 
-  WriteBlockLog('[STEP] Verifying application files');
-  VerifyFile(ExpandConstant('{app}\dms-provider-bridge.exe'));
-  VerifyFile(ExpandConstant('{app}\nssm.exe'));
-  VerifyFile(ExpandConstant('{app}\install-bridge-service.ps1'));
-  VerifyFile(ExpandConstant('{app}\uninstall-bridge-service.ps1'));
+  CopyFileChecked(PayloadUserConfig + '\alfresco.local.json', UserConfigRoot + '\alfresco.local.json', LogPath, True);
+  CopyFileChecked(PayloadUserConfig + '\edocat.local.json', UserConfigRoot + '\edocat.local.json', LogPath, True);
+  CopyFileChecked(PayloadUserConfig + '\fso.local.json', UserConfigRoot + '\fso.local.json', LogPath, True);
 
-  WriteBlockLog('[STEP] Verifying application config files');
-  VerifyFile(ExpandConstant('{app}\config\bridge.json'));
-  VerifyFile(ExpandConstant('{app}\config\alfresco.json'));
-  VerifyFile(ExpandConstant('{app}\config\edocat.json'));
-  VerifyFile(ExpandConstant('{app}\config\fso.json'));
+  WriteLog(LogPath, '[INFO] User structure phase completed successfully');
+end;
 
-  WriteBlockLog('[STEP] Verifying user local config files');
-  VerifyFile(ExpandConstant('{userappdata}\DMS bridge\config\alfresco.local.json'));
-  VerifyFile(ExpandConstant('{userappdata}\DMS bridge\config\edocat.local.json'));
-  VerifyFile(ExpandConstant('{userappdata}\DMS bridge\config\fso.local.json'));
+function Quote(Value: String): String;
+begin
+  Result := '"' + Value + '"';
+end;
 
-  WriteBlockLog('[INFO] Block 2 verification completed successfully');
+procedure WriteAdminStructureScript(ScriptPath: String; PayloadRoot: String; AppRoot: String; UserLogPath: String);
+var
+  Script: String;
+begin
+  Script :=
+    '$ErrorActionPreference = "Stop"' + #13#10 +
+    '$payloadRoot = ' + Quote(PayloadRoot) + #13#10 +
+    '$appRoot = ' + Quote(AppRoot) + #13#10 +
+    '$logPath = Join-Path $appRoot "logs\installer-structure-admin.log"' + #13#10 +
+    'function Write-InstallLog([string]$Message) {' + #13#10 +
+    '    $line = "{0:yyyy-MM-dd HH:mm:ss} {1}" -f (Get-Date), $Message' + #13#10 +
+    '    Add-Content -Path $logPath -Value $line -Encoding UTF8' + #13#10 +
+    '    Write-Host $Message' + #13#10 +
+    '}' + #13#10 +
+    'function Ensure-Dir([string]$Path) {' + #13#10 +
+    '    Write-InstallLog "[STEP] Creating directory: $Path"' + #13#10 +
+    '    New-Item -ItemType Directory -Path $Path -Force | Out-Null' + #13#10 +
+    '    Write-InstallLog "[ OK ] $Path"' + #13#10 +
+    '}' + #13#10 +
+    'function Copy-Checked([string]$Source, [string]$Target) {' + #13#10 +
+    '    Write-InstallLog "[STEP] Copying file: $Source -> $Target"' + #13#10 +
+    '    Copy-Item -Path $Source -Destination $Target -Force' + #13#10 +
+    '    if (-not (Test-Path $Target)) { throw "File was not copied: $Target" }' + #13#10 +
+    '    Write-InstallLog "[ OK ] $Target"' + #13#10 +
+    '}' + #13#10 +
+    'Ensure-Dir $appRoot' + #13#10 +
+    'Ensure-Dir (Join-Path $appRoot "config")' + #13#10 +
+    'Ensure-Dir (Join-Path $appRoot "logs")' + #13#10 +
+    'Write-InstallLog "[INFO] Admin structure phase started"' + #13#10 +
+    'Write-InstallLog "[INFO] User phase log: ' + UserLogPath + '"' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "app\dms-provider-bridge.exe") (Join-Path $appRoot "dms-provider-bridge.exe")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "app\nssm.exe") (Join-Path $appRoot "nssm.exe")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "app\install-bridge-service.ps1") (Join-Path $appRoot "install-bridge-service.ps1")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "app\uninstall-bridge-service.ps1") (Join-Path $appRoot "uninstall-bridge-service.ps1")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\bridge.json") (Join-Path $appRoot "config\bridge.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\alfresco.json") (Join-Path $appRoot "config\alfresco.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\edocat.json") (Join-Path $appRoot "config\edocat.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\fso.json") (Join-Path $appRoot "config\fso.json")' + #13#10 +
+    'Write-InstallLog "[INFO] Admin structure phase completed successfully"' + #13#10;
+
+  SaveStringToFile(ScriptPath, Script, False);
+end;
+
+procedure RunAdminStructurePhase();
+var
+  ResultCode: Integer;
+  PayloadRoot: String;
+  AppRoot: String;
+  ScriptPath: String;
+  Params: String;
+  UserLogPath: String;
+begin
+  PayloadRoot := ExpandConstant('{tmp}\dms-provider-payload');
+  AppRoot := ExpandConstant('{commonpf}\DMS Provider');
+  ScriptPath := ExpandConstant('{tmp}\dms-provider-admin-structure.ps1');
+  UserLogPath := ExpandConstant('{userappdata}\DMS bridge\installer-structure.log');
+
+  WizardForm.StatusLabel.Caption := 'Requesting administrator rights for app structure...';
+  WriteAdminStructureScript(ScriptPath, PayloadRoot, AppRoot, UserLogPath);
+
+  Params := '-NoProfile -ExecutionPolicy Bypass -File ' + Quote(ScriptPath);
+  if not ShellExec('runas', ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Params, '', SW_SHOW, ewWaitUntilTerminated, ResultCode) then begin
+    RaiseException('Admin structure phase was not started.');
+  end;
+  if ResultCode <> 0 then begin
+    RaiseException('Admin structure phase failed with exit code: ' + IntToStr(ResultCode));
+  end;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then begin
-    VerifyBlock2Install();
+    RunUserStructurePhase();
+    RunAdminStructurePhase();
   end;
 end;
