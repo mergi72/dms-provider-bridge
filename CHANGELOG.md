@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.1 - 2026-06-07
+
+### Changed
+- Release/version bump to `0.4.1`.
+- Default provider tests are isolated from real machine/user config so installed `bridge.json` defaults do not make the test suite environment-dependent.
+- README now clearly separates TC user mode from the current Service mode installer and documents that the `v0.4.1` setup installs `DMSProviderBridge` as `LocalSystem`.
+
+---
+
 ## 0.4.0 - 2026-06-07
 
 ### Changed

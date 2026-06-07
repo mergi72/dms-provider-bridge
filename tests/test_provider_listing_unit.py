@@ -30,6 +30,7 @@ def test_list_registered_providers_contains_known() -> None:
 
 
 def test_get_default_provider_name_uses_env_when_registered(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(provider_service_module, "load_config", lambda: {})
     monkeypatch.setenv("EDOCAT_PROVIDER", "alfresco")
 
     default_provider = provider_service_module.get_default_provider_name()
@@ -38,11 +39,21 @@ def test_get_default_provider_name_uses_env_when_registered(monkeypatch: pytest.
 
 
 def test_get_default_provider_name_falls_back_to_edocat(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(provider_service_module, "load_config", lambda: {})
     monkeypatch.setenv("EDOCAT_PROVIDER", "unknown")
 
     default_provider = provider_service_module.get_default_provider_name()
 
     assert default_provider == "edocat"
+
+
+def test_get_default_provider_name_uses_config_when_registered(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(provider_service_module, "load_config", lambda: {"provider": {"default": "alfresco"}})
+    monkeypatch.setenv("EDOCAT_PROVIDER", "edocat")
+
+    default_provider = provider_service_module.get_default_provider_name()
+
+    assert default_provider == "alfresco"
 
 
 def test_listing_service_parses_wfx_path_when_provider_missing(monkeypatch: pytest.MonkeyPatch) -> None:

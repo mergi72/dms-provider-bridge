@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Alpha-orange)](https://github.com/mergi72/dms-provider-bridge)
-[![Bridge Version](https://img.shields.io/badge/Bridge-v0.4.0-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.4.0)
-[![Bridge Setup](https://img.shields.io/badge/Setup-v0.4.0-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.4.0)
+[![Bridge Version](https://img.shields.io/badge/Bridge-v0.4.1-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.4.1)
+[![Bridge Setup](https://img.shields.io/badge/Setup-v0.4.1-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.4.1)
 
 Current development branch: `develop`  
 Stable release branch: `main`
@@ -12,23 +12,25 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.4.0`
-- Latest bridge-only release: `v0.4.0`
+- Bridge repository latest changelog version: `0.4.1`
+- Latest bridge-only release: `v0.4.1`
 
-## Runtime Modes (Bridge Installer)
+## Runtime Modes
 
-Bridge setup supports two runtime modes:
+Bridge can be run in two different Windows runtime models. Keep them separate:
 
-- User mode (default, recommended for Total Commander):
-  - Creates a Scheduled Task triggered at user logon.
-  - Runs bridge under the interactive user account.
-  - Preserves `credential_id` flow with user Credential Manager entries.
-- Service mode (advanced/server mode):
-  - Runs bridge as a Windows Service via NSSM.
-  - Suitable for server/API scenarios.
-  - Under `LocalSystem`, user-scoped Credential Manager entries are not visible.
+- TC user mode:
+  - Intended for Total Commander / TC-WFX interactive usage.
+  - Runs under the logged-in Windows user, for example from a user startup task.
+  - Can access that user's Windows Credential Manager entries.
+  - This is the right model for `credential_id` values created by the TC-WFX plugin.
+- Service mode:
+  - Intended for server-style local bridge usage.
+  - Runs as the `DMSProviderBridge` Windows Service via NSSM.
+  - Current `v0.4.1` installer installs this service as `LocalSystem`.
+  - `LocalSystem` cannot see credentials stored in an interactive user's Windows Credential Manager.
 
-Installer default is User mode to match TC plugin `credential_id` usage.
+Current setup release `v0.4.1` is the Service mode installer. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
 
 ## Related Projects
 
