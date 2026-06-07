@@ -5,7 +5,7 @@ param(
     [string]$TaskName = "DmsProviderBridgeUser",
     [string]$RunAsUser,
     [string]$InstallRoot = "$env:ProgramFiles\DMS Provider",
-    [string]$ConfigRoot = "$env:ProgramData\DMSProvider\config",
+    [string]$ConfigRoot,
     [string]$BridgeExePath,
     [string]$BridgeConfigDirPath,
     [string]$NssmExePath,
@@ -149,6 +149,18 @@ if ([string]::IsNullOrWhiteSpace($BridgeConfigDirPath)) {
     }
 }
 
+if ([string]::IsNullOrWhiteSpace($ConfigRoot)) {
+    if ($RuntimeMode -eq "User") {
+        if ([string]::IsNullOrWhiteSpace($env:APPDATA)) {
+            throw "RuntimeMode=User could not resolve APPDATA for default config root. Provide -ConfigRoot explicitly."
+        }
+        $ConfigRoot = Join-Path $env:APPDATA "DMS Bridge\config"
+    }
+    else {
+        $ConfigRoot = Join-Path $env:ProgramData "DMSProvider\config"
+    }
+}
+
 $bridgeExeTargetPath = Join-Path $InstallRoot "dms-provider-bridge.exe"
 $bridgeConfigTargetDir = $ConfigRoot
 $bridgeLogs = Join-Path $InstallRoot "logs"
@@ -162,11 +174,14 @@ New-Item -ItemType Directory -Path $bridgeConfigTargetDir -Force | Out-Null
 Copy-Item -Path $BridgeExePath -Destination $bridgeExeTargetPath -Force
 
 if (-not [string]::IsNullOrWhiteSpace($BridgeConfigDirPath) -and (Test-Path $BridgeConfigDirPath)) {
-    Get-ChildItem -Path $BridgeConfigDirPath -Filter "*.json" -File |
-        Where-Object { $_.Name -notlike "*.local.json" } |
-        ForEach-Object {
-            Copy-Item -Path $_.FullName -Destination (Join-Path $bridgeConfigTargetDir $_.Name) -Force
-        }
+    $configFiles = Get-ChildItem -Path $BridgeConfigDirPath -Filter "*.json" -File
+    if ($RuntimeMode -eq "Service") {
+        $configFiles = $configFiles | Where-Object { $_.Name -notlike "*.local.json" }
+    }
+
+    $configFiles | ForEach-Object {
+        Copy-Item -Path $_.FullName -Destination (Join-Path $bridgeConfigTargetDir $_.Name) -Force
+    }
     Write-Host "Bridge config copied from: $BridgeConfigDirPath"
 }
 else {
