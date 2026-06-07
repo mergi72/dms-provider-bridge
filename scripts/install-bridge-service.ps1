@@ -82,6 +82,34 @@ function Resolve-CurrentUserName {
     return if ([string]::IsNullOrWhiteSpace($envDomain)) { $envUser } else { "$envDomain\$envUser" }
 }
 
+function Resolve-UserRoamingAppDataPath {
+    param([string]$UserName)
+
+    if ([string]::IsNullOrWhiteSpace($UserName)) {
+        if (-not [string]::IsNullOrWhiteSpace($env:APPDATA)) {
+            return $env:APPDATA
+        }
+        return $null
+    }
+
+    try {
+        $sid = ([System.Security.Principal.NTAccount]::new($UserName)).Translate([System.Security.Principal.SecurityIdentifier]).Value
+        $profileKey = "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$sid"
+        $profile = (Get-ItemProperty -Path $profileKey -Name ProfileImagePath -ErrorAction Stop).ProfileImagePath
+        $profilePath = [Environment]::ExpandEnvironmentVariables($profile)
+        if (-not [string]::IsNullOrWhiteSpace($profilePath)) {
+            return (Join-Path $profilePath "AppData\Roaming")
+        }
+    }
+    catch {
+        if ($UserName -ieq (Resolve-CurrentUserName) -and -not [string]::IsNullOrWhiteSpace($env:APPDATA)) {
+            return $env:APPDATA
+        }
+    }
+
+    return $null
+}
+
 function Write-UserModeLauncher {
     param(
         [string]$Path,
@@ -149,12 +177,17 @@ if ([string]::IsNullOrWhiteSpace($BridgeConfigDirPath)) {
     }
 }
 
+if ($RuntimeMode -eq "User" -and [string]::IsNullOrWhiteSpace($RunAsUser)) {
+    $RunAsUser = Resolve-CurrentUserName
+}
+
 if ([string]::IsNullOrWhiteSpace($ConfigRoot)) {
     if ($RuntimeMode -eq "User") {
-        if ([string]::IsNullOrWhiteSpace($env:APPDATA)) {
-            throw "RuntimeMode=User could not resolve APPDATA for default config root. Provide -ConfigRoot explicitly."
+        $userRoamingAppData = Resolve-UserRoamingAppDataPath -UserName $RunAsUser
+        if ([string]::IsNullOrWhiteSpace($userRoamingAppData)) {
+            throw "RuntimeMode=User could not resolve roaming AppData for '$RunAsUser'. Provide -ConfigRoot explicitly."
         }
-        $ConfigRoot = Join-Path $env:APPDATA "DMS Bridge\config"
+        $ConfigRoot = Join-Path $userRoamingAppData "DMS Bridge\config"
     }
     else {
         $ConfigRoot = Join-Path $env:ProgramData "DMSProvider\config"
@@ -192,10 +225,6 @@ else {
 $bridgeBaseUrl = Resolve-BridgeBaseUrl -Url $HealthUrl
 
 if ($RuntimeMode -eq "User") {
-    if ([string]::IsNullOrWhiteSpace($RunAsUser)) {
-        $RunAsUser = Resolve-CurrentUserName
-    }
-
     # User mode is for interactive desktop usage (for example Total Commander).
     Remove-ExistingBridgeService -Name $ServiceName
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
