@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 from collections.abc import Callable
+from typing import IO
 from urllib.error import HTTPError
 
 from dms_provider_bridge.clients.alfresco_client import AlfrescoClient
@@ -351,6 +352,28 @@ class AlfrescoProvider(Provider):
             mime_type=detected_mime,
             size=len(raw_content),
         )
+
+    def stream_item(self, path: str, auth: BridgeAuthContext | None = None) -> dict[str, object]:
+        try:
+            def _run(ticket: str) -> tuple[dict[str, str], IO[bytes], str | None, int | None]:
+                resolved = self._resolve_path(path, ticket, strict=True)
+                stream, detected_mime, content_length = self.client.open_node_content_stream(ticket, resolved["node_id"])
+                return resolved, stream, detected_mime, content_length
+
+            resolved, stream, detected_mime, content_length = self._run_with_ticket_retry(auth, f"stream {path}", _run)
+        except AuthenticationError:
+            raise
+        except Exception as exc:
+            raise ProviderOperationError(f"Alfresco stream failed for {self.client.normalize_path(path)}: {exc}") from exc
+        return {
+            "success": True,
+            "operation": "download",
+            "provider": self.name,
+            "source": resolved["path"],
+            "stream": stream,
+            "size": content_length,
+            "mime_type": detected_mime or "application/octet-stream",
+        }
 
     def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, source_path: str | None = None, overwrite: bool = False, auth: BridgeAuthContext | None = None) -> OperationResult:
         suffix = "?overwrite=true" if overwrite else ""

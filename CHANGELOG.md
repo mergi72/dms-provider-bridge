@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.4.6 - 2026-06-09
+
+### Changed
+- Release/version bump to `0.4.6`.
+- Added streaming raw download support for Alfresco so `/bridge/wfx/download-raw` can return a real streamed response with `Content-Length` instead of buffering the whole file through base64 first.
+- Added provider-level Alfresco content stream handling and bridge service fallback to the existing JSON/base64 download path for providers without streaming support.
+- Updated credential validation so inline credentials supplied by TC-WFX/credential-broker take precedence over `credential_id` lookup.
+- Added tests for raw streaming download and inline credential precedence.
+
+---
+
+## 0.4.5 - 2026-06-08
+
+### Changed
+- Release/version bump to `0.4.5`.
+- Added `GET /bridge/wfx/providers/{provider}` provider detail endpoint for TC-WFX discovery.
+- Provider detail exposes provider auth requirements from merged config and operation capabilities.
+
+---
+
+## 0.4.4 - 2026-06-07
+
+### Changed
+- Release/version bump to `0.4.4`.
+- Runtime temporary files now default to `%TEMP%\DMS Provider` instead of the project/install directory, with `DMS_PROVIDER_TEMP_DIR` available as an override.
+- Provider config diagnostic logging now masks sensitive keys such as password, secret, token, and API key values.
+- Default provider environment override is now `DMS_PROVIDER_DEFAULT_PROVIDER`; the legacy `EDOCAT_PROVIDER` fallback has been removed.
+- Default provider resolution no longer silently falls back to `edocat`; missing or invalid defaults now raise a configuration error.
+
+---
+
 ## 0.4.3 - 2026-06-07
 
 ### Changed

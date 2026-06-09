@@ -4,6 +4,7 @@ import pytest
 
 import dms_provider_bridge.services.listing_service as listing_service_module
 import dms_provider_bridge.services.provider_service as provider_service_module
+from dms_provider_bridge.core.errors import ConfigurationError
 
 
 pytestmark = pytest.mark.unit
@@ -39,25 +40,24 @@ def test_list_registered_providers_uses_configured_machine_providers(monkeypatch
 
 def test_get_default_provider_name_uses_env_when_registered(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(provider_service_module, "load_config", lambda: {})
-    monkeypatch.setenv("EDOCAT_PROVIDER", "alfresco")
+    monkeypatch.setenv("DMS_PROVIDER_DEFAULT_PROVIDER", "alfresco")
 
     default_provider = provider_service_module.get_default_provider_name()
 
     assert default_provider == "alfresco"
 
 
-def test_get_default_provider_name_falls_back_to_edocat(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_default_provider_name_requires_configured_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(provider_service_module, "load_config", lambda: {})
-    monkeypatch.setenv("EDOCAT_PROVIDER", "unknown")
+    monkeypatch.setenv("DMS_PROVIDER_DEFAULT_PROVIDER", "unknown")
 
-    default_provider = provider_service_module.get_default_provider_name()
-
-    assert default_provider == "edocat"
+    with pytest.raises(ConfigurationError):
+        provider_service_module.get_default_provider_name()
 
 
 def test_get_default_provider_name_uses_config_when_registered(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(provider_service_module, "load_config", lambda: {"provider": {"default": "alfresco"}})
-    monkeypatch.setenv("EDOCAT_PROVIDER", "edocat")
+    monkeypatch.setenv("DMS_PROVIDER_DEFAULT_PROVIDER", "edocat")
 
     default_provider = provider_service_module.get_default_provider_name()
 

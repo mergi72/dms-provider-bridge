@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
 
 PACKAGE_DIR = Path(__file__).resolve().parents[1]
@@ -37,6 +38,11 @@ USER_CONFIG_DIR = _user_config_dir()
 # Backward-compatible alias for older imports. Runtime loading uses MACHINE_CONFIG_DIR.
 CONFIG_DIR = MACHINE_CONFIG_DIR
 
-TEMP_DIR = PROJECT_ROOT / ".tmp"
+def _temp_dir() -> Path:
+    explicit = os.environ.get("DMS_PROVIDER_TEMP_DIR")
+    if explicit:
+        return Path(explicit)
+    return Path(tempfile.gettempdir()) / "DMS Provider"
 
-TEMP_DIR.mkdir(parents=True, exist_ok=True)
+
+TEMP_DIR = _temp_dir()

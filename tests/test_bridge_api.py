@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import io
 import json
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,6 +13,13 @@ from dms_provider_bridge.models.bridge import WfxResponse
 
 
 pytestmark = pytest.mark.integration
+
+
+@pytest.fixture(autouse=True)
+def _use_repo_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    repo_config = Path(__file__).resolve().parents[1] / "config"
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(repo_config))
+    monkeypatch.delenv("DMS_PROVIDER_USER_CONFIG_DIR", raising=False)
 
 
 def _auth() -> dict[str, str]:
@@ -61,6 +70,55 @@ def test_bridge_providers() -> None:
     assert body["data"]["default_provider"] in body["data"]["providers"]
     assert body["providers"] == body["data"]["providers"]
     assert body["default_provider"] == body["data"]["default_provider"]
+
+
+def test_bridge_provider_detail_returns_auth_and_capabilities() -> None:
+    client = TestClient(create_app())
+    response = client.get("/bridge/wfx/providers/alfresco")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["data"]["name"] == "alfresco"
+    assert body["data"]["enabled"] is True
+    assert body["data"]["auth"] == {
+        "mode": "windows",
+        "target": "tc-wfx/bridge",
+        "required": True,
+    }
+    assert body["data"]["capabilities"] == {
+        "list": True,
+        "stat": True,
+        "download": True,
+        "upload": True,
+        "mkdir": True,
+        "delete": True,
+        "rename": True,
+        "copy": True,
+    }
+    assert body["metadata"]["operation"] == "provider_detail"
+
+
+def test_bridge_provider_detail_returns_none_auth_for_fso() -> None:
+    client = TestClient(create_app())
+    response = client.get("/bridge/wfx/providers/fso")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["data"]["name"] == "fso"
+    assert body["data"]["auth"] == {"mode": "none", "required": False}
+
+
+def test_bridge_provider_detail_unknown_provider() -> None:
+    client = TestClient(create_app())
+    response = client.get("/bridge/wfx/providers/unknown")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is False
+    assert body["error_code"] == 1
+    assert "not registered" in body["message"]
 
 
 def test_bridge_root_list_returns_provider_folders_without_auth() -> None:
@@ -350,6 +408,7 @@ def test_download_returns_json_contract(monkeypatch: pytest.MonkeyPatch) -> None
 def test_download_raw_returns_binary_attachment(monkeypatch: pytest.MonkeyPatch) -> None:
     client = TestClient(create_app())
 
+    monkeypatch.setattr(bridge_routes, "open_download_stream", lambda path, auth: None)
     monkeypatch.setattr(
         bridge_routes,
         "download_path",
@@ -375,9 +434,39 @@ def test_download_raw_returns_binary_attachment(monkeypatch: pytest.MonkeyPatch)
     assert response.content == b"Hello"
 
 
+def test_download_raw_streams_when_provider_supports_stream(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = TestClient(create_app())
+
+    def fake_open_download_stream(path, auth):
+        assert path == "alfresco:/contracts/sample.txt"
+        return WfxResponse(
+            ok=True,
+            data={
+                "stream": io.BytesIO(b"streamed-payload"),
+                "mime_type": "application/octet-stream",
+                "source": "/contracts/sample.txt",
+                "size": 16,
+            },
+            metadata={"provider": "alfresco", "operation": "download"},
+        )
+
+    monkeypatch.setattr(bridge_routes, "open_download_stream", fake_open_download_stream)
+
+    response = client.post(
+        "/bridge/wfx/download-raw",
+        json={"path": "alfresco:/contracts/sample.txt", "auth": _auth()},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["x-bridge-raw-content"] == "1"
+    assert response.headers["content-length"] == "16"
+    assert response.content == b"streamed-payload"
+
+
 def test_download_raw_uses_rfc5987_for_unicode_filename(monkeypatch: pytest.MonkeyPatch) -> None:
     client = TestClient(create_app())
 
+    monkeypatch.setattr(bridge_routes, "open_download_stream", lambda path, auth: None)
     monkeypatch.setattr(
         bridge_routes,
         "download_path",

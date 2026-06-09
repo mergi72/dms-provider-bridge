@@ -37,6 +37,24 @@ def test_validate_bridge_auth_accepts_inline_credentials() -> None:
     assert result.password == "secret"
 
 
+def test_validate_bridge_auth_prefers_inline_credentials_over_credential_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _should_not_load(_credential_id: str) -> ProviderCredentials:
+        raise AssertionError("inline credentials must not trigger Windows Credential Manager lookup")
+
+    monkeypatch.setattr(auth_service_module, "load_windows_credential", _should_not_load)
+    auth = BridgeAuthContext(
+        mode="credentials",
+        credential_id="tc-wfx/bridge",
+        username="broker-user",
+        password="broker-pass",
+    )
+
+    result = auth_service_module.validate_bridge_auth(auth)
+
+    assert result.username == "broker-user"
+    assert result.password == "broker-pass"
+
+
 def test_validate_bridge_auth_requires_credentials_or_credential_id() -> None:
     auth = BridgeAuthContext(mode="credentials")
 

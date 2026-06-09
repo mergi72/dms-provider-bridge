@@ -16,6 +16,9 @@ def validate_bridge_auth(auth: BridgeAuthContext) -> BridgeAuthContext:
                 "credentials mode requires either credential_id or username + password/token."
             )
 
+        if has_user_secret:
+            return auth
+
         if has_credential_ref:
             credential_id = auth.credential_id
             if not credential_id:
