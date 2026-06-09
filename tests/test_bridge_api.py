@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import json
 from pathlib import Path
 
@@ -407,6 +408,7 @@ def test_download_returns_json_contract(monkeypatch: pytest.MonkeyPatch) -> None
 def test_download_raw_returns_binary_attachment(monkeypatch: pytest.MonkeyPatch) -> None:
     client = TestClient(create_app())
 
+    monkeypatch.setattr(bridge_routes, "open_download_stream", lambda path, auth: None)
     monkeypatch.setattr(
         bridge_routes,
         "download_path",
@@ -432,9 +434,39 @@ def test_download_raw_returns_binary_attachment(monkeypatch: pytest.MonkeyPatch)
     assert response.content == b"Hello"
 
 
+def test_download_raw_streams_when_provider_supports_stream(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = TestClient(create_app())
+
+    def fake_open_download_stream(path, auth):
+        assert path == "alfresco:/contracts/sample.txt"
+        return WfxResponse(
+            ok=True,
+            data={
+                "stream": io.BytesIO(b"streamed-payload"),
+                "mime_type": "application/octet-stream",
+                "source": "/contracts/sample.txt",
+                "size": 16,
+            },
+            metadata={"provider": "alfresco", "operation": "download"},
+        )
+
+    monkeypatch.setattr(bridge_routes, "open_download_stream", fake_open_download_stream)
+
+    response = client.post(
+        "/bridge/wfx/download-raw",
+        json={"path": "alfresco:/contracts/sample.txt", "auth": _auth()},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["x-bridge-raw-content"] == "1"
+    assert response.headers["content-length"] == "16"
+    assert response.content == b"streamed-payload"
+
+
 def test_download_raw_uses_rfc5987_for_unicode_filename(monkeypatch: pytest.MonkeyPatch) -> None:
     client = TestClient(create_app())
 
+    monkeypatch.setattr(bridge_routes, "open_download_stream", lambda path, auth: None)
     monkeypatch.setattr(
         bridge_routes,
         "download_path",

@@ -9,13 +9,13 @@ from pathlib import PurePosixPath
 from urllib.parse import quote
 
 from fastapi import APIRouter, File, Form, Response, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from dms_provider_bridge.adapters.commander_api import WfxErrorCode
 from dms_provider_bridge.core.config_loader import load_config
 from dms_provider_bridge.core.logging import get_logger
 from dms_provider_bridge.models.bridge import BridgeAuthContext, WfxMoveRequest, WfxPathRequest, WfxShareUrlBrowseRequest, WfxShareUrlRequest, WfxShareUrlValidateRequest, WfxUploadRequest
-from dms_provider_bridge.services.bridge_service import browse_share_url, copy_path, delete_path, download_path, list_path, mkdir_path, provider_detail_path, providers_path, rename_path, resolve_share_url, stat_path, upload_path
+from dms_provider_bridge.services.bridge_service import browse_share_url, copy_path, delete_path, download_path, list_path, mkdir_path, open_download_stream, provider_detail_path, providers_path, rename_path, resolve_share_url, stat_path, upload_path
 
 router = APIRouter()
 share_url_router = APIRouter()
@@ -55,6 +55,19 @@ def _build_content_disposition(filename: str) -> str:
     return f"attachment; filename=\"{safe_ascii}\"; filename*=UTF-8''{encoded}"
 
 
+def _iter_raw_stream(stream, chunk_bytes: int = 1024 * 1024):
+    try:
+        while True:
+            chunk = stream.read(chunk_bytes)
+            if not chunk:
+                break
+            yield chunk
+    finally:
+        close = getattr(stream, "close", None)
+        if callable(close):
+            close()
+
+
 @router.post("/list")
 def bridge_list(payload: WfxPathRequest) -> dict:
     return list_path(payload.path, payload.auth).model_dump()
@@ -92,6 +105,25 @@ def bridge_download(payload: WfxPathRequest) -> dict:
 
 @router.post("/download-raw")
 def bridge_download_raw(payload: WfxPathRequest):
+    stream_result = open_download_stream(payload.path, payload.auth)
+    if stream_result is not None:
+        if not stream_result.ok:
+            return JSONResponse(content=stream_result.model_dump(), headers={RAW_CONTENT_HEADER: "0"})
+        stream_data = stream_result.data if isinstance(stream_result.data, dict) else {}
+        raw_stream = stream_data.get("stream")
+        if raw_stream is not None:
+            source = stream_data.get("source")
+            filename = PurePosixPath(str(source)).name if isinstance(source, str) and source else "download.bin"
+            media_type = stream_data.get("mime_type") if isinstance(stream_data.get("mime_type"), str) else "application/octet-stream"
+            headers = {
+                "Content-Disposition": _build_content_disposition(filename),
+                RAW_CONTENT_HEADER: "1",
+            }
+            size = stream_data.get("size")
+            if isinstance(size, int) and size >= 0:
+                headers["Content-Length"] = str(size)
+            return StreamingResponse(_iter_raw_stream(raw_stream), media_type=media_type, headers=headers)
+
     result = download_path(payload.path, payload.auth)
     if not result.ok:
         return JSONResponse(content=result.model_dump(), headers={RAW_CONTENT_HEADER: "0"})

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.6 - 2026-06-09
+
+### Changed
+- Release/version bump to `0.4.6`.
+- Added streaming raw download support for Alfresco so `/bridge/wfx/download-raw` can return a real streamed response with `Content-Length` instead of buffering the whole file through base64 first.
+- Added provider-level Alfresco content stream handling and bridge service fallback to the existing JSON/base64 download path for providers without streaming support.
+- Updated credential validation so inline credentials supplied by TC-WFX/credential-broker take precedence over `credential_id` lookup.
+- Added tests for raw streaming download and inline credential precedence.
+
+---
+
 ## 0.4.5 - 2026-06-08
 
 ### Changed

@@ -10,7 +10,7 @@ from dms_provider_bridge.app.routes.transfer import router as transfer_router
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="dms-provider-bridge", version="0.4.5")
+    app = FastAPI(title="dms-provider-bridge", version="0.4.6")
     app.include_router(health_router, prefix="/health", tags=["Health"])
     app.include_router(listing_router, prefix="/listing", tags=["Listing"])
     app.include_router(transfer_router, prefix="/transfer", tags=["Transfer"])

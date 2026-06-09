@@ -398,6 +398,35 @@ def download_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
         return _log_and_return("download", provider_name, resolved_path, started_at, response, str(exc))
 
 
+def open_download_stream(path: str, auth: BridgeAuthContext) -> WfxResponse | None:
+    started_at = time.perf_counter()
+    provider_name: str | None = None
+    resolved_path = path
+    try:
+        provider, parsed = _resolve(path)
+        provider_name = provider.name
+        resolved_path = parsed.path
+        stream_item = getattr(provider, "stream_item", None)
+        if not callable(stream_item):
+            return None
+        validate_bridge_auth(auth)
+        result = stream_item(parsed.path, auth)
+        response = _success(data=result, metadata=_metadata(provider, "download"))
+        return _log_and_return("download_raw_stream", provider_name, resolved_path, started_at, response)
+    except AuthenticationError as exc:
+        response = _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
+        return _log_and_return("download_raw_stream", provider_name, resolved_path, started_at, response, str(exc))
+    except ValueError as exc:
+        response = _failure(WfxErrorCode.BAD_PATH, str(exc))
+        return _log_and_return("download_raw_stream", provider_name, resolved_path, started_at, response, str(exc))
+    except ProviderNotFoundError as exc:
+        response = _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
+        return _log_and_return("download_raw_stream", provider_name, resolved_path, started_at, response, str(exc))
+    except Exception as exc:
+        response = _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+        return _log_and_return("download_raw_stream", provider_name, resolved_path, started_at, response, str(exc))
+
+
 def upload_path(destination: str, file_name: str, auth: BridgeAuthContext, content_base64: str | None = None, source_path: str | None = None, overwrite: bool = False) -> WfxResponse:
     started_at = time.perf_counter()
     provider_name: str | None = None

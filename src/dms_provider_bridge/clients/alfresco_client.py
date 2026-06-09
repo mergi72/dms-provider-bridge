@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 from dataclasses import dataclass
 from dataclasses import field
 from threading import RLock
-from typing import cast
+from typing import IO, cast
 from urllib.parse import unquote
 from urllib.parse import urlencode
 from urllib import request
@@ -285,6 +285,29 @@ class AlfrescoClient:
                 data = response.read()
             mime = cast(str | None, response.headers.get("Content-Type"))
             return data, mime
+
+    def _request_stream(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str] | None = None,
+        timeout: int | None = None,
+    ) -> tuple[IO[bytes], str | None, int | None]:
+        request_headers = {}
+        if headers:
+            request_headers.update(headers)
+        req = request.Request(url=url, headers=request_headers, method=method)
+        timeout_value = timeout if isinstance(timeout, int) and timeout > 0 else self.bytes_timeout
+        response = request.urlopen(req, timeout=timeout_value)
+        mime = cast(str | None, response.headers.get("Content-Type"))
+        content_length_header = response.headers.get("Content-Length")
+        content_length: int | None = None
+        if isinstance(content_length_header, str):
+            try:
+                content_length = int(content_length_header)
+            except ValueError:
+                content_length = None
+        return cast(IO[bytes], response), mime, content_length
 
     def create_ticket(self, username: str, password: str) -> str:
         response = self._request_json(
@@ -581,3 +604,6 @@ class AlfrescoClient:
 
     def download_node_content(self, ticket: str, node_id: str, max_bytes: int | None = None) -> tuple[bytes, str | None]:
         return self._request_bytes("GET", self.node_content_url(node_id), headers=self.auth_headers(ticket), max_bytes=max_bytes)
+
+    def open_node_content_stream(self, ticket: str, node_id: str) -> tuple[IO[bytes], str | None, int | None]:
+        return self._request_stream("GET", self.node_content_url(node_id), headers=self.auth_headers(ticket))
