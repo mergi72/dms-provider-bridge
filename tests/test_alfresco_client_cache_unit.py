@@ -232,12 +232,71 @@ def test_update_node_content_uses_put_content_endpoint_with_versioning(monkeypat
     assert str(captured["url"]).endswith("/repo/nodes/node-1/content?majorVersion=true&comment=TC+upload")
     headers = captured["headers"]
     assert isinstance(headers, dict)
-    assert headers["content-type"].startswith("multipart/form-data; boundary=")
+    assert headers["content-type"] == "application/octet-stream"
 
     body = captured["body"]
     assert isinstance(body, bytes)
-    assert b'name="filedata"; filename="existing.txt"' in body
-    assert b"test" in body
+    assert body == b"test"
+
+
+def test_update_node_content_streams_source_path_as_binary_put(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    client = _client()
+    source = tmp_path / "existing.txt"
+    source.write_bytes(b"streamed-test")
+
+    captured: dict[str, object] = {}
+
+    class _FakeResponse:
+        status = 200
+
+        def read(self) -> bytes:
+            return b'{"entry": {"id": "node-1"}}'
+
+    class _FakeConnection:
+        def __init__(self, host, port=None, timeout=None) -> None:
+            captured["host"] = host
+            captured["port"] = port
+            captured["timeout"] = timeout
+            self.sent = bytearray()
+
+        def putrequest(self, method, url) -> None:
+            captured["method"] = method
+            captured["url"] = url
+
+        def putheader(self, key, value) -> None:
+            captured.setdefault("headers", {})[str(key).lower()] = value
+
+        def endheaders(self) -> None:
+            captured["endheaders"] = True
+
+        def send(self, data) -> None:
+            self.sent.extend(data)
+
+        def getresponse(self):
+            captured["body"] = bytes(self.sent)
+            return _FakeResponse()
+
+        def close(self) -> None:
+            captured["closed"] = True
+
+    monkeypatch.setattr("dms_provider_bridge.clients.alfresco_client.http.client.HTTPSConnection", _FakeConnection)
+
+    client.update_node_content(
+        "ticket-a",
+        "node-1",
+        "existing.txt",
+        source_path=str(source),
+        major_version=False,
+        comment="minor upload",
+    )
+
+    assert captured["method"] == "PUT"
+    assert captured["url"] == "/repo/nodes/node-1/content?majorVersion=false&comment=minor+upload"
+    headers = captured["headers"]
+    assert isinstance(headers, dict)
+    assert headers["content-type"] == "application/octet-stream"
+    assert headers["content-length"] == str(len(b"streamed-test"))
+    assert captured["body"] == b"streamed-test"
 
 
 def test_alfresco_stat_missing_file_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
