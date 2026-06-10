@@ -235,7 +235,7 @@ def copy_fso_to_edocat(src_provider, dst_provider, source_path: str, destination
     )
 
 
-def upload_with_preflight(provider, destination_path: str, file_name: str, auth: BridgeAuthContext, content_base64: str | None = None, source_path: str | None = None, overwrite: bool = False) -> OperationResult:
+def upload_with_preflight(provider, destination_path: str, file_name: str, auth: BridgeAuthContext, content_base64: str | None = None, source_path: str | None = None, overwrite: bool = False, versioning: dict | None = None) -> OperationResult:
     if source_path:
         try:
             os.path.getsize(source_path)
@@ -250,5 +250,13 @@ def upload_with_preflight(provider, destination_path: str, file_name: str, auth:
                 "Use /bridge/wfx/upload-raw (or /bridge/wfx/upload-stream) with multipart/form-data for larger files."
             )
     ensure_folder_chain(provider, destination_path, auth)
-    return provider.upload_item(destination_path, file_name, content_base64=content_base64, source_path=source_path, overwrite=overwrite, auth=auth)
+    kwargs = {
+        "content_base64": content_base64,
+        "source_path": source_path,
+        "overwrite": overwrite,
+        "auth": auth,
+    }
+    if versioning is not None:
+        kwargs["versioning"] = versioning
+    return provider.upload_item(destination_path, file_name, **kwargs)
 

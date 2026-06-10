@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel
 
 
@@ -13,3 +15,4 @@ class OperationResult(BaseModel):
     content_base64: str | None = None
     mime_type: str | None = None
     size: int | None = None
+    metadata: dict[str, Any] | None = None

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.7 - 2026-06-10
+
+### Changed
+- Release/version bump to `0.4.7`.
+- Added Alfresco existing-document upload semantics: existing documents now require an explicit version choice instead of filesystem-style overwrite.
+- Added typed upload `versioning` payload with `mode: "version"`, `type: "minor"|"major"`, and optional `comment`.
+- Alfresco version uploads now use `PUT /nodes/{nodeId}/content?majorVersion=true|false&comment=...`.
+- Bridge provider detail exposes Alfresco versioning capabilities for TC-WFX discovery.
+- Alfresco upload metadata now returns current version/audit data before version upload and changed version/audit data after upload.
+- Added tests for Alfresco version-required responses, version upload mapping, OpenAPI versioning schema, and provider versioning capabilities.
+
+---
+
 ## 0.4.6 - 2026-06-09
 
 ### Changed

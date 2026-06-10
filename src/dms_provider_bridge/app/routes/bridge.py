@@ -157,6 +157,7 @@ def bridge_upload(payload: WfxUploadRequest) -> dict:
         content_base64=payload.content_base64,
         source_path=payload.source_path,
         overwrite=payload.overwrite,
+        versioning=payload.versioning,
     ).model_dump()
 
 
@@ -166,6 +167,7 @@ async def bridge_upload_raw(
     destination: str = Form(...),
     file_name: str = Form(...),
     overwrite: bool = Form(False),
+    versioning_json: str | None = Form(None),
     auth_json: str = Form(...),
     file: UploadFile = File(...),
 ) -> dict:
@@ -186,6 +188,22 @@ async def bridge_upload_raw(
             "data": None,
         }
 
+    versioning: dict | None = None
+    if versioning_json:
+        try:
+            parsed_versioning = json.loads(versioning_json)
+            if isinstance(parsed_versioning, dict):
+                versioning = parsed_versioning
+            else:
+                raise ValueError("versioning_json must contain a JSON object.")
+        except Exception as exc:
+            return {
+                "ok": False,
+                "error_code": WfxErrorCode.BAD_PATH,
+                "message": f"Invalid versioning_json payload: {exc}",
+                "data": None,
+            }
+
     try:
         suffix = f"-{file_name}" if file_name else ""
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -205,12 +223,17 @@ async def bridge_upload_raw(
                 tmp.write(chunk)
                 uploaded_bytes += len(chunk)
 
+        upload_kwargs = {
+            "source_path": temp_path,
+            "overwrite": overwrite,
+        }
+        if versioning is not None:
+            upload_kwargs["versioning"] = versioning
         response = upload_path(
             destination,
             file_name,
             auth,
-            source_path=temp_path,
-            overwrite=overwrite,
+            **upload_kwargs,
         )
         return response.model_dump()
     finally:
@@ -284,6 +307,7 @@ def bridge_browse_share_url(payload: WfxShareUrlBrowseRequest) -> dict:
         payload.file_name,
         payload.content_base64,
         payload.overwrite,
+        payload.versioning,
     ).model_dump()
 
 

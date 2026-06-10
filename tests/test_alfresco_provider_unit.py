@@ -22,6 +22,9 @@ class FakeClient:
         self.download_node_content_calls: list[dict[str, Any]] = []
         self.move_node_calls: list[dict[str, Any]] = []
         self.copy_node_calls: list[dict[str, Any]] = []
+        self.update_node_content_calls: list[dict[str, Any]] = []
+        self.children_by_name: dict[tuple[str, str], dict | None] = {}
+        self.node_details: dict[str, dict] = {}
 
     def node_create_child_url(self, parent_id: str) -> str:
         return f"https://example.test/repo/nodes/{parent_id}/children"
@@ -42,8 +45,48 @@ class FakeClient:
         )
         return {"entry": {"id": "created-1"}}
 
+    def child_by_name(self, ticket: str, parent_id: str, name: str) -> dict | None:
+        _ = ticket
+        return self.children_by_name.get((parent_id, name))
+
+    def update_node_content(
+        self,
+        ticket: str,
+        node_id: str,
+        file_name: str,
+        content_base64: str | None = None,
+        source_path: str | None = None,
+        major_version: bool = False,
+        comment: str | None = None,
+    ) -> dict:
+        self.update_node_content_calls.append(
+            {
+                "ticket": ticket,
+                "node_id": node_id,
+                "file_name": file_name,
+                "content_base64": content_base64,
+                "source_path": source_path,
+                "major_version": major_version,
+                "comment": comment,
+            }
+        )
+        version = "2.0" if major_version else "1.1"
+        self.node_details[node_id] = {
+            "id": node_id,
+            "name": file_name,
+            "modifiedAt": "2026-06-10T12:34:56.000+0000",
+            "modifiedByUser": {"id": "merhautr", "displayName": "Meri"},
+            "properties": {"cm:versionLabel": version, "cm:versionType": "MAJOR" if major_version else "MINOR"},
+        }
+        return {"entry": self.node_details[node_id]}
+
     def node_content_url(self, node_id: str) -> str:
         return f"https://example.test/repo/nodes/{node_id}/content"
+
+    def get_node(self, ticket: str, node_id: str, include: list[str] | None = None) -> dict:
+        _ = ticket
+        _ = include
+        return {"entry": self.node_details.get(node_id, {"id": node_id, "name": "sample.txt"})}
 
     def node_move_url(self, node_id: str) -> str:
         return f"https://example.test/repo/nodes/{node_id}/move"
@@ -152,6 +195,115 @@ def test_upload_item_passes_content_base64_to_client(monkeypatch: pytest.MonkeyP
             "is_folder": False,
             "content_base64": "dGVzdA==",
             "source_path": None,
+        }
+    ]
+
+
+def test_upload_item_existing_document_requires_versioning_choice(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    client.children_by_name[("node-parent-1", "sample.txt")] = {
+        "id": "node-existing-1",
+        "name": "sample.txt",
+        "properties": {"cm:versionLabel": "1.4"},
+    }
+    client.node_details["node-existing-1"] = {
+        "id": "node-existing-1",
+        "name": "sample.txt",
+        "createdAt": "2026-06-01T10:00:00.000+0000",
+        "createdByUser": {"id": "merhautr"},
+        "modifiedAt": "2026-06-02T11:00:00.000+0000",
+        "modifiedByUser": {"id": "merhautr"},
+        "properties": {"cm:versionLabel": "1.4", "cm:versionType": "MINOR"},
+    }
+    provider = _provider(monkeypatch, client)
+
+    monkeypatch.setattr(provider, "_ticket", lambda auth: "ticket-a")
+    monkeypatch.setattr(
+        provider,
+        "_resolve_path",
+        lambda path, ticket=None, strict=False: {
+            "path": "/deals/contracts",
+            "node_id": "node-parent-1",
+            "parent_path": "/deals",
+            "parent_id": "node-root-1",
+            "name": "contracts",
+        },
+    )
+
+    with pytest.raises(alfresco_provider_module.VersionRequiredError) as exc_info:
+        provider.upload_item(
+            "/contracts",
+            "sample.txt",
+            content_base64="dGVzdA==",
+            auth=BridgeAuthContext(mode="credentials", username="user", password="pass"),
+        )
+
+    assert exc_info.value.metadata["action"] == "version_required"
+    assert exc_info.value.metadata["current_version"] == "1.4"
+    assert exc_info.value.metadata["current_version_type"] == "MINOR"
+    assert exc_info.value.metadata["current_modified_at"] == "2026-06-02T11:00:00.000+0000"
+    assert exc_info.value.metadata["current_modified_by"] == "merhautr"
+    assert client.create_child_node_calls == []
+    assert client.update_node_content_calls == []
+
+
+def test_upload_item_existing_document_updates_content_as_new_minor_version(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    client.children_by_name[("node-parent-1", "sample.txt")] = {
+        "id": "node-existing-1",
+        "name": "sample.txt",
+        "properties": {"cm:versionLabel": "1.4"},
+    }
+    client.node_details["node-existing-1"] = {
+        "id": "node-existing-1",
+        "name": "sample.txt",
+        "createdAt": "2026-06-01T10:00:00.000+0000",
+        "createdByUser": {"id": "merhautr"},
+        "modifiedAt": "2026-06-02T11:00:00.000+0000",
+        "modifiedByUser": {"id": "merhautr"},
+        "properties": {"cm:versionLabel": "1.4", "cm:versionType": "MINOR"},
+    }
+    provider = _provider(monkeypatch, client)
+
+    monkeypatch.setattr(provider, "_ticket", lambda auth: "ticket-a")
+    monkeypatch.setattr(
+        provider,
+        "_resolve_path",
+        lambda path, ticket=None, strict=False: {
+            "path": "/deals/contracts",
+            "node_id": "node-parent-1",
+            "parent_path": "/deals",
+            "parent_id": "node-root-1",
+            "name": "contracts",
+        },
+    )
+
+    result = provider.upload_item(
+        "/contracts",
+        "sample.txt",
+        content_base64="dGVzdA==",
+        auth=BridgeAuthContext(mode="credentials", username="user", password="pass"),
+        versioning={"mode": "version", "type": "minor", "comment": "TC upload"},
+    )
+
+    assert result.success is True
+    assert result.metadata is not None
+    assert result.metadata["action"] == "version"
+    assert result.metadata["current_version"] == "1.4"
+    assert result.metadata["version"] == "1.1"
+    assert result.metadata["version_type"] == "MINOR"
+    assert result.metadata["changed_at"] == "2026-06-10T12:34:56.000+0000"
+    assert result.metadata["changed_by"] == "merhautr"
+    assert client.create_child_node_calls == []
+    assert client.update_node_content_calls == [
+        {
+            "ticket": "ticket-a",
+            "node_id": "node-existing-1",
+            "file_name": "sample.txt",
+            "content_base64": "dGVzdA==",
+            "source_path": None,
+            "major_version": False,
+            "comment": "TC upload",
         }
     ]
 

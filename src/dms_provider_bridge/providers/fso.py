@@ -219,7 +219,8 @@ class FsoProvider(Provider):
             size=len(data),
         )
 
-    def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, source_path: str | None = None, overwrite: bool = False, auth: BridgeAuthContext | None = None) -> OperationResult:
+    def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, source_path: str | None = None, overwrite: bool = False, auth: BridgeAuthContext | None = None, versioning: dict | None = None) -> OperationResult:
+        _ = versioning
         destination_virtual = self._normalize_virtual_path(destination)
         destination_local = self._to_local_path(destination_virtual)
         self._ensure_allowed(destination_local, "upload", destination_virtual)
