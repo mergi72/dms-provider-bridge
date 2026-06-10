@@ -449,7 +449,7 @@ class AlfrescoClient:
                 "maxItems": max_items,
                 "skipCount": skip_count,
             },
-            "include": ["path", "properties", "aspectNames"],
+            "include": ["path", "properties"],
         }
         return self._request_json("POST", self.search_nodes_url(), headers=self.auth_headers(ticket), payload=payload)
 
@@ -469,11 +469,8 @@ class AlfrescoClient:
             url = f"{url}?{urlencode({'include': ','.join(include)})}"
         return self._request_json("GET", url, headers=self.auth_headers(ticket))
 
-    def get_children(self, ticket: str, node_id: str, max_items: int = 200, skip_count: int = 0, include: list[str] | None = None) -> dict:
-        params_payload: dict[str, object] = {"maxItems": max_items, "skipCount": skip_count}
-        if include:
-            params_payload["include"] = ",".join(include)
-        params = urlencode(params_payload)
+    def get_children(self, ticket: str, node_id: str, max_items: int = 200, skip_count: int = 0) -> dict:
+        params = urlencode({"maxItems": max_items, "skipCount": skip_count})
         return self._request_json("GET", f"{self.node_children_url(node_id)}?{params}", headers=self.auth_headers(ticket))
 
     def child_by_name(self, ticket: str, parent_id: str, name: str) -> dict | None:

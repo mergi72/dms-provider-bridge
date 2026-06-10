@@ -12,6 +12,3 @@ class DmsItem(BaseModel):
     mime_type: str | None = None
     modified_at: str | None = None
     is_read_only: bool | None = None
-    version_label: str | None = None
-    version_type: str | None = None
-    is_versioned: bool | None = None

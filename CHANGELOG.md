@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.9 - 2026-06-11
+
+### Changed
+- Release/version bump to `0.4.9`.
+- Fixed Windows one-file build packaging so dynamically loaded bridge providers (`alfresco`, `edocat`, `fso`) are included in the executable.
+- Restored stable Alfresco runtime listing against the configured `doc_library` after the eDoCat provider work.
+- Kept provider local config templates out of committed config and generated empty `*.local.json` templates only in distribution payloads.
+
+---
+
 ## 0.4.8 - 2026-06-10
 
 ### Changed

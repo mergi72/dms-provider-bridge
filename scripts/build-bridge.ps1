@@ -87,6 +87,9 @@ Write-Host "Building onefile bridge executable..."
     --paths (Join-Path $repoRoot "src") `
     --hidden-import dms_provider_bridge.app `
     --hidden-import dms_provider_bridge.app.server `
+    --hidden-import dms_provider_bridge.providers.alfresco `
+    --hidden-import dms_provider_bridge.providers.edocat `
+    --hidden-import dms_provider_bridge.providers.fso `
     --add-data $addData `
     --distpath $outputPath `
     --workpath $workPath `

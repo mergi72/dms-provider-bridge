@@ -87,7 +87,7 @@ class AlfrescoProvider(Provider):
         ticket = ticket or self._ticket(auth)
         resolved = self._resolve_path(path, ticket, strict=True)
         try:
-            return self.client.get_node(ticket, resolved["node_id"], include=["aspectNames", "properties"])
+            return self.client.get_node(ticket, resolved["node_id"])
         except Exception as exc:
             raise ProviderOperationError(f"Alfresco node lookup failed for {resolved['path']}: {exc}") from exc
 
@@ -106,7 +106,6 @@ class AlfrescoProvider(Provider):
 
     def _item_from_entry(self, entry: dict, fallback_path: str | None = None) -> DmsItem:
         props = entry.get("properties", {}) if isinstance(entry, dict) else {}
-        aspect_names = entry.get("aspectNames") if isinstance(entry, dict) else None
         name = entry.get("name") or (fallback_path.rstrip("/").split("/")[-1] if fallback_path else "") or "/"
         path = fallback_path or entry.get("path", {}).get("name", "/") or "/"
         is_folder = entry.get("isFolder") if isinstance(entry.get("isFolder"), bool) else str(entry.get("nodeType", "")).endswith("folder")
@@ -115,11 +114,6 @@ class AlfrescoProvider(Provider):
             modified_at = str(modified_at)
         lock_type = props.get("cm:lockType") if isinstance(props, dict) else None
         is_read_only = bool(lock_type) if lock_type is not None else None
-        version_label = self._version_label_from_entry(entry)
-        version_type = self._version_type_from_entry(entry)
-        is_versioned = version_label is not None
-        if isinstance(aspect_names, list):
-            is_versioned = is_versioned or any(str(aspect).lower() == "cm:versionable" for aspect in aspect_names)
         return DmsItem(
             id=str(entry.get("id") or self.client.node_id_from_path(path)),
             name=str(name),
@@ -129,9 +123,6 @@ class AlfrescoProvider(Provider):
             mime_type=entry.get("content", {}).get("mimeType") if isinstance(entry.get("content"), dict) else props.get("cm:content.mimetype"),
             modified_at=modified_at,
             is_read_only=is_read_only,
-            version_label=version_label,
-            version_type=version_type,
-            is_versioned=is_versioned,
         )
 
     def _version_label_from_entry(self, entry: dict | None) -> str | None:
@@ -227,25 +218,6 @@ class AlfrescoProvider(Provider):
             },
         }
 
-    def _changed_version_metadata(self, entry: dict | None) -> dict[str, object | None]:
-        audit = self._audit_from_entry(entry)
-        return {
-            "version": self._version_label_from_entry(entry),
-            "version_type": self._version_type_from_entry(entry),
-            "changed_at": audit["modified_at"],
-            "changed_by": audit["modified_by"],
-        }
-
-    def _entry_id(self, response: dict | None) -> str | None:
-        if not isinstance(response, dict):
-            return None
-        entry = response.get("entry")
-        if isinstance(entry, dict):
-            value = entry.get("id") or entry.get("node_id")
-            return str(value) if value else None
-        value = response.get("id") or response.get("node_id")
-        return str(value) if value else None
-
     def _resolve_path(self, path: str, ticket: str | None = None, strict: bool = False) -> dict[str, str]:
         normalized = self.client.normalize_path(path)
         parent_path = self.client.parent_path(normalized)
@@ -289,7 +261,7 @@ class AlfrescoProvider(Provider):
         try:
             def _run(ticket: str) -> ListingResult:
                 resolved = self._resolve_path(path, ticket, strict=True)
-                response = self.client.get_children(ticket, resolved["node_id"], include=["aspectNames", "properties"])
+                response = self.client.get_children(ticket, resolved["node_id"])
                 entries = response.get("list", {}).get("entries", [])
                 items = [self._item_from_entry(item.get("entry", {}), None) for item in entries]
                 return ListingResult(provider=self.name, path=resolved["path"], total=len(items), items=items)
@@ -534,15 +506,15 @@ class AlfrescoProvider(Provider):
                     metadata["action"] = "version"
                     metadata["major_version"] = major_version
                     metadata["comment"] = comment
-                    metadata.update(self._changed_version_metadata(updated_entry if isinstance(updated_entry, dict) else None))
+                    metadata["version"] = self._version_label_from_entry(updated_entry if isinstance(updated_entry, dict) else None)
+                    metadata["version_type"] = self._version_type_from_entry(updated_entry if isinstance(updated_entry, dict) else None)
+                    updated_audit = self._audit_from_entry(updated_entry if isinstance(updated_entry, dict) else None)
+                    metadata["changed_at"] = updated_audit["modified_at"]
+                    metadata["changed_by"] = updated_audit["modified_by"]
                     return self.client.node_content_url(existing_node_id), target_destination, metadata
 
-                created = self.client.create_child_node(ticket, target_parent_id, file_name, is_folder=False, content_base64=content_base64, source_path=source_path)
-                created_node_id = self._entry_id(created)
-                created_entry = self._node_detail_entry(ticket, created_node_id) if created_node_id else None
-                metadata = {"action": "create_document"}
-                metadata.update(self._changed_version_metadata(created_entry if isinstance(created_entry, dict) else None))
-                return self.client.node_create_child_url(target_parent_id), target_destination, metadata
+                self.client.create_child_node(ticket, target_parent_id, file_name, is_folder=False, content_base64=content_base64, source_path=source_path)
+                return self.client.node_create_child_url(target_parent_id), target_destination, {"action": "create_document"}
 
             endpoint, target_destination, metadata = self._run_with_ticket_retry(auth, f"upload {destination}", _run)
         except AuthenticationError:
