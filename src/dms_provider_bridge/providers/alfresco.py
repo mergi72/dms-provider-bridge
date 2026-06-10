@@ -193,17 +193,7 @@ class AlfrescoProvider(Provider):
         if mode != "version":
             return None
 
-        version_type = str(versioning.get("type") or versioning.get("version_type") or "").strip().lower()
-        major_value = versioning.get("major")
-        if isinstance(major_value, bool):
-            major_version = major_value
-        elif version_type in {"major", "major_version"}:
-            major_version = True
-        elif version_type in {"minor", "minor_version"}:
-            major_version = False
-        else:
-            major_version = bool(versioning.get("majorVersion", False))
-
+        major_version = bool(versioning.get("majorVersion", False))
         comment = versioning.get("comment")
         return major_version, str(comment) if isinstance(comment, str) and comment.strip() else None
 
@@ -223,8 +213,7 @@ class AlfrescoProvider(Provider):
             "current_modified_by": audit["modified_by"],
             "versioning": {
                 "mode": "version",
-                "types": ["minor", "major"],
-                "default_major": False,
+                "majorVersion": False,
                 "comment_supported": True,
             },
         }

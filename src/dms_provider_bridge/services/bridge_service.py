@@ -108,8 +108,7 @@ def _provider_versioning(provider) -> dict[str, object]:
             "supported": True,
             "existing_upload": "version_required",
             "modes": ["version"],
-            "version_types": ["minor", "major"],
-            "default_major": False,
+            "majorVersion": False,
             "comment_supported": True,
         }
     return {"supported": False}

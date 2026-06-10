@@ -20,13 +20,9 @@ class UploadVersioning(BaseModel):
         default="version",
         description="DMS versioning mode. For Alfresco existing documents this maps to PUT /nodes/{nodeId}/content.",
     )
-    type: Literal["minor", "major"] | None = Field(
-        default=None,
-        description="Requested version type. minor maps to majorVersion=false, major maps to majorVersion=true.",
-    )
-    major: bool | None = Field(
-        default=None,
-        description="Explicit majorVersion flag. Overrides type when provided.",
+    majorVersion: bool = Field(
+        default=False,
+        description="Alfresco-compatible majorVersion flag. false creates a minor version, true creates a major version.",
     )
     comment: str | None = Field(
         default=None,

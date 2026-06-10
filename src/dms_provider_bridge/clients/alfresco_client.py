@@ -178,6 +178,70 @@ class AlfrescoClient:
             raw_response = response.read().decode("utf-8")
             return json.loads(raw_response) if raw_response else {}
 
+    def _put_binary_file(
+        self,
+        url: str,
+        headers: dict[str, str],
+        source_path: str,
+        mime_type: str = "application/octet-stream",
+    ) -> dict:
+        parsed = urlparse(url)
+        if parsed.scheme == "https":
+            connection: http.client.HTTPConnection = http.client.HTTPSConnection(parsed.hostname, parsed.port, timeout=self.upload_timeout)
+        else:
+            connection = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=self.upload_timeout)
+
+        request_headers = dict(headers)
+        request_headers["Accept"] = "application/json"
+        request_headers["Content-Type"] = mime_type
+        request_headers["Content-Length"] = str(os.path.getsize(source_path))
+
+        path_with_query = parsed.path or "/"
+        if parsed.query:
+            path_with_query = f"{path_with_query}?{parsed.query}"
+
+        try:
+            connection.putrequest("PUT", path_with_query)
+            for key, value in request_headers.items():
+                connection.putheader(key, value)
+            connection.endheaders()
+
+            with open(source_path, "rb") as handle:
+                while True:
+                    chunk = handle.read(self.upload_buffer_bytes)
+                    if not chunk:
+                        break
+                    connection.send(chunk)
+
+            response = connection.getresponse()
+            body = response.read().decode("utf-8")
+            if response.status >= 400:
+                raise ValueError(f"Alfresco upload failed with HTTP {response.status}: {body}")
+            return json.loads(body) if body else {}
+        finally:
+            connection.close()
+
+    def _request_binary_bytes(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str],
+        content: bytes,
+        mime_type: str = "application/octet-stream",
+    ) -> dict:
+        request_headers = dict(headers)
+        request_headers["Accept"] = "application/json"
+        request_headers["Content-Type"] = mime_type
+        req = request.Request(
+            url=url,
+            data=content,
+            headers=request_headers,
+            method=method,
+        )
+        with request.urlopen(req, timeout=self.upload_timeout) as response:
+            raw_response = response.read().decode("utf-8")
+            return json.loads(raw_response) if raw_response else {}
+
     def _configured_node_type(self, key: str, fallback: str) -> str:
         value = self.node_types.get(key)
         if isinstance(value, str) and value.strip():
@@ -662,14 +726,10 @@ class AlfrescoClient:
         request_headers = self.auth_headers(ticket)
 
         if source_path is not None:
-            result = self._post_multipart_file(
+            result = self._put_binary_file(
                 url,
                 request_headers,
-                fields=[],
-                file_field_name="filedata",
-                file_name=file_name,
                 source_path=source_path,
-                method="PUT",
             )
             self._invalidate_structure_cache(ticket)
             return result
@@ -679,13 +739,10 @@ class AlfrescoClient:
         except Exception as exc:
             raise ValueError("Invalid base64 payload for Alfresco version upload.") from exc
 
-        result = self._request_multipart_bytes(
+        result = self._request_binary_bytes(
             "PUT",
             url,
             request_headers,
-            fields=[],
-            file_field_name="filedata",
-            file_name=file_name,
             content=content_bytes,
         )
         self._invalidate_structure_cache(ticket)
