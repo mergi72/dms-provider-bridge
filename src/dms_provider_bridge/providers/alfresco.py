@@ -8,7 +8,7 @@ from urllib.error import HTTPError
 from dms_provider_bridge.clients.alfresco_client import AlfrescoClient
 from dms_provider_bridge.core.config_loader import load_provider_config
 from dms_provider_bridge.core.credentials import resolve_alfresco_credentials
-from dms_provider_bridge.core.errors import AuthenticationError, ProviderOperationError
+from dms_provider_bridge.core.errors import AuthenticationError, ProviderOperationError, VersionRequiredError
 from dms_provider_bridge.models.bridge import BridgeAuthContext
 from dms_provider_bridge.models.item import DmsItem
 from dms_provider_bridge.models.listing import ListingResult
@@ -124,6 +124,110 @@ class AlfrescoProvider(Provider):
             modified_at=modified_at,
             is_read_only=is_read_only,
         )
+
+    def _version_label_from_entry(self, entry: dict | None) -> str | None:
+        if not isinstance(entry, dict):
+            return None
+        props = entry.get("properties")
+        if isinstance(props, dict):
+            for key in ("cm:versionLabel", "versionLabel"):
+                value = props.get(key)
+                if value is not None:
+                    return str(value)
+        for key in ("versionLabel", "version"):
+            value = entry.get(key)
+            if value is not None:
+                return str(value)
+        return None
+
+    def _version_type_from_entry(self, entry: dict | None) -> str | None:
+        if not isinstance(entry, dict):
+            return None
+        props = entry.get("properties")
+        if isinstance(props, dict):
+            value = props.get("cm:versionType") or props.get("versionType")
+            if value is not None:
+                return str(value)
+        return None
+
+    def _user_name_from_entry(self, entry: dict | None, field: str) -> str | None:
+        if not isinstance(entry, dict):
+            return None
+        value = entry.get(field)
+        if isinstance(value, dict):
+            for key in ("id", "displayName"):
+                user_value = value.get(key)
+                if user_value is not None:
+                    return str(user_value)
+        if value is not None:
+            return str(value)
+        return None
+
+    def _audit_from_entry(self, entry: dict | None) -> dict[str, object | None]:
+        if not isinstance(entry, dict):
+            return {
+                "created_at": None,
+                "created_by": None,
+                "modified_at": None,
+                "modified_by": None,
+            }
+        return {
+            "created_at": str(entry.get("createdAt")) if entry.get("createdAt") is not None else None,
+            "created_by": self._user_name_from_entry(entry, "createdByUser"),
+            "modified_at": str(entry.get("modifiedAt")) if entry.get("modifiedAt") is not None else None,
+            "modified_by": self._user_name_from_entry(entry, "modifiedByUser"),
+        }
+
+    def _node_detail_entry(self, ticket: str, node_id: str) -> dict | None:
+        try:
+            detail = self.client.get_node(ticket, node_id, include=["aspectNames", "properties"])
+        except Exception:
+            return None
+        entry = detail.get("entry") if isinstance(detail, dict) else None
+        return entry if isinstance(entry, dict) else None
+
+    def _versioning_choice(self, versioning: dict | None) -> tuple[bool, str | None] | None:
+        if not isinstance(versioning, dict):
+            return None
+        mode = str(versioning.get("mode") or "").strip().lower()
+        if mode != "version":
+            return None
+
+        version_type = str(versioning.get("type") or versioning.get("version_type") or "").strip().lower()
+        major_value = versioning.get("major")
+        if isinstance(major_value, bool):
+            major_version = major_value
+        elif version_type in {"major", "major_version"}:
+            major_version = True
+        elif version_type in {"minor", "minor_version"}:
+            major_version = False
+        else:
+            major_version = bool(versioning.get("majorVersion", False))
+
+        comment = versioning.get("comment")
+        return major_version, str(comment) if isinstance(comment, str) and comment.strip() else None
+
+    def _existing_upload_metadata(self, target_destination: str, existing: dict) -> dict[str, object]:
+        audit = self._audit_from_entry(existing)
+        return {
+            "action": "version_required",
+            "provider": self.name,
+            "path": target_destination,
+            "name": str(existing.get("name") or target_destination.rstrip("/").split("/")[-1]),
+            "node_id": str(existing.get("id") or ""),
+            "current_version": self._version_label_from_entry(existing),
+            "current_version_type": self._version_type_from_entry(existing),
+            "current_created_at": audit["created_at"],
+            "current_created_by": audit["created_by"],
+            "current_modified_at": audit["modified_at"],
+            "current_modified_by": audit["modified_by"],
+            "versioning": {
+                "mode": "version",
+                "types": ["minor", "major"],
+                "default_major": False,
+                "comment_supported": True,
+            },
+        }
 
     def _resolve_path(self, path: str, ticket: str | None = None, strict: bool = False) -> dict[str, str]:
         normalized = self.client.normalize_path(path)
@@ -375,21 +479,58 @@ class AlfrescoProvider(Provider):
             "mime_type": detected_mime or "application/octet-stream",
         }
 
-    def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, source_path: str | None = None, overwrite: bool = False, auth: BridgeAuthContext | None = None) -> OperationResult:
-        suffix = "?overwrite=true" if overwrite else ""
+    def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, source_path: str | None = None, overwrite: bool = False, auth: BridgeAuthContext | None = None, versioning: dict | None = None) -> OperationResult:
+        _ = overwrite
         content_state = "source-path" if source_path else ("inline-base64" if content_base64 else "external-stream")
         try:
-            def _run(ticket: str) -> tuple[str, str]:
+            def _run(ticket: str) -> tuple[str, str, dict[str, object] | None]:
                 resolved = self._resolve_path(destination, ticket, strict=True)
                 target_parent_id = resolved["parent_id"] if resolved["path"] != "/" and "." in resolved["name"] else resolved["node_id"]
                 target_destination = (
                     f"{resolved['path'].rstrip('/')}/{file_name}" if resolved["path"] != "/" and "." not in resolved["name"] else resolved["path"]
                 )
-                self.client.create_child_node(ticket, target_parent_id, file_name, is_folder=False, content_base64=content_base64, source_path=source_path)
-                return self.client.node_create_child_url(target_parent_id), target_destination
+                existing = self.client.child_by_name(ticket, target_parent_id, file_name)
+                if existing is not None:
+                    existing_node_id = str(existing.get("id") or "")
+                    if not existing_node_id:
+                        raise ProviderOperationError(f"Alfresco version upload failed: existing node id is missing for {target_destination}")
+                    existing_detail = self._node_detail_entry(ticket, existing_node_id) or existing
+                    metadata = self._existing_upload_metadata(target_destination, existing_detail)
+                    choice = self._versioning_choice(versioning)
+                    if choice is None:
+                        raise VersionRequiredError(
+                            f"Alfresco document already exists and requires version choice: {target_destination}",
+                            metadata=metadata,
+                        )
 
-            endpoint, target_destination = self._run_with_ticket_retry(auth, f"upload {destination}", _run)
+                    major_version, comment = choice
+                    self.client.update_node_content(
+                        ticket,
+                        existing_node_id,
+                        file_name,
+                        content_base64=content_base64,
+                        source_path=source_path,
+                        major_version=major_version,
+                        comment=comment,
+                    )
+                    updated_entry = self._node_detail_entry(ticket, existing_node_id)
+                    metadata["action"] = "version"
+                    metadata["major_version"] = major_version
+                    metadata["comment"] = comment
+                    metadata["version"] = self._version_label_from_entry(updated_entry if isinstance(updated_entry, dict) else None)
+                    metadata["version_type"] = self._version_type_from_entry(updated_entry if isinstance(updated_entry, dict) else None)
+                    updated_audit = self._audit_from_entry(updated_entry if isinstance(updated_entry, dict) else None)
+                    metadata["changed_at"] = updated_audit["modified_at"]
+                    metadata["changed_by"] = updated_audit["modified_by"]
+                    return self.client.node_content_url(existing_node_id), target_destination, metadata
+
+                self.client.create_child_node(ticket, target_parent_id, file_name, is_folder=False, content_base64=content_base64, source_path=source_path)
+                return self.client.node_create_child_url(target_parent_id), target_destination, {"action": "create_document"}
+
+            endpoint, target_destination, metadata = self._run_with_ticket_retry(auth, f"upload {destination}", _run)
         except AuthenticationError:
+            raise
+        except VersionRequiredError:
             raise
         except Exception as exc:
             raise ProviderOperationError(f"Alfresco upload failed for {destination} -> {file_name}: {exc}") from exc
@@ -399,6 +540,7 @@ class AlfrescoProvider(Provider):
             provider=self.name,
             source=file_name,
             destination=target_destination,
-            message=f"endpoint={endpoint}{suffix};content={content_state};mode=live",
+            message=f"endpoint={endpoint};content={content_state};mode=live;action={metadata.get('action') if isinstance(metadata, dict) else 'upload'}",
+            metadata=metadata,
         )
 

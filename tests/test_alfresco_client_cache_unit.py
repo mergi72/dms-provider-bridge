@@ -194,6 +194,52 @@ def test_create_child_node_includes_content_payload(monkeypatch: pytest.MonkeyPa
     assert b"test" in body
 
 
+def test_update_node_content_uses_put_content_endpoint_with_versioning(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _client()
+
+    captured: dict[str, object] = {}
+
+    class _FakeResponse:
+        def __enter__(self) -> "_FakeResponse":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b'{"entry": {"id": "node-1", "properties": {"cm:versionLabel": "2.0"}}}'
+
+    def fake_urlopen(req, timeout: int = 30):
+        captured["method"] = req.get_method()
+        captured["url"] = req.full_url
+        captured["headers"] = {k.lower(): v for k, v in req.header_items()}
+        captured["body"] = req.data
+        captured["timeout"] = timeout
+        return _FakeResponse()
+
+    monkeypatch.setattr("dms_provider_bridge.clients.alfresco_client.request.urlopen", fake_urlopen)
+
+    client.update_node_content(
+        "ticket-a",
+        "node-1",
+        "existing.txt",
+        content_base64="dGVzdA==",
+        major_version=True,
+        comment="TC upload",
+    )
+
+    assert captured["method"] == "PUT"
+    assert str(captured["url"]).endswith("/repo/nodes/node-1/content?majorVersion=true&comment=TC+upload")
+    headers = captured["headers"]
+    assert isinstance(headers, dict)
+    assert headers["content-type"].startswith("multipart/form-data; boundary=")
+
+    body = captured["body"]
+    assert isinstance(body, bytes)
+    assert b'name="filedata"; filename="existing.txt"' in body
+    assert b"test" in body
+
+
 def test_alfresco_stat_missing_file_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
     provider = AlfrescoProvider()
 

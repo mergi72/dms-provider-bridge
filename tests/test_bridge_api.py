@@ -96,7 +96,31 @@ def test_bridge_provider_detail_returns_auth_and_capabilities() -> None:
         "rename": True,
         "copy": True,
     }
+    assert body["data"]["versioning"] == {
+        "supported": True,
+        "existing_upload": "version_required",
+        "modes": ["version"],
+        "version_types": ["minor", "major"],
+        "default_major": False,
+        "comment_supported": True,
+    }
     assert body["metadata"]["operation"] == "provider_detail"
+
+
+def test_openapi_upload_versioning_schema_is_typed() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    schemas = response.json()["components"]["schemas"]
+    upload_schema = schemas["WfxUploadRequest"]
+    versioning_ref = upload_schema["properties"]["versioning"]["anyOf"][0]["$ref"]
+    assert versioning_ref == "#/components/schemas/UploadVersioning"
+    versioning_schema = schemas["UploadVersioning"]
+    assert set(versioning_schema["properties"]) == {"mode", "type", "major", "comment"}
+    assert versioning_schema["properties"]["mode"]["const"] == "version"
+    assert versioning_schema["properties"]["mode"]["default"] == "version"
 
 
 def test_bridge_provider_detail_returns_none_auth_for_fso() -> None:

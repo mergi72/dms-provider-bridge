@@ -15,6 +15,25 @@ class BridgeAuthContext(BaseModel):
     win_user: str | None = None
 
 
+class UploadVersioning(BaseModel):
+    mode: Literal["version"] = Field(
+        default="version",
+        description="DMS versioning mode. For Alfresco existing documents this maps to PUT /nodes/{nodeId}/content.",
+    )
+    type: Literal["minor", "major"] | None = Field(
+        default=None,
+        description="Requested version type. minor maps to majorVersion=false, major maps to majorVersion=true.",
+    )
+    major: bool | None = Field(
+        default=None,
+        description="Explicit majorVersion flag. Overrides type when provided.",
+    )
+    comment: str | None = Field(
+        default=None,
+        description="Optional version comment sent to the DMS provider.",
+    )
+
+
 class WfxPathRequest(BaseModel):
     path: str = Field(
         min_length=0,
@@ -45,6 +64,7 @@ class WfxUploadRequest(BaseModel):
     content_base64: str | None = None
     source_path: str | None = None
     overwrite: bool = False
+    versioning: UploadVersioning | None = None
 
 
 class WfxShareUrlRequest(BaseModel):
@@ -70,6 +90,7 @@ class WfxShareUrlBrowseRequest(BaseModel):
     file_name: str | None = Field(default=None, description="File name for upload operation")
     content_base64: str | None = Field(default=None, description="Inline file content for upload operation")
     overwrite: bool = False
+    versioning: UploadVersioning | None = None
 
 
 class WfxShareUrlValidateRequest(BaseModel):

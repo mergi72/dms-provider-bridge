@@ -5,7 +5,7 @@ from urllib.parse import unquote, urlparse
 
 from dms_provider_bridge.adapters.commander_api import WfxErrorCode, build_wfx_path, parse_wfx_path
 from dms_provider_bridge.core.logging import get_logger
-from dms_provider_bridge.core.errors import AuthenticationError, ProviderNotFoundError
+from dms_provider_bridge.core.errors import AuthenticationError, ProviderNotFoundError, VersionRequiredError
 from dms_provider_bridge.models.bridge import BridgeAuthContext, WfxResponse
 from dms_provider_bridge.models.item import DmsItem
 from dms_provider_bridge.models.listing import ListingResult
@@ -21,8 +21,8 @@ def _success(data: object = None, message: str | None = None, metadata: dict | N
     return WfxResponse(ok=True, error_code=WfxErrorCode.OK, message=message, data=data, metadata=metadata)
 
 
-def _failure(code: int, message: str) -> WfxResponse:
-    return WfxResponse(ok=False, error_code=code, message=message, data=None)
+def _failure(code: int, message: str, metadata: dict | None = None) -> WfxResponse:
+    return WfxResponse(ok=False, error_code=code, message=message, data=None, metadata=metadata)
 
 
 def _resolve(path: str):
@@ -93,6 +93,28 @@ def _provider_capabilities(provider) -> dict[str, bool]:
     }
 
 
+def _versioning_payload(versioning: object) -> dict | None:
+    if versioning is None:
+        return None
+    if hasattr(versioning, "model_dump"):
+        dumped = versioning.model_dump(exclude_none=True)
+        return dumped if isinstance(dumped, dict) else None
+    return versioning if isinstance(versioning, dict) else None
+
+
+def _provider_versioning(provider) -> dict[str, object]:
+    if getattr(provider, "name", "") == "alfresco":
+        return {
+            "supported": True,
+            "existing_upload": "version_required",
+            "modes": ["version"],
+            "version_types": ["minor", "major"],
+            "default_major": False,
+            "comment_supported": True,
+        }
+    return {"supported": False}
+
+
 def _provider_auth_requirements(provider) -> dict[str, object]:
     config = getattr(provider, "config", {})
     credentials = config.get("credentials") if isinstance(config, dict) else None
@@ -160,6 +182,7 @@ def provider_detail_path(provider_name: str) -> WfxResponse:
                 "enabled": provider.name in list_registered_providers(),
                 "auth": _provider_auth_requirements(provider),
                 "capabilities": _provider_capabilities(provider),
+                "versioning": _provider_versioning(provider),
             },
             metadata={"operation": "provider_detail", "provider": provider.name},
         )
@@ -427,7 +450,7 @@ def open_download_stream(path: str, auth: BridgeAuthContext) -> WfxResponse | No
         return _log_and_return("download_raw_stream", provider_name, resolved_path, started_at, response, str(exc))
 
 
-def upload_path(destination: str, file_name: str, auth: BridgeAuthContext, content_base64: str | None = None, source_path: str | None = None, overwrite: bool = False) -> WfxResponse:
+def upload_path(destination: str, file_name: str, auth: BridgeAuthContext, content_base64: str | None = None, source_path: str | None = None, overwrite: bool = False, versioning: dict | None = None) -> WfxResponse:
     started_at = time.perf_counter()
     provider_name: str | None = None
     resolved_path = destination
@@ -437,9 +460,12 @@ def upload_path(destination: str, file_name: str, auth: BridgeAuthContext, conte
         resolved_path = parsed.path
         validate_bridge_auth(auth)
         try:
-            result = upload_with_preflight(provider, parsed.path, file_name, auth, content_base64=content_base64, source_path=source_path, overwrite=overwrite)
+            result = upload_with_preflight(provider, parsed.path, file_name, auth, content_base64=content_base64, source_path=source_path, overwrite=overwrite, versioning=_versioning_payload(versioning))
         except TransferPrecheckError as exc:
             response = _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
+            return _log_and_return("upload", provider_name, resolved_path, started_at, response, str(exc))
+        except VersionRequiredError as exc:
+            response = _failure(WfxErrorCode.ACCESS_DENIED, str(exc), metadata=exc.metadata)
             return _log_and_return("upload", provider_name, resolved_path, started_at, response, str(exc))
         response = _success(data=result.model_dump(), metadata=_metadata(provider, "upload"))
         return _log_and_return("upload", provider_name, resolved_path, started_at, response)
@@ -502,6 +528,7 @@ def browse_share_url(
     file_name: str | None = None,
     content_base64: str | None = None,
     overwrite: bool = False,
+    versioning: dict | None = None,
 ) -> WfxResponse:
     if not execute:
         validated = validate_browse_share_url(
@@ -621,6 +648,7 @@ def browse_share_url(
             auth,
             content_base64=content_base64,
             overwrite=overwrite,
+            versioning=_versioning_payload(versioning),
         )
         destination_path = upload_destination_path
         destination_source = upload_destination_source

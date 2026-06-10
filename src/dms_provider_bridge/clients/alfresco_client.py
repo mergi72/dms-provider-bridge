@@ -78,6 +78,7 @@ class AlfrescoClient:
         file_name: str,
         source_path: str,
         mime_type: str = "application/octet-stream",
+        method: str = "POST",
     ) -> dict:
         parsed = urlparse(url)
         if parsed.scheme == "https":
@@ -113,7 +114,7 @@ class AlfrescoClient:
             path_with_query = f"{path_with_query}?{parsed.query}"
 
         try:
-            connection.putrequest("POST", path_with_query)
+            connection.putrequest(method, path_with_query)
             for key, value in request_headers.items():
                 connection.putheader(key, value)
             connection.endheaders()
@@ -135,6 +136,47 @@ class AlfrescoClient:
             return json.loads(body) if body else {}
         finally:
             connection.close()
+
+    def _request_multipart_bytes(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str],
+        fields: list[tuple[str, str]],
+        file_field_name: str,
+        file_name: str,
+        content: bytes,
+        mime_type: str = "application/octet-stream",
+    ) -> dict:
+        boundary = f"----edocatbridge{hashlib.sha1(file_name.encode('utf-8')).hexdigest()[:16]}"
+        safe_name = file_name.replace('"', "_")
+        body = bytearray()
+
+        for field_name, field_value in fields:
+            body.extend(f"--{boundary}\r\n".encode("utf-8"))
+            body.extend(f"Content-Disposition: form-data; name=\"{field_name}\"\r\n\r\n".encode("utf-8"))
+            body.extend(field_value.encode("utf-8"))
+            body.extend(b"\r\n")
+
+        body.extend(f"--{boundary}\r\n".encode("utf-8"))
+        body.extend(f"Content-Disposition: form-data; name=\"{file_field_name}\"; filename=\"{safe_name}\"\r\n".encode("utf-8"))
+        body.extend(f"Content-Type: {mime_type}\r\n\r\n".encode("utf-8"))
+        body.extend(content)
+        body.extend(b"\r\n")
+        body.extend(f"--{boundary}--\r\n".encode("utf-8"))
+
+        request_headers = dict(headers)
+        request_headers["Accept"] = "application/json"
+        request_headers["Content-Type"] = f"multipart/form-data; boundary={boundary}"
+        req = request.Request(
+            url=url,
+            data=bytes(body),
+            headers=request_headers,
+            method=method,
+        )
+        with request.urlopen(req, timeout=self.upload_timeout) as response:
+            raw_response = response.read().decode("utf-8")
+            return json.loads(raw_response) if raw_response else {}
 
     def _configured_node_type(self, key: str, fallback: str) -> str:
         value = self.node_types.get(key)
@@ -229,6 +271,12 @@ class AlfrescoClient:
 
     def node_content_url(self, node_id: str) -> str:
         return self._repo_url(f"nodes/{node_id}/content")
+
+    def node_content_update_url(self, node_id: str, major_version: bool, comment: str | None = None) -> str:
+        params: dict[str, str] = {"majorVersion": "true" if major_version else "false"}
+        if comment:
+            params["comment"] = comment
+        return f"{self.node_content_url(node_id)}?{urlencode(params)}"
 
     def search_nodes_url(self) -> str:
         return self._search_url("search")
@@ -351,8 +399,11 @@ class AlfrescoClient:
             return first.get("entry") if isinstance(first.get("entry"), dict) else None
         return None
 
-    def get_node(self, ticket: str, node_id: str) -> dict:
-        return self._request_json("GET", self.node_by_id_url(node_id), headers=self.auth_headers(ticket))
+    def get_node(self, ticket: str, node_id: str, include: list[str] | None = None) -> dict:
+        url = self.node_by_id_url(node_id)
+        if include:
+            url = f"{url}?{urlencode({'include': ','.join(include)})}"
+        return self._request_json("GET", url, headers=self.auth_headers(ticket))
 
     def get_children(self, ticket: str, node_id: str, max_items: int = 200, skip_count: int = 0) -> dict:
         params = urlencode({"maxItems": max_items, "skipCount": skip_count})
@@ -596,6 +647,49 @@ class AlfrescoClient:
         )
         self._invalidate_structure_cache(ticket)
         return response
+
+    def update_node_content(
+        self,
+        ticket: str,
+        node_id: str,
+        file_name: str,
+        content_base64: str | None = None,
+        source_path: str | None = None,
+        major_version: bool = False,
+        comment: str | None = None,
+    ) -> dict:
+        url = self.node_content_update_url(node_id, major_version, comment)
+        request_headers = self.auth_headers(ticket)
+
+        if source_path is not None:
+            result = self._post_multipart_file(
+                url,
+                request_headers,
+                fields=[],
+                file_field_name="filedata",
+                file_name=file_name,
+                source_path=source_path,
+                method="PUT",
+            )
+            self._invalidate_structure_cache(ticket)
+            return result
+
+        try:
+            content_bytes = base64.b64decode(content_base64 or "", validate=True)
+        except Exception as exc:
+            raise ValueError("Invalid base64 payload for Alfresco version upload.") from exc
+
+        result = self._request_multipart_bytes(
+            "PUT",
+            url,
+            request_headers,
+            fields=[],
+            file_field_name="filedata",
+            file_name=file_name,
+            content=content_bytes,
+        )
+        self._invalidate_structure_cache(ticket)
+        return result
 
     def delete_node(self, ticket: str, node_id: str) -> dict:
         response = self._request_json("DELETE", self.node_delete_url(node_id), headers=self.auth_headers(ticket))
