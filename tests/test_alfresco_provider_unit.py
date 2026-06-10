@@ -283,7 +283,7 @@ def test_upload_item_existing_document_updates_content_as_new_minor_version(monk
         "sample.txt",
         content_base64="dGVzdA==",
         auth=BridgeAuthContext(mode="credentials", username="user", password="pass"),
-        versioning={"mode": "version", "type": "minor", "comment": "TC upload"},
+        versioning={"mode": "version", "majorVersion": False, "comment": "TC upload"},
     )
 
     assert result.success is True
