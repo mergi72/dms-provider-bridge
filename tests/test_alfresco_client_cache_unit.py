@@ -122,6 +122,23 @@ def test_resolve_node_by_relative_path_uses_cache(monkeypatch: pytest.MonkeyPatc
     assert child_calls["count"] == 2
 
 
+def test_get_children_can_request_version_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _client()
+    captured: dict[str, object] = {}
+
+    def fake_request_json(self: AlfrescoClient, method: str, url: str, headers: dict[str, str] | None = None, payload: dict | None = None, timeout: int = 30) -> dict:
+        captured["method"] = method
+        captured["url"] = url
+        return {"list": {"entries": []}}
+
+    monkeypatch.setattr(AlfrescoClient, "_request_json", fake_request_json)
+
+    client.get_children("ticket-a", "parent-1", include=["aspectNames", "properties"])
+
+    assert captured["method"] == "GET"
+    assert str(captured["url"]).endswith("/repo/nodes/parent-1/children?maxItems=200&skipCount=0&include=aspectNames%2Cproperties")
+
+
 def test_create_child_node_uses_configured_node_types(monkeypatch: pytest.MonkeyPatch) -> None:
     client = _client()
     client.node_types = {"folder": ["custom:folder"], "file": ["custom:file"]}

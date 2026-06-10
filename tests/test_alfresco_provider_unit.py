@@ -187,6 +187,8 @@ def test_upload_item_passes_content_base64_to_client(monkeypatch: pytest.MonkeyP
 
     assert result.success is True
     assert result.destination == "/deals/contracts/sample.txt"
+    assert result.metadata is not None
+    assert result.metadata["action"] == "create_document"
     assert client.create_child_node_calls == [
         {
             "ticket": "ticket-a",
@@ -197,6 +199,47 @@ def test_upload_item_passes_content_base64_to_client(monkeypatch: pytest.MonkeyP
             "source_path": None,
         }
     ]
+
+
+def test_upload_item_new_document_returns_created_version_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    client.node_details["created-1"] = {
+        "id": "created-1",
+        "name": "sample.txt",
+        "modifiedAt": "2026-06-10T13:00:00.000+0000",
+        "modifiedByUser": {"id": "merhautr"},
+        "aspectNames": ["cm:versionable"],
+        "properties": {"cm:versionLabel": "1.0", "cm:versionType": "MAJOR"},
+    }
+    provider = _provider(monkeypatch, client)
+
+    monkeypatch.setattr(provider, "_ticket", lambda auth: "ticket-a")
+    monkeypatch.setattr(
+        provider,
+        "_resolve_path",
+        lambda path, ticket=None, strict=False: {
+            "path": "/deals/contracts",
+            "node_id": "node-parent-1",
+            "parent_path": "/deals",
+            "parent_id": "node-root-1",
+            "name": "contracts",
+        },
+    )
+
+    result = provider.upload_item(
+        "/contracts",
+        "sample.txt",
+        content_base64="dGVzdA==",
+        auth=BridgeAuthContext(mode="credentials", username="user", password="pass"),
+    )
+
+    assert result.success is True
+    assert result.metadata is not None
+    assert result.metadata["action"] == "create_document"
+    assert result.metadata["version"] == "1.0"
+    assert result.metadata["version_type"] == "MAJOR"
+    assert result.metadata["changed_at"] == "2026-06-10T13:00:00.000+0000"
+    assert result.metadata["changed_by"] == "merhautr"
 
 
 def test_upload_item_existing_document_requires_versioning_choice(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -602,6 +645,116 @@ def test_item_from_entry_maps_modified_and_read_only_metadata(monkeypatch: pytes
     assert item.is_read_only is True
 
 
+def test_item_from_entry_maps_version_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _provider(monkeypatch, FakeClient())
+
+    item = provider._item_from_entry(
+        {
+            "id": "node-1",
+            "name": "report.docx",
+            "path": {"name": "/deals/reports/report.docx"},
+            "isFolder": False,
+            "aspectNames": ["cm:versionable"],
+            "properties": {"cm:versionLabel": "3.0", "cm:versionType": "MAJOR"},
+        }
+    )
+
+    assert item.version_label == "3.0"
+    assert item.version_type == "MAJOR"
+    assert item.is_versioned is True
+
+
+def test_stat_item_returns_alfresco_version_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    client.node_details["node-file-1"] = {
+        "id": "node-file-1",
+        "name": "report.docx",
+        "path": {"name": "/deals/reports/report.docx"},
+        "isFolder": False,
+        "aspectNames": ["cm:versionable"],
+        "properties": {"cm:versionLabel": "3.0", "cm:versionType": "MAJOR"},
+    }
+    provider = _provider_with_config(monkeypatch, {"doc_library": "/deals"}, client)
+
+    monkeypatch.setattr(provider, "_ticket", lambda auth: "ticket-a")
+    monkeypatch.setattr(
+        provider,
+        "_resolve_path",
+        lambda path, ticket=None, strict=False: {
+            "path": "/deals/reports/report.docx",
+            "node_id": "node-file-1",
+            "parent_path": "/deals/reports",
+            "parent_id": "node-parent-1",
+            "name": "report.docx",
+        },
+    )
+
+    item = provider.stat_item(
+        "/reports/report.docx",
+        auth=BridgeAuthContext(mode="credentials", username="user", password="pass"),
+    )
+
+    assert item is not None
+    assert item.id == "node-file-1"
+    assert item.version_label == "3.0"
+    assert item.version_type == "MAJOR"
+    assert item.is_versioned is True
+
+
+def test_list_items_returns_alfresco_version_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    provider = _provider_with_config(monkeypatch, {"doc_library": "/deals"}, client)
+
+    monkeypatch.setattr(provider, "_ticket", lambda auth: "ticket-a")
+    monkeypatch.setattr(
+        provider,
+        "_resolve_path",
+        lambda path, ticket=None, strict=False: {
+            "path": "/deals/reports",
+            "node_id": "node-parent-1",
+            "parent_path": "/deals",
+            "parent_id": "node-root-1",
+            "name": "reports",
+        },
+    )
+
+    captured: dict[str, object] = {}
+
+    def fake_get_children(ticket: str, node_id: str, max_items: int = 200, skip_count: int = 0, include: list[str] | None = None) -> dict:
+        captured["ticket"] = ticket
+        captured["node_id"] = node_id
+        captured["include"] = include
+        return {
+            "list": {
+                "entries": [
+                    {
+                        "entry": {
+                            "id": "node-file-1",
+                            "name": "report.docx",
+                            "path": {"name": "/deals/reports/report.docx"},
+                            "isFolder": False,
+                            "aspectNames": ["cm:versionable"],
+                            "properties": {"cm:versionLabel": "3.0", "cm:versionType": "MAJOR"},
+                        }
+                    }
+                ]
+            }
+        }
+
+    monkeypatch.setattr(client, "get_children", fake_get_children, raising=False)
+
+    listing = provider.list_items(
+        "/reports",
+        auth=BridgeAuthContext(mode="credentials", username="user", password="pass"),
+    )
+
+    assert captured["include"] == ["aspectNames", "properties"]
+    assert listing.total == 1
+    assert listing.items[0].version_label == "3.0"
+    assert listing.items[0].version_type == "MAJOR"
+    assert listing.items[0].is_versioned is True
+
+
 def test_list_items_retries_once_after_ticket_expiration(monkeypatch: pytest.MonkeyPatch) -> None:
     client = FakeClient()
     provider = _provider_with_config(monkeypatch, {"doc_library": "/deals"}, client)
@@ -622,7 +775,8 @@ def test_list_items_retries_once_after_ticket_expiration(monkeypatch: pytest.Mon
             "name": "contracts",
         }
 
-    def fake_get_children(ticket: str, node_id: str, max_items: int = 200, skip_count: int = 0) -> dict:
+    def fake_get_children(ticket: str, node_id: str, max_items: int = 200, skip_count: int = 0, include: list[str] | None = None) -> dict:
+        _ = include
         calls.append(f"children:{ticket}")
         if ticket == "expired-ticket":
             raise HTTPError(url="https://example.test", code=401, msg="Unauthorized", hdrs=None, fp=None)
@@ -658,7 +812,8 @@ def test_list_items_maps_expired_ticket_without_refresh_to_auth_error(monkeypatc
         },
     )
 
-    def always_unauthorized(ticket: str, node_id: str, max_items: int = 200, skip_count: int = 0) -> dict:
+    def always_unauthorized(ticket: str, node_id: str, max_items: int = 200, skip_count: int = 0, include: list[str] | None = None) -> dict:
+        _ = include
         raise HTTPError(url="https://example.test", code=401, msg="Unauthorized", hdrs=None, fp=None)
 
     monkeypatch.setattr(client, "get_children", always_unauthorized, raising=False)

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.8 - 2026-06-10
+
+### Changed
+- Release/version bump to `0.4.8`.
+- Alfresco `stat` and `list` now include version metadata (`version_label`, `version_type`, `is_versioned`) from `properties` and `aspectNames`.
+- Alfresco node reads request `properties` and `aspectNames` where version-aware responses are needed.
+- Alfresco create/update upload responses now include changed version/audit metadata when the created or updated node detail is available.
+- Added tests for Alfresco version metadata in `stat`, `list`, created upload metadata, and children include parameters.
+
+---
+
 ## 0.4.7 - 2026-06-10
 
 ### Changed
