@@ -66,7 +66,7 @@ def test_bridge_providers() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["ok"] is True
-    assert set(body["data"]["providers"]) >= {"edocat", "alfresco", "fso"}
+    assert set(body["data"]["providers"]) >= {"edocat", "alfresco"}
     assert body["data"]["default_provider"] in body["data"]["providers"]
     assert body["providers"] == body["data"]["providers"]
     assert body["default_provider"] == body["data"]["default_provider"]
@@ -123,17 +123,6 @@ def test_openapi_upload_versioning_schema_is_typed() -> None:
     assert versioning_schema["properties"]["majorVersion"]["default"] is False
 
 
-def test_bridge_provider_detail_returns_none_auth_for_fso() -> None:
-    client = TestClient(create_app())
-    response = client.get("/bridge/wfx/providers/fso")
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["ok"] is True
-    assert body["data"]["name"] == "fso"
-    assert body["data"]["auth"] == {"mode": "none", "required": False}
-
-
 def test_bridge_provider_detail_unknown_provider() -> None:
     client = TestClient(create_app())
     response = client.get("/bridge/wfx/providers/unknown")
@@ -155,7 +144,7 @@ def test_bridge_root_list_returns_provider_folders_without_auth() -> None:
     assert body["data"]["provider"] == "bridge"
     assert body["data"]["path"] == "/"
     provider_names = {item["name"] for item in body["data"]["items"]}
-    assert provider_names >= {"edocat", "alfresco", "fso"}
+    assert provider_names >= {"edocat", "alfresco"}
     assert all(item["is_folder"] is True for item in body["data"]["items"])
     assert body["metadata"]["provider_root"] is True
 

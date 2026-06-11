@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-import os
 import sys
 from pathlib import Path
 
@@ -18,70 +16,36 @@ def main() -> None:
     if str(src_root) not in sys.path:
         sys.path.insert(0, str(src_root))
 
-    fso_config_path = repo_root / "config" / "fso.json"
+    from dms_provider_bridge.app.server import create_app
 
-    if not fso_config_path.exists():
-        _fail(f"Missing config file: {fso_config_path}")
+    client = TestClient(create_app())
 
-    original_config = fso_config_path.read_bytes()
-    repo_root_posix = repo_root.as_posix()
-    test_path = f"fso:{repo_root_posix}"
-    user_name = os.getenv("USER") or os.getenv("USERNAME") or "ci-runner"
+    health = client.get("/health")
+    if health.status_code != 200:
+        _fail(f"/health returned HTTP {health.status_code}")
+    health_body = health.json()
+    if health_body.get("status") != "ok":
+        _fail("/health status is not ok")
 
-    try:
-        fso_config_path.write_text(
-            json.dumps(
-                {
-                    "key": "fso",
-                    "fso": {
-                        "allowedRoots": [repo_root_posix],
-                    },
-                }
-            ),
-            encoding="utf-8",
-        )
+    providers = client.get("/bridge/wfx/providers")
+    if providers.status_code != 200:
+        _fail(f"/bridge/wfx/providers returned HTTP {providers.status_code}")
+    providers_body = providers.json()
+    if not providers_body.get("ok"):
+        _fail("/bridge/wfx/providers returned ok=false")
+    providers_data = providers_body.get("data") or {}
+    provider_names = providers_data.get("providers") or []
+    if not provider_names:
+        _fail("provider discovery returned no providers")
 
-        # Import app only after temporary config is written; provider registry is built at import time.
-        from dms_provider_bridge.app.server import create_app
+    root_listing = client.post("/bridge/wfx/list", json={"path": "/"})
+    if root_listing.status_code != 200:
+        _fail(f"/bridge/wfx/list provider root returned HTTP {root_listing.status_code}")
+    root_listing_body = root_listing.json()
+    if not root_listing_body.get("ok"):
+        _fail(f"/bridge/wfx/list provider root returned ok=false: {root_listing_body.get('message')}")
 
-        client = TestClient(create_app())
-
-        health = client.get("/health")
-        if health.status_code != 200:
-            _fail(f"/health returned HTTP {health.status_code}")
-        health_body = health.json()
-        if health_body.get("status") != "ok":
-            _fail("/health status is not ok")
-
-        providers = client.get("/bridge/wfx/providers")
-        if providers.status_code != 200:
-            _fail(f"/bridge/wfx/providers returned HTTP {providers.status_code}")
-        providers_body = providers.json()
-        if not providers_body.get("ok"):
-            _fail("/bridge/wfx/providers returned ok=false")
-        providers_data = providers_body.get("data") or {}
-        provider_names = providers_data.get("providers") or []
-        if "fso" not in provider_names:
-            _fail("fso provider not present in provider discovery")
-
-        listing = client.post(
-            "/bridge/wfx/list",
-            json={
-                "path": test_path,
-                "auth": {"mode": "winuser", "win_user": user_name},
-            },
-        )
-        if listing.status_code != 200:
-            _fail(f"/bridge/wfx/list returned HTTP {listing.status_code}")
-        listing_body = listing.json()
-        if not isinstance(listing_body.get("ok"), bool):
-            _fail("/bridge/wfx/list response is missing boolean ok")
-        if not listing_body.get("ok"):
-            _fail(f"/bridge/wfx/list returned ok=false: {listing_body.get('message')}")
-
-        print("Bridge smoke passed: health/providers/list contract is operational.")
-    finally:
-        fso_config_path.write_bytes(original_config)
+    print("Bridge smoke passed: health/provider discovery contract is operational.")
 
 
 if __name__ == "__main__":

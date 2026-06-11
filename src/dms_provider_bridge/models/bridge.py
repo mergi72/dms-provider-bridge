@@ -18,11 +18,11 @@ class BridgeAuthContext(BaseModel):
 class UploadVersioning(BaseModel):
     mode: Literal["version"] = Field(
         default="version",
-        description="DMS versioning mode. For Alfresco existing documents this maps to PUT /nodes/{nodeId}/content.",
+        description="DMS versioning mode for providers that require explicit version choice.",
     )
     majorVersion: bool = Field(
         default=False,
-        description="Alfresco-compatible majorVersion flag. false creates a minor version, true creates a major version.",
+        description="Provider-compatible major version flag. false creates a minor version, true creates a major version.",
     )
     comment: str | None = Field(
         default=None,
@@ -41,11 +41,11 @@ class WfxPathRequest(BaseModel):
 class WfxMoveRequest(BaseModel):
     source: str = Field(
         min_length=3,
-        description="Source path in format provider:/path. Use edocat:/..., alfresco:/..., or fso:/... to select the provider.",
+        description="Source path in format provider:/path.",
     )
     destination: str = Field(
         min_length=3,
-        description="Destination path in format provider:/path. Use the same provider prefix as source: edocat:/..., alfresco:/..., or fso:/...",
+        description="Destination path in format provider:/path. Use the same provider prefix for same-provider operations.",
     )
     auth: BridgeAuthContext
 
@@ -53,7 +53,7 @@ class WfxMoveRequest(BaseModel):
 class WfxUploadRequest(BaseModel):
     destination: str = Field(
         min_length=3,
-        description="Destination folder or file path in format provider:/path. Use edocat:/..., alfresco:/..., or fso:/... to select the provider.",
+        description="Destination folder or file path in format provider:/path.",
     )
     auth: BridgeAuthContext
     file_name: str = Field(min_length=1)
@@ -64,24 +64,24 @@ class WfxUploadRequest(BaseModel):
 
 
 class WfxShareUrlRequest(BaseModel):
-    share_url: str = Field(min_length=10, description="Full eDoCat/Alfresco Share URL.")
-    provider: Literal["alfresco"] = "alfresco"
+    share_url: str = Field(min_length=10, description="Full provider share URL.")
+    provider: str = Field(min_length=1, description="Provider key that supports this Share URL format.")
 
 
 class WfxShareUrlBrowseRequest(BaseModel):
-    share_url: str = Field(min_length=10, description="Full eDoCat/Alfresco Share URL.")
+    share_url: str = Field(min_length=10, description="Full provider share URL.")
     auth: BridgeAuthContext
-    provider: Literal["alfresco"] = "alfresco"
+    provider: str = Field(min_length=1, description="Provider key that supports this Share URL format.")
     operation: Literal["list", "stat", "download", "copy", "move", "mkdir", "delete", "upload"] = "list"
     execute: bool = True
     provider_path_override: str | None = Field(
         default=None,
-        description="Optional provider path override in /path format. Use edocat:/..., alfresco:/..., or fso:/... to select the provider.",
+        description="Optional provider path override in /path format.",
     )
     destination_share_url: str | None = Field(default=None, description="Optional destination Share URL for copy/move.")
     destination_path_override: str | None = Field(
         default=None,
-        description="Optional destination path override in /path format. Use edocat:/..., alfresco:/..., or fso:/... to select the provider.",
+        description="Optional destination path override in /path format.",
     )
     file_name: str | None = Field(default=None, description="File name for upload operation")
     content_base64: str | None = Field(default=None, description="Inline file content for upload operation")
@@ -90,17 +90,17 @@ class WfxShareUrlBrowseRequest(BaseModel):
 
 
 class WfxShareUrlValidateRequest(BaseModel):
-    share_url: str = Field(min_length=10, description="Full eDoCat/Alfresco Share URL.")
-    provider: Literal["alfresco"] = "alfresco"
+    share_url: str = Field(min_length=10, description="Full provider share URL.")
+    provider: str = Field(min_length=1, description="Provider key that supports this Share URL format.")
     operation: Literal["list", "stat", "download", "copy", "move", "mkdir", "delete", "upload"] = "list"
     provider_path_override: str | None = Field(
         default=None,
-        description="Optional provider path override in /path format. Use edocat:/..., alfresco:/..., or fso:/... to select the provider.",
+        description="Optional provider path override in /path format.",
     )
     destination_share_url: str | None = Field(default=None, description="Optional destination Share URL for copy/move/upload.")
     destination_path_override: str | None = Field(
         default=None,
-        description="Optional destination path override in /path format. Use edocat:/..., alfresco:/..., or fso:/... to select the provider.",
+        description="Optional destination path override in /path format.",
     )
     file_name: str | None = Field(default=None, description="File name for upload operation")
 

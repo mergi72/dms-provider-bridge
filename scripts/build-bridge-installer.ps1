@@ -74,13 +74,11 @@ $userConfigPayloadDir = Join-Path $payloadDir "user-config"
 $machineConfigWhitelist = @(
     "bridge.json",
     "alfresco.json",
-    "edocat.json",
-    "fso.json"
+    "edocat.json"
 )
 $userProviderLocalConfigNames = @(
     "alfresco.local.json",
-    "edocat.local.json",
-    "fso.local.json"
+    "edocat.local.json"
 )
 
 if (Test-Path $payloadDir) {

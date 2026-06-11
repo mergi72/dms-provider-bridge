@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote
 
 from dms_provider_bridge.adapters.commander_api import WfxErrorCode, build_wfx_path, parse_wfx_path
 from dms_provider_bridge.core.logging import get_logger
@@ -11,7 +11,7 @@ from dms_provider_bridge.models.item import DmsItem
 from dms_provider_bridge.models.listing import ListingResult
 from dms_provider_bridge.services.auth_service import validate_bridge_auth
 from dms_provider_bridge.services.provider_service import get_default_provider_name, get_provider, list_registered_providers
-from dms_provider_bridge.services.bridge_transfer_ops import TransferNotFoundError, TransferPrecheckError, copy_fso_to_edocat, upload_with_preflight
+from dms_provider_bridge.services.bridge_transfer_ops import TransferPrecheckError, upload_with_preflight
 
 
 _LOGGER = get_logger(__name__)
@@ -103,15 +103,7 @@ def _versioning_payload(versioning: object) -> dict | None:
 
 
 def _provider_versioning(provider) -> dict[str, object]:
-    if getattr(provider, "name", "") == "alfresco":
-        return {
-            "supported": True,
-            "existing_upload": "version_required",
-            "modes": ["version"],
-            "majorVersion": False,
-            "comment_supported": True,
-        }
-    return {"supported": False}
+    return provider.versioning_capabilities()
 
 
 def _provider_auth_requirements(provider) -> dict[str, object]:
@@ -365,21 +357,8 @@ def copy_path(source: str, destination: str, auth: BridgeAuthContext) -> WfxResp
             response = _success(data=result.model_dump(), metadata=_metadata(src_provider, "copy"))
             return _log_and_return("copy", provider_name, operation_path, started_at, response)
 
-        # Cross-provider upload flow: local file system provider -> any DMS provider.
-        if src_provider.name != "fso" or dst_provider.name == "fso":
-            response = _failure(WfxErrorCode.NOT_SUPPORTED, "Cross-provider copy is supported only for fso -> dms providers.")
-            return _log_and_return("copy", provider_name, operation_path, started_at, response, response.message)
-
-        try:
-            result = copy_fso_to_edocat(src_provider, dst_provider, src.path, dst.path, auth)
-        except TransferNotFoundError:
-            response = _failure(WfxErrorCode.NOT_FOUND, f"Path not found: {source}")
-            return _log_and_return("copy", provider_name, operation_path, started_at, response, response.message)
-        except TransferPrecheckError as exc:
-            response = _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
-            return _log_and_return("copy", provider_name, operation_path, started_at, response, str(exc))
-        response = _success(data=result.model_dump(), metadata=_metadata(dst_provider, "upload"))
-        return _log_and_return("copy", provider_name, operation_path, started_at, response)
+        response = _failure(WfxErrorCode.NOT_SUPPORTED, "Cross-provider copy is not supported by bridge.")
+        return _log_and_return("copy", provider_name, operation_path, started_at, response, response.message)
     except AuthenticationError as exc:
         response = _failure(WfxErrorCode.ACCESS_DENIED, str(exc))
         return _log_and_return("copy", provider_name, operation_path, started_at, response, str(exc))
@@ -482,35 +461,27 @@ def upload_path(destination: str, file_name: str, auth: BridgeAuthContext, conte
         return _log_and_return("upload", provider_name, resolved_path, started_at, response, str(exc))
 
 
-def resolve_share_url(share_url: str, provider: str = "alfresco") -> WfxResponse:
+def resolve_share_url(share_url: str, provider: str) -> WfxResponse:
     try:
-        if provider != "alfresco":
-            return _failure(WfxErrorCode.NOT_SUPPORTED, f"Unsupported provider for share URL: {provider}")
+        provider_instance = get_provider(provider)
+        if not provider_instance.supports_share_url():
+            return _failure(WfxErrorCode.NOT_SUPPORTED, f"Provider does not support share URL resolution: {provider}")
 
-        parsed = urlparse(share_url)
-        fragment = parsed.fragment or ""
-        if not fragment:
-            return _failure(WfxErrorCode.BAD_PATH, "Share URL must contain a hash path (fragment).")
-
-        fragment_path = fragment.split("?", 1)[0].strip()
-        if not fragment_path:
-            return _failure(WfxErrorCode.BAD_PATH, "Share URL fragment path is empty.")
-
-        normalized = unquote(fragment_path)
-        normalized = normalized.replace("\\", "/")
-        if not normalized.startswith("/"):
-            normalized = f"/{normalized}"
-
-        wfx_path = build_wfx_path(provider, normalized)
+        normalized = provider_instance.share_url_to_path(share_url)
+        wfx_path = build_wfx_path(provider_instance.name, normalized)
         return _success(
             data={
-                "provider": provider,
+                "provider": provider_instance.name,
                 "path": wfx_path,
                 "share_path": normalized,
                 "source_url": share_url,
             },
-            metadata={"provider": provider, "operation": "resolve-share-url"},
+            metadata={"provider": provider_instance.name, "operation": "resolve-share-url"},
         )
+    except ProviderNotFoundError as exc:
+        return _failure(WfxErrorCode.NOT_SUPPORTED, str(exc))
+    except ValueError as exc:
+        return _failure(WfxErrorCode.BAD_PATH, str(exc))
     except Exception as exc:
         return _failure(WfxErrorCode.INTERNAL_ERROR, str(exc))
 
@@ -518,7 +489,7 @@ def resolve_share_url(share_url: str, provider: str = "alfresco") -> WfxResponse
 def browse_share_url(
     share_url: str,
     auth: BridgeAuthContext | None,
-    provider: str = "alfresco",
+    provider: str,
     operation: str = "list",
     execute: bool = True,
     provider_path_override: str | None = None,
@@ -674,7 +645,7 @@ def browse_share_url(
 
 def validate_browse_share_url(
     share_url: str,
-    provider: str = "alfresco",
+    provider: str,
     operation: str = "list",
     provider_path_override: str | None = None,
     destination_share_url: str | None = None,

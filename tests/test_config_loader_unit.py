@@ -15,18 +15,18 @@ pytestmark = pytest.mark.unit
 def test_load_provider_config_accepts_utf8_bom(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     machine_dir = tmp_path / "machine"
     machine_dir.mkdir()
-    provider_file = machine_dir / "fso.json"
+    provider_file = machine_dir / "sample.json"
     provider_file.write_text(
-        '{"key":"fso","fso":{"allowedRoots":["C:/MyDocuments"]}}',
+        '{"key":"sample","sample":{"base_url":"https://example.test"}}',
         encoding="utf-8-sig",
     )
 
     monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
     monkeypatch.delenv("DMS_PROVIDER_USER_CONFIG_DIR", raising=False)
 
-    config = config_loader.load_provider_config("fso")
+    config = config_loader.load_provider_config("sample")
 
-    assert config["allowedRoots"] == ["C:/MyDocuments"]
+    assert config["base_url"] == "https://example.test"
 
 
 def test_load_config_merges_user_bridge_local_json_over_machine_bridge_json(

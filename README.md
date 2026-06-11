@@ -8,7 +8,7 @@
 Current development branch: `develop`  
 Stable release branch: `main`
 
-`dms-provider-bridge` is a base bridge service skeleton for integrating multiple DMS providers (eDoCat, Alfresco, FSO, ...).
+`dms-provider-bridge` is a base bridge service skeleton for integrating multiple DMS providers (eDoCat, Alfresco, ...).
 
 Current release mapping:
 
@@ -190,7 +190,7 @@ Configuration is loaded from two fixed Windows scopes:
 The machine config is authoritative. For each config file, the bridge loads the machine JSON first, then merges the matching user `*.local.json` only if the machine JSON exists.
 
 - Bridge/system config: `bridge.json`
-- Provider config (`edocat`, `alfresco`, `fso`, ...): `<provider>.json`
+- Provider config (`edocat`, `alfresco`, ...): `<provider>.json`
 - User overrides: `bridge.local.json`, `<provider>.local.json`
 
 User `*.local.json` values override existing machine keys and may add missing keys. If the machine JSON file is missing, the matching user `*.local.json` is ignored.
@@ -304,24 +304,6 @@ Lightweight validation without operation execution:
 - `/bridge/wfx/download-raw` returns raw file bytes (`Content-Disposition` + `Content-Type`).
 - In `live` mode, JSON `download` includes `data.content_base64`, `data.mime_type`, and `data.size`.
 - In `preview` mode, those fields are `null` and target endpoint is provided in `data.message`.
-
-FSO security notes:
-
-- FSO provider supports local path restrictions via `allowedRoots` in `config/fso.json`.
-- Operations outside these roots are blocked (`ProviderOperationError`).
-- The packaged default is an empty list because FSO is disabled until you choose explicit local roots.
-- For local environments, set your own absolute paths in `fso.local.json` (Windows example):
-
-```json
-{
-  "key": "fso",
-  "fso": {
-    "allowedRoots": [
-      "C:/Users/<user>/Documents"
-    ]
-  }
-}
-```
 
 Alfresco performance notes:
 

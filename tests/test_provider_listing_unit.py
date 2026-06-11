@@ -27,7 +27,7 @@ def test_get_provider_accepts_trailing_colon() -> None:
 def test_list_registered_providers_contains_known() -> None:
     providers = provider_service_module.list_registered_providers()
 
-    assert set(providers) >= {"edocat", "alfresco", "fso"}
+    assert set(providers) >= {"edocat", "alfresco"}
 
 
 def test_list_registered_providers_uses_configured_machine_providers(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -39,8 +39,7 @@ $configStageDir = Join-Path $targetRoot "config"
 $configWhitelist = @(
     "bridge.json",
     "alfresco.json",
-    "edocat.json",
-    "fso.json"
+    "edocat.json"
 )
 
 if (-not (Test-Path $entryScript)) {
@@ -89,7 +88,6 @@ Write-Host "Building bridge executable (onedir)..."
     --hidden-import dms_provider_bridge.app.server `
     --hidden-import dms_provider_bridge.providers.alfresco `
     --hidden-import dms_provider_bridge.providers.edocat `
-    --hidden-import dms_provider_bridge.providers.fso `
     --add-data $addData `
     --distpath $distPath `
     --workpath $buildPath `

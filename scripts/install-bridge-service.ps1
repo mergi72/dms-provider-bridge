@@ -483,14 +483,12 @@ Write-Ok $bridgeExeTargetPath
 $machineConfigNames = @(
     "bridge.json",
     "alfresco.json",
-    "edocat.json",
-    "fso.json"
+    "edocat.json"
 )
 
 $userConfigNames = @(
     "alfresco.local.json",
-    "edocat.local.json",
-    "fso.local.json"
+    "edocat.local.json"
 )
 
 Write-Step "Copying default configuration..."

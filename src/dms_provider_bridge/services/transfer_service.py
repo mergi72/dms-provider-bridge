@@ -9,8 +9,8 @@ def _split_wfx_path(path: str) -> tuple[str | None, str]:
     raw = path.strip()
     if not raw:
         return None, raw
-    prefix = raw.split(":", 1)[0].strip().lower()
-    if prefix in {"edocat", "alfresco", "fso"}:
+    prefix, sep, suffix = raw.partition(":")
+    if sep and len(prefix.strip()) > 1 and suffix.strip().replace("\\", "/").startswith("/"):
         parsed = parse_wfx_path(raw)
         return parsed.provider, parsed.path
     return None, raw

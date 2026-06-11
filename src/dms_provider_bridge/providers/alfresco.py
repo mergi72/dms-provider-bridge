@@ -4,6 +4,7 @@ import base64
 from collections.abc import Callable
 from typing import IO
 from urllib.error import HTTPError
+from urllib.parse import unquote, urlparse
 
 from dms_provider_bridge.clients.alfresco_client import AlfrescoClient
 from dms_provider_bridge.core.config_loader import load_provider_config
@@ -27,6 +28,33 @@ class AlfrescoProvider(Provider):
     def _runtime_credentials(self, auth: BridgeAuthContext | None) -> tuple[str | None, str | None, str | None]:
         credentials = resolve_alfresco_credentials(auth, self.client.base_url, self.config)
         return credentials.username, credentials.password, credentials.token
+
+    def versioning_capabilities(self) -> dict[str, object]:
+        return {
+            "supported": True,
+            "existing_upload": "version_required",
+            "modes": ["version"],
+            "majorVersion": False,
+            "comment_supported": True,
+        }
+
+    def supports_share_url(self) -> bool:
+        return True
+
+    def share_url_to_path(self, share_url: str) -> str:
+        parsed = urlparse(share_url)
+        fragment = parsed.fragment or ""
+        if not fragment:
+            raise ValueError("Share URL must contain a hash path (fragment).")
+
+        fragment_path = fragment.split("?", 1)[0].strip()
+        if not fragment_path:
+            raise ValueError("Share URL fragment path is empty.")
+
+        normalized = unquote(fragment_path).replace("\\", "/")
+        if not normalized.startswith("/"):
+            normalized = f"/{normalized}"
+        return normalized
 
     def _download_max_bytes(self) -> int:
         download_cfg = self.config.get("download", {})

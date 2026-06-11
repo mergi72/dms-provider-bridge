@@ -86,13 +86,11 @@ $zipPath = Join-Path $OutputDir "DmsProviderBridgeService-$Version.zip"
 $configWhitelist = @(
     "bridge.json",
     "alfresco.json",
-    "edocat.json",
-    "fso.json"
+    "edocat.json"
 )
 $userProviderLocalConfigNames = @(
     "alfresco.local.json",
-    "edocat.local.json",
-    "fso.local.json"
+    "edocat.local.json"
 )
 
 if (Test-Path $staging) {

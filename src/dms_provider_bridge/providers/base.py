@@ -12,6 +12,15 @@ class Provider(ABC):
     name: str
     upstream_auth_scheme: str = "unknown"
 
+    def versioning_capabilities(self) -> dict[str, object]:
+        return {"supported": False}
+
+    def supports_share_url(self) -> bool:
+        return False
+
+    def share_url_to_path(self, share_url: str) -> str:
+        raise NotImplementedError(f"Provider '{self.name}' does not support Share URL resolution.")
+
     @abstractmethod
     def list_items(self, path: str, auth: BridgeAuthContext | None = None) -> ListingResult:
         raise NotImplementedError

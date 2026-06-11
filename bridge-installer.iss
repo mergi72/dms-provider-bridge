@@ -23,10 +23,8 @@ Source: "artifacts\bridge-installer-payload\uninstall-bridge-service.ps1"; DestD
 Source: "artifacts\bridge-installer-payload\config\bridge.json"; DestDir: "{tmp}\dms-provider-payload\config"; Flags: ignoreversion deleteafterinstall
 Source: "artifacts\bridge-installer-payload\config\alfresco.json"; DestDir: "{tmp}\dms-provider-payload\config"; Flags: ignoreversion deleteafterinstall
 Source: "artifacts\bridge-installer-payload\config\edocat.json"; DestDir: "{tmp}\dms-provider-payload\config"; Flags: ignoreversion deleteafterinstall
-Source: "artifacts\bridge-installer-payload\config\fso.json"; DestDir: "{tmp}\dms-provider-payload\config"; Flags: ignoreversion deleteafterinstall
 Source: "artifacts\bridge-installer-payload\user-config\alfresco.local.json"; DestDir: "{tmp}\dms-provider-payload\user-config"; Flags: ignoreversion deleteafterinstall
 Source: "artifacts\bridge-installer-payload\user-config\edocat.local.json"; DestDir: "{tmp}\dms-provider-payload\user-config"; Flags: ignoreversion deleteafterinstall
-Source: "artifacts\bridge-installer-payload\user-config\fso.local.json"; DestDir: "{tmp}\dms-provider-payload\user-config"; Flags: ignoreversion deleteafterinstall
 
 [Code]
 procedure WriteLog(LogPath: String; Message: String);
@@ -84,7 +82,6 @@ begin
 
   CopyFileChecked(PayloadUserConfig + '\alfresco.local.json', UserConfigRoot + '\alfresco.local.json', LogPath, True);
   CopyFileChecked(PayloadUserConfig + '\edocat.local.json', UserConfigRoot + '\edocat.local.json', LogPath, True);
-  CopyFileChecked(PayloadUserConfig + '\fso.local.json', UserConfigRoot + '\fso.local.json', LogPath, True);
 
   WriteLog(LogPath, '[STEP] Setting user environment: DMS_PROVIDER_USER_CONFIG_DIR=' + UserConfigRoot);
   if not RegWriteStringValue(HKEY_CURRENT_USER, 'Environment', 'DMS_PROVIDER_USER_CONFIG_DIR', UserConfigRoot) then begin
@@ -252,7 +249,6 @@ begin
     'Copy-Checked (Join-Path $payloadRoot "config\bridge.json") (Join-Path $appRoot "config\bridge.json")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "config\alfresco.json") (Join-Path $appRoot "config\alfresco.json")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "config\edocat.json") (Join-Path $appRoot "config\edocat.json")' + #13#10 +
-    'Copy-Checked (Join-Path $payloadRoot "config\fso.json") (Join-Path $appRoot "config\fso.json")' + #13#10 +
     'Write-InstallLog "[STEP] Setting machine environment: DMS_PROVIDER_MACHINE_CONFIG_DIR=$appRoot\config"' + #13#10 +
     '[Environment]::SetEnvironmentVariable("DMS_PROVIDER_MACHINE_CONFIG_DIR", (Join-Path $appRoot "config"), "Machine")' + #13#10 +
     'Write-InstallLog "[ OK ] DMS_PROVIDER_MACHINE_CONFIG_DIR"' + #13#10 +
