@@ -44,9 +44,16 @@
             "maxBase64Bytes": 20971520,
             "maxNodes": 500
         },
+        "upload": {
+            "maxBase64Bytes": 314572800
+        },
         "download": {
-            "maxBase64Bytes": 20971520,
+            "maxBase64Bytes": 314572800,
             "maxNodes": 500
+        },
+        "timeouts": {
+            "requestSeconds": 60,
+            "uploadSeconds": 300
         },
         "credentials": {
             "mode": "windows",

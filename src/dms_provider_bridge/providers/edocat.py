@@ -1,9 +1,16 @@
 from __future__ import annotations
 
 import base64
+import os
 from urllib.error import HTTPError
 from urllib.parse import quote
 
+from dms_provider_bridge.core.debug import (
+    log_provider_operation_done,
+    log_provider_operation_failed,
+    log_provider_operation_start,
+    provider_debug_logger,
+)
 from dms_provider_bridge.core.errors import AuthenticationError, ProviderOperationError
 from dms_provider_bridge.clients.edocat_client import EdocatClient
 from dms_provider_bridge.core.config_loader import load_provider_config
@@ -22,6 +29,7 @@ class EdocatProvider(Provider):
     def __init__(self) -> None:
         self.config = load_provider_config(self.name)
         self.client = EdocatClient.from_config(self.config)
+        self.debug_logger = provider_debug_logger(self.name, self.config)
 
     def _browse_root(self) -> str:
         return edocat_paths.browse_root(self.config)
@@ -63,6 +71,9 @@ class EdocatProvider(Provider):
 
     def _download_max_bytes(self) -> int:
         return edocat_config.download_max_bytes(self.config)
+
+    def _upload_max_bytes(self) -> int:
+        return edocat_config.upload_max_bytes(self.config)
 
     def _download_max_nodes(self) -> int:
         return edocat_config.download_max_nodes(self.config)
@@ -136,26 +147,157 @@ class EdocatProvider(Provider):
     def _query_nodes(self, path: str, auth: BridgeAuthContext | None, include_content: bool = False) -> list[dict]:
         query_path = self._resolve_path(path).lstrip("/")
         username, password = self._runtime_credentials(auth)
+        started = log_provider_operation_start(
+            self.debug_logger,
+            self.name,
+            "query_nodes",
+            query_path,
+            include_content=include_content,
+        )
         try:
             response = self.client.query_nodes(query_path, username=username, password=password, include_content=include_content)
         except HTTPError as exc:
+            log_provider_operation_failed(
+                self.debug_logger,
+                self.name,
+                "query_nodes",
+                started,
+                query_path,
+                error=f"HTTP {exc.code}",
+                include_content=include_content,
+            )
             if exc.code in {401, 403}:
                 raise AuthenticationError(f"eDoCat access denied for {path}: HTTP {exc.code}.", status_code=exc.code) from exc
             raise ProviderOperationError(f"eDoCat query failed for {path}: HTTP {exc.code}.", status_code=exc.code) from exc
+        except ProviderOperationError as exc:
+            log_provider_operation_failed(
+                self.debug_logger,
+                self.name,
+                "query_nodes",
+                started,
+                query_path,
+                error=exc,
+                include_content=include_content,
+            )
+            raise
         except Exception as exc:
+            log_provider_operation_failed(
+                self.debug_logger,
+                self.name,
+                "query_nodes",
+                started,
+                query_path,
+                error=exc,
+                include_content=include_content,
+            )
             raise ProviderOperationError(f"eDoCat query failed for {path}: {exc}") from exc
 
         nodes = response.get("nodes", [])
         if not isinstance(nodes, list):
+            log_provider_operation_failed(
+                self.debug_logger,
+                self.name,
+                "query_nodes",
+                started,
+                query_path,
+                error="invalid nodes payload",
+                include_content=include_content,
+            )
             raise ProviderOperationError("eDoCat query response has invalid 'nodes' payload.")
-        return [node for node in nodes if isinstance(node, dict)]
+        result_nodes = [node for node in nodes if isinstance(node, dict)]
+        log_provider_operation_done(
+            self.debug_logger,
+            self.name,
+            "query_nodes",
+            started,
+            query_path,
+            include_content=include_content,
+            nodes=len(result_nodes),
+            raw_nodes=len(nodes),
+        )
+        return result_nodes
+
+    def _query_node_by_uuid(self, uuid: str, auth: BridgeAuthContext | None, include_content: bool = False) -> dict | None:
+        username, password = self._runtime_credentials(auth)
+        started = log_provider_operation_start(
+            self.debug_logger,
+            self.name,
+            "query_node_by_uuid",
+            uuid,
+            include_content=include_content,
+        )
+        try:
+            response = self.client.query_nodes_by_uuids([uuid], username=username, password=password, include_content=include_content)
+        except HTTPError as exc:
+            log_provider_operation_failed(
+                self.debug_logger,
+                self.name,
+                "query_node_by_uuid",
+                started,
+                uuid,
+                error=f"HTTP {exc.code}",
+                include_content=include_content,
+            )
+            if exc.code in {401, 403}:
+                raise AuthenticationError(f"eDoCat access denied for uuid {uuid}: HTTP {exc.code}.", status_code=exc.code) from exc
+            raise ProviderOperationError(f"eDoCat query failed for uuid {uuid}: HTTP {exc.code}.", status_code=exc.code) from exc
+        except Exception as exc:
+            log_provider_operation_failed(
+                self.debug_logger,
+                self.name,
+                "query_node_by_uuid",
+                started,
+                uuid,
+                error=str(exc),
+                include_content=include_content,
+            )
+            raise ProviderOperationError(f"eDoCat query failed for uuid {uuid}: {exc}") from exc
+
+        nodes = response.get("nodes", [])
+        if not isinstance(nodes, list):
+            log_provider_operation_failed(
+                self.debug_logger,
+                self.name,
+                "query_node_by_uuid",
+                started,
+                uuid,
+                error="invalid nodes payload",
+                include_content=include_content,
+            )
+            raise ProviderOperationError("eDoCat query-by-uuid response has invalid 'nodes' payload.")
+        result_nodes = [node for node in nodes if isinstance(node, dict)]
+        log_provider_operation_done(
+            self.debug_logger,
+            self.name,
+            "query_node_by_uuid",
+            started,
+            uuid,
+            include_content=include_content,
+            nodes=len(result_nodes),
+            raw_nodes=len(nodes),
+        )
+        return result_nodes[0] if result_nodes else None
 
     def _query_single_node(self, path: str, auth: BridgeAuthContext | None, include_content: bool = False) -> dict | None:
         resolved_path = self._resolve_path(path)
-        nodes = self._query_nodes(path, auth, include_content=include_content)
-        exact = self._find_exact_node(nodes, resolved_path)
-        if exact is not None:
-            return exact
+        try:
+            nodes = self._query_nodes(path, auth, include_content=include_content)
+        except ProviderOperationError as exc:
+            if exc.status_code not in {400, 404}:
+                raise
+            parent_path = resolved_path.rsplit("/", 1)[0] or "/"
+            self.debug_logger.debug(
+                "provider_resolution_fallback provider=%s operation=query_single_node path=%s status_code=%s fallback_parent=%s include_content=%s",
+                self.name,
+                resolved_path,
+                exc.status_code,
+                parent_path,
+                include_content,
+            )
+        else:
+            exact = self._find_exact_node(nodes, resolved_path)
+            if exact is not None:
+                return exact
 
         if resolved_path == "/":
             return None
@@ -382,6 +524,7 @@ class EdocatProvider(Provider):
         payload: dict[str, object] = {
             "uuid": source_uuid,
             "name": name,
+            "autoRename": False,
         }
         try:
             response = self.client.update_node(payload, username=username, password=password)
@@ -468,7 +611,7 @@ class EdocatProvider(Provider):
 
     def download_item(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         resolved_path = self._resolve_path(path)
-        node = self._query_single_node(resolved_path, auth, include_content=True)
+        node = self._query_single_node(resolved_path, auth, include_content=False)
         if node is None:
             raise ProviderOperationError(f"eDoCat download found no document for {resolved_path}.")
 
@@ -490,7 +633,21 @@ class EdocatProvider(Provider):
                 raise ProviderOperationError(f"eDoCat download failed: target has no uuid/id: {resolved_path}")
             return self._download_zip_for_node(uuid, resolved_path, auth)
 
-        content = node.get("content")
+        uuid = self._node_uuid(node)
+        if not uuid:
+            raise ProviderOperationError(f"eDoCat download failed: target has no uuid/id: {resolved_path}")
+
+        content_node = self._query_node_by_uuid(uuid, auth, include_content=True)
+        if content_node is None:
+            raise ProviderOperationError(f"eDoCat download found no content node for {resolved_path}.")
+
+        content_node_path = self._normalize_node_path(content_node)
+        if content_node_path and content_node_path != resolved_path:
+            raise ProviderOperationError(
+                f"eDoCat download failed: content path mismatch (requested={resolved_path}, resolved={content_node_path})"
+            )
+
+        content = content_node.get("content")
         if not isinstance(content, str):
             raise ProviderOperationError(f"eDoCat download returned no content for {resolved_path}.")
 
@@ -506,7 +663,15 @@ class EdocatProvider(Provider):
                 f"eDoCat download blocked: payload size {size} B exceeds limit {max_bytes} B."
             )
 
-        mime_type = str(node.get("mimeType")) if node.get("mimeType") else None
+        mime_type = str(content_node.get("mimeType") or node.get("mimeType")) if content_node.get("mimeType") or node.get("mimeType") else None
+        self.debug_logger.debug(
+            "provider_download_payload provider=%s path=%s base64_chars=%s binary_bytes=%s mime_type=%s",
+            self.name,
+            resolved_path,
+            len(content),
+            size,
+            mime_type,
+        )
         return OperationResult(
             success=True,
             operation="download",
@@ -520,15 +685,26 @@ class EdocatProvider(Provider):
 
     def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, source_path: str | None = None, overwrite: bool = False, auth: BridgeAuthContext | None = None, versioning: dict | None = None) -> OperationResult:
         _ = versioning
-        if source_path is not None:
-            raise ProviderOperationError(
-                "eDoCat upload blocked: upstream API requires base64 content in JSON; raw stream mode is not supported."
-            )
         username, password = self._runtime_credentials(auth)
         resolved_destination = self._resolve_path(destination)
         target = f"{resolved_destination.rstrip('/')}/{file_name}" if resolved_destination != "/" else f"/{file_name}"
         parent, name = self._parent_and_name(target)
-        encoded_content = self._encode_if_needed(content_base64)
+        if source_path is not None:
+            try:
+                file_size = os.path.getsize(source_path)
+                max_bytes = self._upload_max_bytes()
+                if file_size > max_bytes:
+                    raise ProviderOperationError(
+                        f"eDoCat upload blocked: payload size {file_size} B exceeds limit {max_bytes} B."
+                    )
+                with open(source_path, "rb") as handle:
+                    encoded_content = base64.b64encode(handle.read()).decode("ascii")
+            except ProviderOperationError:
+                raise
+            except Exception as exc:
+                raise ProviderOperationError(f"eDoCat upload failed: source file is not accessible: {source_path}") from exc
+        else:
+            encoded_content = self._encode_if_needed(content_base64)
         payload: dict[str, object] = {
             "path": parent.lstrip("/"),
             "name": name,

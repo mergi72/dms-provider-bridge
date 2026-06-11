@@ -37,9 +37,9 @@ def test_query_nodes_fetches_all_pages(monkeypatch: pytest.MonkeyPatch) -> None:
         page = int(query.get("page", ["0"])[0])
 
         if page == 0:
-            nodes = [{"uuid": f"n-{idx}"} for idx in range(200)]
+            nodes = [{"uuid": f"n-{idx}"} for idx in range(100)]
         elif page == 1:
-            nodes = [{"uuid": f"n-{200 + idx}"} for idx in range(20)]
+            nodes = [{"uuid": f"n-{100 + idx}"} for idx in range(20)]
         else:
             nodes = []
 
@@ -56,16 +56,16 @@ def test_query_nodes_fetches_all_pages(monkeypatch: pytest.MonkeyPatch) -> None:
 
     response = client.query_nodes("deals/folder", username="user", password="pass")
 
-    assert len(response["nodes"]) == 220
+    assert len(response["nodes"]) == 120
     assert response["nodes"][0]["uuid"] == "n-0"
-    assert response["nodes"][-1]["uuid"] == "n-219"
+    assert response["nodes"][-1]["uuid"] == "n-119"
     assert len(captured_urls) == 2
     first_query = parse_qs(urlparse(captured_urls[0]).query)
     second_query = parse_qs(urlparse(captured_urls[1]).query)
     assert first_query["page"] == ["0"]
-    assert first_query["size"] == ["200"]
+    assert first_query["size"] == ["100"]
     assert second_query["page"] == ["1"]
-    assert second_query["size"] == ["200"]
+    assert second_query["size"] == ["100"]
 
 
 def test_query_nodes_stops_when_api_repeats_same_page(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -75,7 +75,7 @@ def test_query_nodes_stops_when_api_repeats_same_page(monkeypatch: pytest.Monkey
         del timeout
         url = str(req.full_url)
         captured_urls.append(url)
-        nodes = [{"uuid": f"same-{idx}", "path": "deals/folder", "name": f"item-{idx}"} for idx in range(200)]
+        nodes = [{"uuid": f"same-{idx}", "path": "deals/folder", "name": f"item-{idx}"} for idx in range(100)]
         return FakeResponse(json.dumps({"nodes": nodes}))
 
     monkeypatch.setattr(edocat_client_module.request, "urlopen", fake_urlopen)
@@ -89,6 +89,58 @@ def test_query_nodes_stops_when_api_repeats_same_page(monkeypatch: pytest.Monkey
 
     response = client.query_nodes("deals/folder", username="user", password="pass")
 
-    assert len(response["nodes"]) == 200
+    assert len(response["nodes"]) == 100
     assert len(captured_urls) == 2
 
+
+def test_query_nodes_by_uuids_uses_uuid_params_and_include_content(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured_urls: list[str] = []
+
+    def fake_urlopen(req, timeout=30):
+        del timeout
+        captured_urls.append(str(req.full_url))
+        return FakeResponse(json.dumps({"nodes": [{"uuid": "a"}, {"uuid": "b"}]}))
+
+    monkeypatch.setattr(edocat_client_module.request, "urlopen", fake_urlopen)
+
+    client = EdocatClient(
+        base_url="https://example.test",
+        api_root="edocat/api/v1",
+        endpoints={"node": "node", "query": "node/query"},
+        doc_library="/deals",
+    )
+
+    response = client.query_nodes_by_uuids(["a", "b"], username="user", password="pass", include_content=True)
+
+    assert [node["uuid"] for node in response["nodes"]] == ["a", "b"]
+    query = parse_qs(urlparse(captured_urls[0]).query)
+    assert query["uuids"] == ["a", "b"]
+    assert query["includeContent"] == ["true"]
+    assert "page" not in query
+    assert "size" not in query
+
+
+def test_create_node_uses_upload_timeout_from_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_urlopen(req, timeout=30):
+        captured["url"] = str(req.full_url)
+        captured["timeout"] = timeout
+        return FakeResponse(json.dumps({"uuid": "created"}))
+
+    monkeypatch.setattr(edocat_client_module.request, "urlopen", fake_urlopen)
+
+    client = EdocatClient.from_config(
+        {
+            "base_url": "https://example.test",
+            "api": "edocat/api/v1",
+            "endpoints": {"node": "node", "query": "node/query"},
+            "timeouts": {"requestSeconds": 60, "uploadSeconds": 300},
+        }
+    )
+
+    response = client.create_node({"name": "large.zip"}, username="user", password="pass")
+
+    assert response["uuid"] == "created"
+    assert captured["url"] == "https://example.test/edocat/api/v1/node"
+    assert captured["timeout"] == 300

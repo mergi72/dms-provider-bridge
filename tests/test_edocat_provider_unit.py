@@ -40,6 +40,7 @@ class FakeResponse:
 class FakeClient:
     def __init__(self) -> None:
         self.query_nodes = Mock()
+        self.query_nodes_by_uuids = Mock()
         self.create_node = Mock(return_value={"uuid": "created-uuid"})
         self.update_node = Mock(return_value={"uuid": "updated-uuid"})
         self.delete_nodes = Mock(return_value={"ok": True})
@@ -120,11 +121,37 @@ def test_rename_item_uses_update_node(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.operation == "rename"
     assert result.destination == "/folder/new.txt"
     client.update_node.assert_called_once_with(
-        {"uuid": "node-1", "name": "new.txt"},
+        {"uuid": "node-1", "name": "new.txt", "autoRename": False},
         username="user",
         password="pass",
     )
     client.delete_nodes.assert_not_called()
+
+
+def test_rename_item_falls_back_to_parent_query_when_file_path_query_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    client.query_nodes.side_effect = [
+        ProviderOperationError("eDoCat query failed for /deals/folder/old.txt: HTTP 400.", status_code=400),
+        {
+            "nodes": [
+                {"uuid": "node-1", "name": "old.txt", "path": "/deals/folder/old.txt", "nodeType": "ctbd:baseDoc"}
+            ]
+        },
+    ]
+    provider = _make_provider(monkeypatch, client)
+
+    result = provider.rename_item("/folder/old.txt", "/folder/new.txt", BridgeAuthContext(mode="credentials", username="user", password="pass"))
+
+    assert result.success is True
+    assert result.operation == "rename"
+    assert result.destination == "/folder/new.txt"
+    assert client.query_nodes.call_args_list[0].args == ("deals/folder/old.txt",)
+    assert client.query_nodes.call_args_list[1].args == ("deals/folder",)
+    client.update_node.assert_called_once_with(
+        {"uuid": "node-1", "name": "new.txt", "autoRename": False},
+        username="user",
+        password="pass",
+    )
 
 
 def test_rename_item_move_across_parent_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -159,7 +186,7 @@ def test_rename_item_does_not_perform_delete_side_effects(monkeypatch: pytest.Mo
 
     assert result.success is True
     client.update_node.assert_called_once_with(
-        {"uuid": "node-1", "name": "new-folder"},
+        {"uuid": "node-1", "name": "new-folder", "autoRename": False},
         username="user",
         password="pass",
     )
@@ -213,7 +240,7 @@ def test_rename_item_uses_folder_node_when_edocat_path_is_parent_only(monkeypatc
 
     assert result.success is True
     client.update_node.assert_called_once_with(
-        {"uuid": "folder-1", "name": "bambule"},
+        {"uuid": "folder-1", "name": "bambule", "autoRename": False},
         username="user",
         password="pass",
     )
@@ -507,20 +534,27 @@ def test_upload_item_prefers_base_doc_node_type_from_config(monkeypatch: pytest.
     )
 
 
-def test_upload_item_rejects_source_path_raw_mode(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+def test_upload_item_reads_source_path_as_base64(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     client = FakeClient()
     provider = _make_provider(monkeypatch, client)
     source = tmp_path / "upload.txt"
     source.write_bytes(b"hello")
 
-    with pytest.raises(ProviderOperationError, match="raw stream mode is not supported"):
-        provider.upload_item(
-            "/folder",
-            "upload.txt",
-            source_path=str(source),
-            overwrite=False,
-            auth=BridgeAuthContext(mode="credentials", username="user", password="pass"),
-        )
+    result = provider.upload_item(
+        "/folder",
+        "upload.txt",
+        source_path=str(source),
+        overwrite=False,
+        auth=BridgeAuthContext(mode="credentials", username="user", password="pass"),
+    )
+
+    assert result.success is True
+    assert result.operation == "upload"
+    client.create_node.assert_called_once_with(
+        {"path": "deals/folder", "name": "upload.txt", "content": "aGVsbG8=", "nodeType": "ctbd:baseDoc"},
+        username="user",
+        password="pass",
+    )
 
 
 def test_copy_item_clones_content_and_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -773,6 +807,17 @@ def test_download_item_reports_decoded_binary_size(monkeypatch: pytest.MonkeyPat
                 "name": "sample.txt",
                 "path": "/deals/folder/sample.txt",
                 "nodeType": "ctbd:baseDoc",
+                "mimeType": "text/plain",
+            }
+        ]
+    }
+    client.query_nodes_by_uuids.return_value = {
+        "nodes": [
+            {
+                "uuid": "node-1",
+                "name": "sample.txt",
+                "path": "/deals/folder/sample.txt",
+                "nodeType": "ctbd:baseDoc",
                 "content": "dGVzdA==",
                 "mimeType": "text/plain",
             }
@@ -785,6 +830,8 @@ def test_download_item_reports_decoded_binary_size(monkeypatch: pytest.MonkeyPat
     assert result.success is True
     assert result.content_base64 == "dGVzdA=="
     assert result.size == 4
+    client.query_nodes.assert_called_once_with("deals/folder/sample.txt", username="user", password="pass", include_content=False)
+    client.query_nodes_by_uuids.assert_called_once_with(["node-1"], username="user", password="pass", include_content=True)
 
 
 def test_download_item_rejects_payload_over_limit(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -801,6 +848,17 @@ def test_download_item_rejects_payload_over_limit(monkeypatch: pytest.MonkeyPatc
         provider,
         "_query_single_node",
         lambda path, auth, include_content=False: {
+            "uuid": "node-1",
+            "name": "sample.txt",
+            "path": "/deals/folder/sample.txt",
+            "nodeType": "ctbd:baseDoc",
+            "mimeType": "text/plain",
+        },
+    )
+    monkeypatch.setattr(
+        provider,
+        "_query_node_by_uuid",
+        lambda uuid, auth, include_content=False: {
             "uuid": "node-1",
             "name": "sample.txt",
             "path": "/deals/folder/sample.txt",
@@ -1029,7 +1087,8 @@ def test_rename_item_does_not_target_child_with_same_name(monkeypatch: pytest.Mo
 
     assert result.success is True
     client.update_node.assert_called_once_with(
-        {"uuid": "parent-1", "name": "renamed"},
+        {"uuid": "parent-1", "name": "renamed", "autoRename": False},
         username="user",
         password="pass",
     )
+

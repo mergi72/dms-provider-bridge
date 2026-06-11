@@ -21,14 +21,28 @@ class EdocatClient:
     api_root: str
     endpoints: dict[str, str]
     doc_library: str
+    request_timeout: int = 30
+    upload_timeout: int = 300
 
     @classmethod
     def from_config(cls, config: dict) -> "EdocatClient":
+        timeouts = config.get("timeouts", {})
+        request_timeout = 30
+        upload_timeout = 300
+        if isinstance(timeouts, dict):
+            configured_request = timeouts.get("requestSeconds")
+            configured_upload = timeouts.get("uploadSeconds")
+            if isinstance(configured_request, int) and configured_request > 0:
+                request_timeout = configured_request
+            if isinstance(configured_upload, int) and configured_upload > 0:
+                upload_timeout = configured_upload
         return cls(
             base_url=str(config.get("base_url", "")),
             api_root=str(config.get("api", "")),
             endpoints=dict(config.get("endpoints", {})),
             doc_library=str(config.get("doc_library", "/deals")),
+            request_timeout=request_timeout,
+            upload_timeout=upload_timeout,
         )
 
     def ping(self) -> bool:
@@ -44,6 +58,7 @@ class EdocatClient:
         url: str,
         headers: dict[str, str] | None = None,
         payload: dict[str, Any] | None = None,
+        timeout: int | None = None,
     ) -> dict[str, Any]:
         request_headers = {"Accept": "application/json"}
         if headers:
@@ -53,7 +68,7 @@ class EdocatClient:
             body = json.dumps(payload).encode("utf-8")
             request_headers.setdefault("Content-Type", "application/json")
         req = request.Request(url=url, data=body, headers=request_headers, method=method)
-        with request.urlopen(req, timeout=30) as response:
+        with request.urlopen(req, timeout=timeout or self.request_timeout) as response:
             content = response.read().decode("utf-8")
             return json.loads(content) if content else {}
 
@@ -138,7 +153,7 @@ class EdocatClient:
         headers = self.basic_auth_headers(username, password)
         endpoint = self.endpoint_url("query")
         page = 0
-        page_size = 200
+        page_size = 100
         max_pages = 1000
         aggregated_nodes: list[dict[str, Any]] = []
         first_response: dict[str, Any] | None = None
@@ -189,8 +204,29 @@ class EdocatClient:
         merged["nodes"] = aggregated_nodes
         return merged
 
+    def query_nodes_by_uuids(
+        self,
+        uuids: list[str],
+        username: str | None = None,
+        password: str | None = None,
+        include_content: bool = False,
+    ) -> dict[str, Any]:
+        headers = self.basic_auth_headers(username, password)
+        endpoint = self.endpoint_url("query")
+        params: list[tuple[str, str]] = [("uuids", uuid) for uuid in uuids if uuid]
+        if include_content:
+            params.append(("includeContent", "true"))
+        url = f"{endpoint}?{urlencode(params)}" if params else endpoint
+        return self._request_json("GET", url, headers=headers)
+
     def create_node(self, payload: dict[str, Any], username: str | None = None, password: str | None = None) -> dict[str, Any]:
-        return self._request_json("POST", self.endpoint_url("node"), headers=self.basic_auth_headers(username, password), payload=payload)
+        return self._request_json(
+            "POST",
+            self.endpoint_url("node"),
+            headers=self.basic_auth_headers(username, password),
+            payload=payload,
+            timeout=self.upload_timeout,
+        )
 
     def update_node(self, payload: dict[str, Any], username: str | None = None, password: str | None = None) -> dict[str, Any]:
         return self._request_json("PUT", self.endpoint_url("node"), headers=self.basic_auth_headers(username, password), payload=payload)

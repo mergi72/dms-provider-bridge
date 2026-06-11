@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.16 - 2026-06-12
+
+### Changed
+- Release/version bump to `0.4.16`.
+- Improved eDoCat large file transfers from Total Commander: raw uploads now read the temporary file into the eDoCat JSON/base64 payload path, with separate upload size limits and configurable upload timeouts.
+- eDoCat downloads now resolve document metadata without content and fetch large content by UUID, avoiding path-query content failures.
+- Raised eDoCat machine-config upload/download transfer limits to 300 MB for large test payloads.
+- Added provider debug logging around eDoCat query/download resolution and Alfresco operations.
+
+---
+
 ## 0.4.15 - 2026-06-11
 
 ### Changed
