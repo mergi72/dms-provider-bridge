@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Alpha-orange)](https://github.com/mergi72/dms-provider-bridge)
-[![Bridge Version](https://img.shields.io/badge/Bridge-v0.4.14-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.4.14)
-[![Bridge Setup](https://img.shields.io/badge/Setup-v0.4.14-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.4.14)
+[![Bridge Version](https://img.shields.io/badge/Bridge-v0.4.15-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.4.15)
+[![Bridge Setup](https://img.shields.io/badge/Setup-v0.4.15-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.4.15)
 
 Current development branch: `develop`  
 Stable release branch: `main`
@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.4.14`
-- Latest bridge-only release: `v0.4.14`
+- Bridge repository latest changelog version: `0.4.15`
+- Latest bridge-only release: `v0.4.15`
 
 ## Runtime Modes
 
@@ -27,10 +27,10 @@ Bridge can be run in two different Windows runtime models. Keep them separate:
 - Service mode:
   - Intended for server-style local bridge usage.
   - Runs as the `DMSProviderBridge` Windows Service via NSSM.
-  - Current `v0.4.14` installer installs this service as `LocalSystem`.
+  - Current `v0.4.15` installer installs this service as `LocalSystem`.
   - `LocalSystem` cannot see credentials stored in an interactive user's Windows Credential Manager.
 
-Current setup release `v0.4.14` is the Service mode installer. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
+Current setup release `v0.4.15` is the Service mode installer. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
 
 ## Related Projects
 
@@ -198,6 +198,36 @@ User `*.local.json` values override existing machine keys and may add missing ke
 For local development, set `DMS_PROVIDER_MACHINE_CONFIG_DIR` and optionally `DMS_PROVIDER_USER_CONFIG_DIR` to test config directories.
 The default provider comes from `provider.default` in `bridge.json`; `DMS_PROVIDER_DEFAULT_PROVIDER` can override it for local runs.
 Runtime temporary files are written to `%TEMP%\DMS Provider` by default; set `DMS_PROVIDER_TEMP_DIR` only when a different temp root is required.
+
+Debug logging is opt-in and uses the same `debug` object in `bridge.json` and provider config files:
+
+```json
+{
+  "debug": {
+    "enable": true,
+    "path": "%APPDATA%\\DMS Provider\\logs"
+  }
+}
+```
+
+When enabled in `bridge.json`, the bridge writes debug output to `bridge-debug.log` and runtime output to `bridge.log`.
+When enabled in a provider config, provider debug output goes to `<provider>-debug.log`, for example `alfresco-debug.log`.
+
+Provider config template for new providers:
+
+```json
+{
+  "key": "sharepoint",
+  "sharepoint": {
+    "debug": {
+      "enable": true,
+      "path": "%APPDATA%\\DMS Provider\\logs"
+    }
+  }
+}
+```
+
+Provider implementations should use `provider_debug_logger(provider_name, config)` and the `log_provider_operation_start/done/failed` helpers from `dms_provider_bridge.core.debug` for operation-level diagnostics. Config dumps are sanitized before logging sensitive keys such as passwords, tokens, secrets, and API keys.
 
 Remote path format:
 

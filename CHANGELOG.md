@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.15 - 2026-06-11
+
+### Changed
+- Release/version bump to `0.4.15`.
+- Moved shared debug config helpers into `core.debug` so bridge logging and config loader use one `debug.enable` / `debug.path` contract.
+- Added provider debug logger helpers and provider operation start/done/failed diagnostics for future provider implementations.
+- Documented provider debug config template and provider-level debug logging expectations.
+
+---
+
 ## 0.4.14 - 2026-06-11
 
 ### Changed

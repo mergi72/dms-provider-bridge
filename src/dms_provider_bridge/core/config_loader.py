@@ -5,7 +5,8 @@ import os
 from pathlib import Path
 from typing import Any
 
-from dms_provider_bridge.core.logging import configure_debug_file_logger, get_logger
+from dms_provider_bridge.core.debug import debug_enabled, provider_debug_logger
+from dms_provider_bridge.core.logging import get_logger
 from dms_provider_bridge.core.paths import MACHINE_CONFIG_DIR, USER_CONFIG_DIR
 
 _LOGGER = get_logger(__name__)
@@ -28,15 +29,6 @@ def _merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str, An
         else:
             merged[key] = value
     return merged
-
-
-def _debug_enabled(config: dict[str, Any] | None) -> bool:
-    if not isinstance(config, dict):
-        return False
-    debug = config.get("debug")
-    if isinstance(debug, dict):
-        return debug.get("enable") is True
-    return debug is True
 
 
 def _extract_provider_section(payload: dict[str, Any], provider_name: str) -> dict[str, Any]:
@@ -91,7 +83,7 @@ def _load_bridge_config(machine_dir: Path, user_dir: Path | None) -> dict[str, A
 
 
 def _log_bridge_config(config: dict[str, Any], machine_path: Path, user_path: Path | None) -> None:
-    if not _debug_enabled(config):
+    if not debug_enabled(config):
         return
 
     sanitized_config = sanitize_config_for_logging(config)
@@ -99,7 +91,7 @@ def _log_bridge_config(config: dict[str, Any], machine_path: Path, user_path: Pa
         rendered = json.dumps(sanitized_config, ensure_ascii=False, indent=2, sort_keys=True)
     except TypeError:
         rendered = repr(sanitized_config)
-    debug_logger = configure_debug_file_logger(__name__, config, "bridge-debug.log")
+    debug_logger = provider_debug_logger("bridge", config)
     debug_logger.debug(
         "bridge_config_loaded machine_path=%s user_path=%s config=%s",
         machine_path,
@@ -114,7 +106,7 @@ def _log_provider_config(
     machine_path: Path,
     user_path: Path | None,
 ) -> None:
-    if not _debug_enabled(config):
+    if not debug_enabled(config):
         return
 
     sanitized_config = sanitize_config_for_logging(config)
@@ -122,7 +114,7 @@ def _log_provider_config(
         rendered = json.dumps(sanitized_config, ensure_ascii=False, indent=2, sort_keys=True)
     except TypeError:
         rendered = repr(sanitized_config)
-    debug_logger = configure_debug_file_logger(__name__, config, f"{provider_name}-debug.log")
+    debug_logger = provider_debug_logger(provider_name, config)
     debug_logger.debug(
         "provider_config_loaded provider=%s machine_path=%s user_path=%s config=%s",
         provider_name,

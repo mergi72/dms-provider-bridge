@@ -1,0 +1,143 @@
+from __future__ import annotations
+
+import logging
+import os
+import time
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
+from dms_provider_bridge.core.paths import LOG_DIR
+
+_DEBUG_FILE_LOGGERS: set[tuple[str, str]] = set()
+
+
+def debug_enabled(config: dict[str, Any] | None) -> bool:
+    if not isinstance(config, dict):
+        return False
+    debug = config.get("debug")
+    if isinstance(debug, dict):
+        return debug.get("enable") is True
+    return debug is True
+
+
+def debug_path(config: dict[str, Any] | None) -> Path:
+    if isinstance(config, dict):
+        debug = config.get("debug")
+        if isinstance(debug, dict):
+            configured = debug.get("path")
+            if isinstance(configured, str) and configured.strip():
+                return Path(os.path.expandvars(configured.strip()))
+    return LOG_DIR
+
+
+def configure_debug_file_logger(logger_name: str, config: dict[str, Any], filename: str) -> logging.Logger:
+    log_dir = debug_path(config)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / filename
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.DEBUG)
+
+    handler_key = (logger_name, str(log_path.resolve()))
+    if handler_key not in _DEBUG_FILE_LOGGERS:
+        file_handler = logging.FileHandler(log_path, encoding="utf-8")
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+        logger.addHandler(file_handler)
+        _DEBUG_FILE_LOGGERS.add(handler_key)
+
+    return logger
+
+
+def provider_debug_logger(provider_name: str, config: dict[str, Any]) -> logging.Logger:
+    logger_name = f"dms_provider_bridge.providers.{provider_name}"
+    if not debug_enabled(config):
+        return logging.getLogger(logger_name)
+    return configure_debug_file_logger(logger_name, config, f"{provider_name}-debug.log")
+
+
+def log_provider_operation_start(
+    logger: logging.Logger,
+    provider_name: str,
+    operation: str,
+    path: str | None = None,
+    **fields: object,
+) -> float:
+    started = time.perf_counter()
+    _log_provider_operation(logger, "provider_operation_start", provider_name, operation, path, None, None, fields)
+    return started
+
+
+def log_provider_operation_done(
+    logger: logging.Logger,
+    provider_name: str,
+    operation: str,
+    started: float,
+    path: str | None = None,
+    **fields: object,
+) -> None:
+    elapsed_ms = int((time.perf_counter() - started) * 1000)
+    _log_provider_operation(logger, "provider_operation_done", provider_name, operation, path, "ok", elapsed_ms, fields)
+
+
+def log_provider_operation_failed(
+    logger: logging.Logger,
+    provider_name: str,
+    operation: str,
+    started: float,
+    path: str | None = None,
+    error: BaseException | str | None = None,
+    **fields: object,
+) -> None:
+    elapsed_ms = int((time.perf_counter() - started) * 1000)
+    if error is not None:
+        fields = dict(fields)
+        fields["error"] = str(error)
+    _log_provider_operation(logger, "provider_operation_failed", provider_name, operation, path, "failed", elapsed_ms, fields)
+
+
+def debug_operation(
+    logger: logging.Logger,
+    provider_name: str,
+    operation: str,
+    path: str | None,
+    func: Callable[[], Any],
+) -> Any:
+    started = log_provider_operation_start(logger, provider_name, operation, path)
+    try:
+        result = func()
+    except Exception as exc:
+        log_provider_operation_failed(logger, provider_name, operation, started, path, error=exc)
+        raise
+    log_provider_operation_done(logger, provider_name, operation, started, path)
+    return result
+
+
+def _log_provider_operation(
+    logger: logging.Logger,
+    event: str,
+    provider_name: str,
+    operation: str,
+    path: str | None,
+    status: str | None,
+    elapsed_ms: int | None,
+    fields: dict[str, object],
+) -> None:
+    if not logger.isEnabledFor(logging.DEBUG):
+        return
+
+    parts: list[str] = [
+        event,
+        f"provider={provider_name}",
+        f"operation={operation}",
+    ]
+    if path is not None:
+        parts.append(f"path={path}")
+    if status is not None:
+        parts.append(f"status={status}")
+    if elapsed_ms is not None:
+        parts.append(f"elapsed_ms={elapsed_ms}")
+    for key, value in fields.items():
+        if value is not None:
+            parts.append(f"{key}={value}")
+    logger.debug(" ".join(parts))
