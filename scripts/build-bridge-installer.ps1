@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "v0.4.13",
+    [string]$Version = "v0.4.14",
     [string]$BridgeExePath = "dist\dms-provider-bridge.exe",
     [string]$NssmExePath,
     [string]$InnoCompilerPath,

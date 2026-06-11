@@ -1,4 +1,8 @@
 {
+  "debug": {
+    "enable": false,
+    "path": "%APPDATA%\\DMS Provider\\logs"
+  },
   "server": {
     "host": "127.0.0.1",
     "port": 8765
@@ -14,8 +18,5 @@
       "chunkBytes": 1048576,
       "maxBytes": 536870912
     }
-  },
-  "logging": {
-    "level": "INFO"
   }
 }

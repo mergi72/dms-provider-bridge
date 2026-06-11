@@ -19,6 +19,10 @@
     "key": "edocat",
 
     "edocat": {
+        "debug": {
+            "enable": false,
+            "path": "%APPDATA%\\DMS Provider\\logs"
+        },
         "base_url": "https://example.com",
         "api": "/edocat/api/v1",
         "doc_library": "/deals",

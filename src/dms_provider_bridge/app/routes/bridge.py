@@ -69,39 +69,57 @@ def _iter_raw_stream(stream, chunk_bytes: int = 1024 * 1024):
             close()
 
 
+def _status_code_for_wfx(payload: dict, use_upstream_status: bool = False) -> int:
+    if payload.get("ok") is True:
+        return 200
+    if not use_upstream_status:
+        return 200
+    metadata = payload.get("metadata")
+    if isinstance(metadata, dict):
+        status_code = metadata.get("upstream_status_code")
+        if isinstance(status_code, int) and status_code > 0:
+            return status_code
+    return 200
+
+
+def _wfx_json(response, use_upstream_status: bool = False) -> JSONResponse:
+    payload = response.model_dump()
+    return JSONResponse(status_code=_status_code_for_wfx(payload, use_upstream_status=use_upstream_status), content=payload)
+
+
 @router.post("/list")
-def bridge_list(payload: WfxPathRequest) -> dict:
-    return list_path(payload.path, payload.auth).model_dump()
+def bridge_list(payload: WfxPathRequest) -> JSONResponse:
+    return _wfx_json(list_path(payload.path, payload.auth))
 
 
 @router.post("/stat")
-def bridge_stat(payload: WfxPathRequest) -> dict:
-    return stat_path(payload.path, payload.auth).model_dump()
+def bridge_stat(payload: WfxPathRequest) -> JSONResponse:
+    return _wfx_json(stat_path(payload.path, payload.auth), use_upstream_status=True)
 
 
 @router.post("/mkdir")
-def bridge_mkdir(payload: WfxPathRequest) -> dict:
-    return mkdir_path(payload.path, payload.auth).model_dump()
+def bridge_mkdir(payload: WfxPathRequest) -> JSONResponse:
+    return _wfx_json(mkdir_path(payload.path, payload.auth))
 
 
 @router.post("/delete")
-def bridge_delete(payload: WfxPathRequest) -> dict:
-    return delete_path(payload.path, payload.auth).model_dump()
+def bridge_delete(payload: WfxPathRequest) -> JSONResponse:
+    return _wfx_json(delete_path(payload.path, payload.auth))
 
 
 @router.post("/move")
-def bridge_move(payload: WfxMoveRequest) -> dict:
-    return rename_path(payload.source, payload.destination, payload.auth).model_dump()
+def bridge_move(payload: WfxMoveRequest) -> JSONResponse:
+    return _wfx_json(rename_path(payload.source, payload.destination, payload.auth))
 
 
 @router.post("/copy")
-def bridge_copy(payload: WfxMoveRequest) -> dict:
-    return copy_path(payload.source, payload.destination, payload.auth).model_dump()
+def bridge_copy(payload: WfxMoveRequest) -> JSONResponse:
+    return _wfx_json(copy_path(payload.source, payload.destination, payload.auth))
 
 
 @router.post("/download")
-def bridge_download(payload: WfxPathRequest) -> dict:
-    return download_path(payload.path, payload.auth).model_dump()
+def bridge_download(payload: WfxPathRequest) -> JSONResponse:
+    return _wfx_json(download_path(payload.path, payload.auth))
 
 
 @router.post("/download-raw")
@@ -150,8 +168,8 @@ def bridge_download_raw(payload: WfxPathRequest):
 
 
 @router.post("/upload")
-def bridge_upload(payload: WfxUploadRequest) -> dict:
-    return upload_path(
+def bridge_upload(payload: WfxUploadRequest) -> JSONResponse:
+    return _wfx_json(upload_path(
         payload.destination,
         payload.file_name,
         payload.auth,
@@ -159,7 +177,7 @@ def bridge_upload(payload: WfxUploadRequest) -> dict:
         source_path=payload.source_path,
         overwrite=payload.overwrite,
         versioning=payload.versioning,
-    ).model_dump()
+    ))
 
 
 @router.post("/upload-raw")
@@ -236,7 +254,7 @@ async def bridge_upload_raw(
             auth,
             **upload_kwargs,
         )
-        return response.model_dump()
+        return _wfx_json(response)
     finally:
         duration_ms = int((time.perf_counter() - started_at) * 1000)
         if rejected:

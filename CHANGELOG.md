@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.14 - 2026-06-11
+
+### Changed
+- Release/version bump to `0.4.14`.
+- eDoCat list item mapping now reads file size from multiple upstream metadata shapes, including nested `content`, `props`, `properties`, and `metadata` fields.
+- eDoCat query paging now uses 200-item pages and guards against repeated upstream pages.
+- Bridge WFX `stat` responses can surface upstream HTTP status metadata while successful operations continue to return HTTP 200.
+- Config debug settings are now expressed as `debug.enable` and `debug.path` in `bridge.json` and provider configs.
+- Runtime `bridge.log` is written to `%APPDATA%\DMS Provider\logs` by default, next to user `config`.
+- Provider-specific debug config logging writes separate `<provider>-debug.log` files and masks sensitive values.
+
+---
+
 ## 0.4.13 - 2026-06-11
 
 ### Changed

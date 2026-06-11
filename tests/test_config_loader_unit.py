@@ -177,7 +177,7 @@ def test_load_provider_config_masks_sensitive_values_in_log(
     machine_dir.mkdir()
     user_dir.mkdir()
     (machine_dir / "alfresco.json").write_text(
-        '{"key": "alfresco", "alfresco": {"base_url": "https://example.test", "password": "machine-pass", "nested": {"api_key": "machine-api-key"}}}',
+        '{"key": "alfresco", "alfresco": {"debug": {"enable": true}, "base_url": "https://example.test", "password": "machine-pass", "nested": {"api_key": "machine-api-key"}}}',
         encoding="utf-8",
     )
     (user_dir / "alfresco.local.json").write_text(
@@ -187,7 +187,7 @@ def test_load_provider_config_masks_sensitive_values_in_log(
     monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
     monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_dir))
 
-    with caplog.at_level(logging.INFO, logger="dms_provider_bridge.core.config_loader"):
+    with caplog.at_level(logging.DEBUG, logger="dms_provider_bridge.core.config_loader"):
         config = config_loader.load_provider_config("alfresco")
 
     assert config["password"] == "machine-pass"
@@ -201,4 +201,116 @@ def test_load_provider_config_masks_sensitive_values_in_log(
     assert '"api_key": "***"' in logged
     assert '"token": "***"' in logged
     assert '"clientSecret": "***"' in logged
+
+
+def test_load_provider_config_does_not_log_config_when_debug_is_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    machine_dir = tmp_path / "machine"
+    user_dir = tmp_path / "user"
+    machine_dir.mkdir()
+    user_dir.mkdir()
+    (machine_dir / "alfresco.json").write_text(
+        '{"key": "alfresco", "alfresco": {"base_url": "https://example.test", "password": "machine-pass"}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
+    monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_dir))
+
+    with caplog.at_level(logging.DEBUG, logger="dms_provider_bridge.core.config_loader"):
+        config = config_loader.load_provider_config("alfresco")
+
+    assert config["password"] == "machine-pass"
+    logged = "\n".join(record.getMessage() for record in caplog.records)
+    assert "provider_config_loaded" not in logged
+    assert "machine-pass" not in logged
+
+
+def test_load_provider_config_ignores_bridge_debug_for_provider_dump(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    machine_dir = tmp_path / "machine"
+    user_dir = tmp_path / "user"
+    machine_dir.mkdir()
+    user_dir.mkdir()
+    (machine_dir / "bridge.json").write_text('{"debug": {"enable": true}}', encoding="utf-8")
+    (machine_dir / "alfresco.json").write_text(
+        '{"key": "alfresco", "alfresco": {"base_url": "https://example.test", "password": "machine-pass"}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
+    monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_dir))
+
+    with caplog.at_level(logging.DEBUG, logger="dms_provider_bridge.core.config_loader"):
+        config = config_loader.load_provider_config("alfresco")
+
+    assert config["password"] == "machine-pass"
+    logged = "\n".join(record.getMessage() for record in caplog.records)
+    assert "provider_config_loaded" not in logged
+    assert "machine-pass" not in logged
+
+
+def test_load_provider_config_writes_provider_debug_file_without_bridge_debug(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine_dir = tmp_path / "machine"
+    user_dir = tmp_path / "user"
+    debug_dir = tmp_path / "debug"
+    machine_dir.mkdir()
+    user_dir.mkdir()
+    (machine_dir / "bridge.json").write_text('{"debug": {"enable": false}}', encoding="utf-8")
+    (machine_dir / "alfresco.json").write_text(
+        (
+            '{"key": "alfresco", "alfresco": {'
+            '"debug": {"enable": true, "path": "'
+            + str(debug_dir).replace("\\", "\\\\")
+            + '"}, '
+            '"base_url": "https://example.test", '
+            '"password": "machine-pass"'
+            "}}"
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
+    monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_dir))
+
+    config = config_loader.load_provider_config("alfresco")
+
+    assert config["password"] == "machine-pass"
+    debug_log = debug_dir / "alfresco-debug.log"
+    assert debug_log.exists()
+    logged = debug_log.read_text(encoding="utf-8")
+    assert "provider_config_loaded provider=alfresco" in logged
+    assert "machine-pass" not in logged
+    assert '"password": "***"' in logged
+
+
+def test_load_config_logs_bridge_config_only_when_debug_is_enabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    machine_dir = tmp_path / "machine"
+    user_dir = tmp_path / "user"
+    machine_dir.mkdir()
+    user_dir.mkdir()
+    (machine_dir / "bridge.json").write_text('{"debug": {"enable": false}, "secret": "hidden"}', encoding="utf-8")
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
+    monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_dir))
+
+    with caplog.at_level(logging.DEBUG, logger="dms_provider_bridge.core.config_loader"):
+        config = config_loader.load_config()
+
+    assert config["debug"]["enable"] is False
+    assert "bridge_config_loaded" not in "\n".join(record.getMessage() for record in caplog.records)
+
+    caplog.clear()
+    (machine_dir / "bridge.json").write_text('{"debug": {"enable": true}, "secret": "hidden"}', encoding="utf-8")
+
+    with caplog.at_level(logging.DEBUG, logger="dms_provider_bridge.core.config_loader"):
+        config = config_loader.load_config()
+
+    logged = "\n".join(record.getMessage() for record in caplog.records)
+    assert config["debug"]["enable"] is True
+    assert "bridge_config_loaded" in logged
+    assert "hidden" not in logged
+    assert '"secret": "***"' in logged
 

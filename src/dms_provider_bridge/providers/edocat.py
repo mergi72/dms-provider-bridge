@@ -140,8 +140,8 @@ class EdocatProvider(Provider):
             response = self.client.query_nodes(query_path, username=username, password=password, include_content=include_content)
         except HTTPError as exc:
             if exc.code in {401, 403}:
-                raise AuthenticationError(f"eDoCat access denied for {path}: HTTP {exc.code}.") from exc
-            raise ProviderOperationError(f"eDoCat query failed for {path}: HTTP {exc.code}.") from exc
+                raise AuthenticationError(f"eDoCat access denied for {path}: HTTP {exc.code}.", status_code=exc.code) from exc
+            raise ProviderOperationError(f"eDoCat query failed for {path}: HTTP {exc.code}.", status_code=exc.code) from exc
         except Exception as exc:
             raise ProviderOperationError(f"eDoCat query failed for {path}: {exc}") from exc
 

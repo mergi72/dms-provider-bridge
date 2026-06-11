@@ -352,6 +352,36 @@ def test_list_items_returns_only_direct_children(monkeypatch: pytest.MonkeyPatch
     assert [item.name for item in listing.items] == ["sub", "a.txt"]
 
 
+def test_list_items_maps_file_size_from_edocat_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    client.query_nodes.return_value = {
+        "nodes": [
+            {
+                "uuid": "direct-file",
+                "name": "a.txt",
+                "path": "/deals/folder",
+                "nodeType": "com.onlio.edocat.BaseDoc",
+                "props": {"contentSize": "12345"},
+            },
+            {
+                "uuid": "nested-size-file",
+                "name": "b.txt",
+                "path": "/deals/folder",
+                "nodeType": "com.onlio.edocat.BaseDoc",
+                "content": {"sizeInBytes": 67890},
+            },
+        ]
+    }
+    provider = _make_provider(monkeypatch, client)
+
+    listing = provider.list_items("/folder", BridgeAuthContext(mode="credentials", username="user", password="pass"))
+
+    assert [(item.name, item.size) for item in listing.items] == [
+        ("a.txt", 12345),
+        ("b.txt", 67890),
+    ]
+
+
 def test_delete_item_deletes_folder_bottom_up(monkeypatch: pytest.MonkeyPatch) -> None:
     client = FakeClient()
     provider = _make_provider(

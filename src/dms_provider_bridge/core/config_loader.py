@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from dms_provider_bridge.core.logging import get_logger
+from dms_provider_bridge.core.logging import configure_debug_file_logger, get_logger
 from dms_provider_bridge.core.paths import MACHINE_CONFIG_DIR, USER_CONFIG_DIR
 
 _LOGGER = get_logger(__name__)
@@ -28,6 +28,15 @@ def _merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str, An
         else:
             merged[key] = value
     return merged
+
+
+def _debug_enabled(config: dict[str, Any] | None) -> bool:
+    if not isinstance(config, dict):
+        return False
+    debug = config.get("debug")
+    if isinstance(debug, dict):
+        return debug.get("enable") is True
+    return debug is True
 
 
 def _extract_provider_section(payload: dict[str, Any], provider_name: str) -> dict[str, Any]:
@@ -66,13 +75,55 @@ def sanitize_config_for_logging(value: Any) -> Any:
     return value
 
 
-def _log_provider_config(provider_name: str, config: dict[str, Any], machine_path: Path, user_path: Path | None) -> None:
+def _load_bridge_config(machine_dir: Path, user_dir: Path | None) -> dict[str, Any]:
+    base = _read_json(machine_dir / "bridge.json")
+    if base is None:
+        return {}
+
+    if user_dir is None:
+        return base
+
+    user = _read_json(user_dir / "bridge.local.json")
+    if user is None:
+        return base
+
+    return _merge_dicts(base, user)
+
+
+def _log_bridge_config(config: dict[str, Any], machine_path: Path, user_path: Path | None) -> None:
+    if not _debug_enabled(config):
+        return
+
     sanitized_config = sanitize_config_for_logging(config)
     try:
         rendered = json.dumps(sanitized_config, ensure_ascii=False, indent=2, sort_keys=True)
     except TypeError:
         rendered = repr(sanitized_config)
-    _LOGGER.info(
+    debug_logger = configure_debug_file_logger(__name__, config, "bridge-debug.log")
+    debug_logger.debug(
+        "bridge_config_loaded machine_path=%s user_path=%s config=%s",
+        machine_path,
+        user_path or "",
+        rendered,
+    )
+
+
+def _log_provider_config(
+    provider_name: str,
+    config: dict[str, Any],
+    machine_path: Path,
+    user_path: Path | None,
+) -> None:
+    if not _debug_enabled(config):
+        return
+
+    sanitized_config = sanitize_config_for_logging(config)
+    try:
+        rendered = json.dumps(sanitized_config, ensure_ascii=False, indent=2, sort_keys=True)
+    except TypeError:
+        rendered = repr(sanitized_config)
+    debug_logger = configure_debug_file_logger(__name__, config, f"{provider_name}-debug.log")
+    debug_logger.debug(
         "provider_config_loaded provider=%s machine_path=%s user_path=%s config=%s",
         provider_name,
         machine_path,
@@ -113,18 +164,9 @@ def list_provider_config_names() -> list[str]:
 def load_config() -> dict[str, Any]:
     machine_dir, user_dir = _config_dirs()
 
-    base = _read_json(machine_dir / "bridge.json")
-    if base is None:
-        return {}
-
-    if user_dir is None:
-        return base
-
-    user = _read_json(user_dir / "bridge.local.json")
-    if user is None:
-        return base
-
-    return _merge_dicts(base, user)
+    config = _load_bridge_config(machine_dir, user_dir)
+    _log_bridge_config(config, machine_dir / "bridge.json", user_dir / "bridge.local.json" if user_dir else None)
+    return config
 
 
 def load_provider_config(provider_name: str) -> dict[str, Any]:

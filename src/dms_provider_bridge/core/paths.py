@@ -46,3 +46,18 @@ def _temp_dir() -> Path:
 
 
 TEMP_DIR = _temp_dir()
+
+
+def _log_dir() -> Path:
+    explicit = os.environ.get("DMS_PROVIDER_LOG_DIR")
+    if explicit:
+        return Path(explicit)
+
+    user_app_data = os.environ.get("APPDATA")
+    if user_app_data:
+        return Path(user_app_data) / "DMS Provider" / "logs"
+
+    return TEMP_DIR / "logs"
+
+
+LOG_DIR = _log_dir()

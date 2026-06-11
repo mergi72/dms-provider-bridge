@@ -121,14 +121,28 @@ class EdocatClient:
                 return value
         return None
 
+    def _page_signature(self, nodes: list[Any]) -> tuple[tuple[str, str, str, str], ...]:
+        signature: list[tuple[str, str, str, str]] = []
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            signature.append((
+                str(node.get("uuid") or ""),
+                str(node.get("id") or ""),
+                str(node.get("path") or ""),
+                str(node.get("name") or ""),
+            ))
+        return tuple(signature)
+
     def query_nodes(self, path: str, username: str | None = None, password: str | None = None, include_content: bool = False) -> dict[str, Any]:
         headers = self.basic_auth_headers(username, password)
         endpoint = self.endpoint_url("query")
         page = 0
-        page_size = 100
+        page_size = 200
         max_pages = 1000
         aggregated_nodes: list[dict[str, Any]] = []
         first_response: dict[str, Any] | None = None
+        seen_page_signatures: set[tuple[tuple[str, str, str, str], ...]] = set()
 
         while page < max_pages:
             params: dict[str, str] = {
@@ -147,6 +161,11 @@ class EdocatClient:
             nodes = response.get("nodes", [])
             if not isinstance(nodes, list):
                 break
+
+            page_signature = self._page_signature(nodes)
+            if page_signature and page_signature in seen_page_signatures:
+                break
+            seen_page_signatures.add(page_signature)
 
             aggregated_nodes.extend(node for node in nodes if isinstance(node, dict))
             has_next = self._extract_has_next(response)

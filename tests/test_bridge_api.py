@@ -135,6 +135,39 @@ def test_bridge_provider_detail_unknown_provider() -> None:
     assert "not registered" in body["message"]
 
 
+def test_bridge_stat_success_returns_http_200(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        bridge_routes,
+        "stat_path",
+        lambda path, auth: WfxResponse(ok=True, data={"path": path}),
+    )
+    client = TestClient(create_app())
+
+    response = client.post("/bridge/wfx/stat", json={"path": "edocat:/folder", "auth": _auth()})
+
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+
+
+def test_bridge_stat_upstream_error_returns_upstream_status(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        bridge_routes,
+        "stat_path",
+        lambda path, auth: WfxResponse(
+            ok=False,
+            error_code=5,
+            message="eDoCat query failed for /folder: HTTP 404.",
+            metadata={"upstream_status_code": 404},
+        ),
+    )
+    client = TestClient(create_app())
+
+    response = client.post("/bridge/wfx/stat", json={"path": "edocat:/folder", "auth": _auth()})
+
+    assert response.status_code == 404
+    assert response.json()["ok"] is False
+
+
 def test_bridge_root_list_returns_provider_folders_without_auth() -> None:
     client = TestClient(create_app())
     response = client.post("/bridge/wfx/list", json={"path": "/"})

@@ -7,6 +7,7 @@ import uvicorn
 from uvicorn.config import LOGGING_CONFIG
 
 from dms_provider_bridge.core.config_loader import load_config
+from dms_provider_bridge.core.logging import configure_logging
 
 HOST = "127.0.0.1"
 PORT = 8765
@@ -33,6 +34,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     config = load_config()
+    configure_logging(config)
     host = args.host or config.get("server", {}).get("host", HOST)
     port = args.port or config.get("server", {}).get("port", PORT)
     advertised_host = "127.0.0.1" if str(host) in {"0.0.0.0", "::"} else str(host)

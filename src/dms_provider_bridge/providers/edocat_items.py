@@ -6,13 +6,74 @@ from dms_provider_bridge.models.item import DmsItem
 from dms_provider_bridge.providers import edocat_nodes
 
 
+def _int_value(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value >= 0 else None
+    if isinstance(value, float):
+        return int(value) if value >= 0 and value.is_integer() else None
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.isdecimal():
+            return int(stripped)
+    return None
+
+
+def _extract_size(node: dict) -> int | None:
+    candidates: list[object] = [
+        node.get("size"),
+        node.get("fileSize"),
+        node.get("contentSize"),
+        node.get("contentLength"),
+        node.get("length"),
+        node.get("bytes"),
+        node.get("sizeInBytes"),
+    ]
+
+    content = node.get("content")
+    if isinstance(content, dict):
+        candidates.extend(
+            [
+                content.get("size"),
+                content.get("fileSize"),
+                content.get("contentSize"),
+                content.get("contentLength"),
+                content.get("length"),
+                content.get("bytes"),
+                content.get("sizeInBytes"),
+            ]
+        )
+
+    for property_key in ("props", "properties", "metadata"):
+        properties = node.get(property_key)
+        if isinstance(properties, dict):
+            candidates.extend(
+                [
+                    properties.get("size"),
+                    properties.get("fileSize"),
+                    properties.get("contentSize"),
+                    properties.get("contentLength"),
+                    properties.get("length"),
+                    properties.get("bytes"),
+                    properties.get("sizeInBytes"),
+                    properties.get("cm:content.size"),
+                    properties.get("cm:content.sizeInBytes"),
+                ]
+            )
+
+    for candidate in candidates:
+        size = _int_value(candidate)
+        if size is not None:
+            return size
+    return None
+
+
 def item_from_node(node: dict, fallback_path: str, public_path: Callable[[str], str]) -> DmsItem:
     node_path = str(node.get("_normalized_path") or "") or fallback_path
     exposed_path = public_path(node_path)
     name = str(node.get("name") or node_path.rstrip("/").split("/")[-1] or "/")
-    size = node.get("size")
-    if not isinstance(size, int):
-        size = None
+    size = _extract_size(node)
     modified_at = (
         node.get("modifiedAt")
         or node.get("lastModified")
