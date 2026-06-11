@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.10 - 2026-06-11
+
+### Changed
+- Release/version bump to `0.4.10`.
+- Removed the local filesystem `fso` provider from bridge runtime, config templates, installer payload, build scripts, smoke tests, and unit tests.
+- Kept bridge provider paths focused on DMS providers only (`provider:/provider_path`); local filesystem handling belongs to TC-WFX and uploads enter bridge through upload endpoints.
+- Simplified cross-provider `copy` behavior so bridge no longer performs hidden local-filesystem-to-provider transfers.
+- Made provider-facing bridge/service/model paths more generic and moved provider-specific share URL/version capability details behind the provider interface.
+- Verified local FastAPI runtime for Alfresco and eDoCat provider listing after the refactor.
+
+---
+
 ## 0.4.9 - 2026-06-11
 
 ### Changed
