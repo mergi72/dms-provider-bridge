@@ -15,7 +15,8 @@ from dms_provider_bridge.adapters.commander_api import WfxErrorCode
 from dms_provider_bridge.core.config_loader import load_config
 from dms_provider_bridge.core.logging import get_logger
 from dms_provider_bridge.models.bridge import BridgeAuthContext, WfxMoveRequest, WfxPathRequest, WfxShareUrlBrowseRequest, WfxShareUrlRequest, WfxShareUrlValidateRequest, WfxUploadRequest
-from dms_provider_bridge.services.bridge_service import browse_share_url, copy_path, delete_path, download_path, list_path, mkdir_path, open_download_stream, provider_detail_path, providers_path, rename_path, resolve_share_url, stat_path, upload_path
+from dms_provider_bridge.services.bridge_service import copy_path, delete_path, download_path, list_path, mkdir_path, open_download_stream, provider_detail_path, providers_path, rename_path, stat_path, upload_path
+from dms_provider_bridge.services.bridge_share_url import browse_share_url, resolve_share_url
 
 router = APIRouter()
 share_url_router = APIRouter()

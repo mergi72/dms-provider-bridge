@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from dms_provider_bridge.app.server import create_app
 from dms_provider_bridge.app.routes import bridge as bridge_routes
 from dms_provider_bridge.models.bridge import WfxResponse
+from dms_provider_bridge.services import bridge_service
 
 
 pytestmark = pytest.mark.integration
@@ -147,6 +148,19 @@ def test_bridge_root_list_returns_provider_folders_without_auth() -> None:
     assert provider_names >= {"edocat", "alfresco"}
     assert all(item["is_folder"] is True for item in body["data"]["items"])
     assert body["metadata"]["provider_root"] is True
+
+
+def test_bridge_root_list_returns_providers_when_default_is_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bridge_service, "get_default_provider_name", lambda: (_ for _ in ()).throw(RuntimeError("bad default")))
+    client = TestClient(create_app())
+
+    response = client.post("/bridge/wfx/list", json={"path": "/"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert {item["name"] for item in body["data"]["items"]} >= {"edocat", "alfresco"}
+    assert body["metadata"]["default_provider"] is None
 
 
 def test_resolve_share_url() -> None:

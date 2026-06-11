@@ -37,6 +37,13 @@ def test_validate_bridge_auth_accepts_inline_credentials() -> None:
     assert result.password == "secret"
 
 
+def test_windows_auth_payload_maps_target_to_credential_id() -> None:
+    auth = BridgeAuthContext(mode="windows", target="tc-wfx/bridge")
+
+    assert auth.mode == "credentials"
+    assert auth.credential_id == "tc-wfx/bridge"
+
+
 def test_validate_bridge_auth_prefers_inline_credentials_over_credential_id(monkeypatch: pytest.MonkeyPatch) -> None:
     def _should_not_load(_credential_id: str) -> ProviderCredentials:
         raise AssertionError("inline credentials must not trigger Windows Credential Manager lookup")

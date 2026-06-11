@@ -3,16 +3,32 @@ from __future__ import annotations
 from typing import Any
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class BridgeAuthContext(BaseModel):
-    mode: Literal["credentials", "winuser"]
+    mode: Literal["credentials", "winuser", "windows"]
     credential_id: str | None = None
+    target: str | None = Field(
+        default=None,
+        description="Compatibility alias for provider auth target; mapped to credential_id for windows auth requests.",
+    )
     username: str | None = None
     password: str | None = None
     token: str | None = None
     win_user: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_auth_mode(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+        normalized = dict(data)
+        if normalized.get("mode") == "windows":
+            normalized["mode"] = "credentials"
+            if not normalized.get("credential_id") and normalized.get("target"):
+                normalized["credential_id"] = normalized.get("target")
+        return normalized
 
 
 class UploadVersioning(BaseModel):

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.11 - 2026-06-11
+
+### Changed
+- Release/version bump to `0.4.11`.
+- Refactored shared WFX path splitting into `adapters/commander_api.py`.
+- Extracted bridge share URL orchestration into `services/bridge_share_url.py`.
+- Extracted bridge exception-to-WFX mapping into `services/bridge_errors.py`.
+- Made provider root listing tolerate missing or invalid default provider config while still returning registered providers.
+- Added `reload_provider_cache()` for development/test cache refresh.
+- Added compatibility handling for request auth `mode="windows"` with `target` mapped to `credential_id`.
+- Split deterministic eDoCat path helpers into `providers/edocat_paths.py`.
+- Verified local FastAPI runtime for Alfresco and eDoCat listing after refactor.
+
+---
+
 ## 0.4.10 - 2026-06-11
 
 ### Changed

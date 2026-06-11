@@ -81,6 +81,11 @@ def get_provider(provider_name: str | None = None) -> Provider:
     return provider
 
 
+def reload_provider_cache() -> None:
+    """Clear provider instances so subsequent calls load fresh config."""
+    _PROVIDER_CACHE.clear()
+
+
 def list_registered_providers() -> list[str]:
     factories = _provider_factories()
     configured = [name for name in list_provider_config_names() if name in factories]

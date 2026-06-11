@@ -12,6 +12,7 @@ from dms_provider_bridge.models.item import DmsItem
 from dms_provider_bridge.models.listing import ListingResult
 from dms_provider_bridge.models.operation import OperationResult
 from dms_provider_bridge.providers.base import Provider
+from dms_provider_bridge.providers import edocat_paths
 
 
 class EdocatProvider(Provider):
@@ -23,36 +24,13 @@ class EdocatProvider(Provider):
         self.client = EdocatClient.from_config(self.config)
 
     def _browse_root(self) -> str:
-        root = str(self.config.get("doc_library", "/deals")).strip() or "/deals"
-        if not root.startswith("/"):
-            root = f"/{root}"
-        return root.rstrip("/") or "/"
+        return edocat_paths.browse_root(self.config)
 
     def _resolve_path(self, path: str) -> str:
-        normalized = path.strip() or "/"
-        if not normalized.startswith("/"):
-            normalized = f"/{normalized}"
-
-        root = self._browse_root()
-        if normalized == "/":
-            return root
-        if normalized == root or normalized.startswith(f"{root}/"):
-            return normalized
-        return f"{root}{normalized}"
+        return edocat_paths.resolve_path(path, self._browse_root())
 
     def _public_path(self, path: str) -> str:
-        normalized = (path or "").strip() or "/"
-        if not normalized.startswith("/"):
-            normalized = f"/{normalized}"
-        normalized = normalized.rstrip("/") or "/"
-
-        root = self._browse_root()
-        if normalized == root:
-            return "/"
-        if root != "/" and normalized.startswith(f"{root}/"):
-            public_path = normalized[len(root):]
-            return public_path if public_path.startswith("/") else f"/{public_path}"
-        return normalized
+        return edocat_paths.public_path(path, self._browse_root())
 
     def _runtime_credentials(self, auth: BridgeAuthContext | None) -> tuple[str | None, str | None]:
         if auth is None:
@@ -62,12 +40,7 @@ class EdocatProvider(Provider):
         return username, password
 
     def _parent_and_name(self, path: str) -> tuple[str, str]:
-        resolved = self._resolve_path(path).rstrip("/") or "/"
-        if resolved == "/":
-            return "/", ""
-        parent = resolved.rsplit("/", 1)[0] or "/"
-        name = resolved.split("/")[-1]
-        return parent, name
+        return edocat_paths.parent_and_name(path, self._browse_root())
 
     def _encode_if_needed(self, content: str | None) -> str | None:
         if content is None:
@@ -230,46 +203,10 @@ class EdocatProvider(Provider):
         )
 
     def _normalize_node_path(self, node: dict) -> str:
-        node_path = str(node.get("path") or "").strip()
-        node_name = str(node.get("name") or "").strip()
-
-        if node_path and not node_path.startswith("/"):
-            node_path = f"/{node_path}"
-
-        normalized_path = node_path.rstrip("/") or "/" if node_path else ""
-        if not node_name:
-            return normalized_path
-
-        # eDoCat returns folder/file name separately from the parent path.
-        # If the path already contains the last segment, keep it as-is.
-        if normalized_path:
-            last_segment = normalized_path.split("/")[-1] if normalized_path != "/" else ""
-            if last_segment == node_name:
-                return normalized_path
-            if normalized_path == "/":
-                return f"/{node_name}"
-            return f"{normalized_path}/{node_name}"
-
-        return f"/{node_name}"
+        return edocat_paths.normalize_node_path(node)
 
     def _find_exact_node(self, nodes: list[dict], resolved_path: str) -> dict | None:
-        normalized_target = resolved_path.rstrip("/") or "/"
-        target_parent = normalized_target.rsplit("/", 1)[0] or "/"
-        target_name = normalized_target.split("/")[-1] or "/"
-
-        for node in nodes:
-            if self._normalize_node_path(node) == normalized_target:
-                return node
-
-        for node in nodes:
-            if str(node.get("name") or "") != target_name:
-                continue
-            node_path = self._normalize_node_path(node)
-            node_parent = node_path.rsplit("/", 1)[0] or "/" if node_path else ""
-            if node_parent == target_parent:
-                return node
-
-        return None
+        return edocat_paths.find_exact_node(nodes, resolved_path)
 
     def _query_nodes(self, path: str, auth: BridgeAuthContext | None, include_content: bool = False) -> list[dict]:
         query_path = self._resolve_path(path).lstrip("/")

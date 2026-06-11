@@ -38,6 +38,21 @@ def test_list_registered_providers_uses_configured_machine_providers(monkeypatch
     assert providers == ["alfresco"]
 
 
+def test_reload_provider_cache_clears_cached_instances(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider_service_module.reload_provider_cache()
+    monkeypatch.setattr(provider_service_module, "_PROVIDER_FACTORIES", {"dummy": _DummyProvider})
+    monkeypatch.setattr(provider_service_module, "list_provider_config_names", lambda: ["dummy"])
+
+    first = provider_service_module.get_provider("dummy")
+    second = provider_service_module.get_provider("dummy")
+    provider_service_module.reload_provider_cache()
+    third = provider_service_module.get_provider("dummy")
+
+    assert first is second
+    assert third is not first
+    provider_service_module.reload_provider_cache()
+
+
 def test_get_default_provider_name_uses_env_when_registered(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(provider_service_module, "load_config", lambda: {})
     monkeypatch.setenv("DMS_PROVIDER_DEFAULT_PROVIDER", "alfresco")

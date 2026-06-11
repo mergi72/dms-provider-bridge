@@ -39,6 +39,18 @@ def build_wfx_path(provider: str, path: str) -> str:
     return f"{provider}:{normalized}"
 
 
+def split_optional_wfx_path(path: str) -> tuple[str | None, str]:
+    """Split provider:/path when present; leave local/plain paths untouched."""
+    raw = path.strip()
+    if not raw:
+        return None, raw
+    prefix, sep, suffix = raw.partition(":")
+    if sep and len(prefix.strip()) > 1 and suffix.strip().replace("\\", "/").startswith("/"):
+        parsed = parse_wfx_path(raw)
+        return parsed.provider, parsed.path
+    return None, raw
+
+
 def map_commander_payload(payload: dict) -> dict:
     """Simple no-op mapper, kept for compatibility with planned TC/WFX wrapper."""
     return payload
