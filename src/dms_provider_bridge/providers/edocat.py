@@ -12,7 +12,7 @@ from dms_provider_bridge.models.item import DmsItem
 from dms_provider_bridge.models.listing import ListingResult
 from dms_provider_bridge.models.operation import OperationResult
 from dms_provider_bridge.providers.base import Provider
-from dms_provider_bridge.providers import edocat_paths
+from dms_provider_bridge.providers import edocat_config, edocat_items, edocat_nodes, edocat_paths, edocat_tree
 
 
 class EdocatProvider(Provider):
@@ -50,109 +50,39 @@ class EdocatProvider(Provider):
         return content
 
     def _node_type_config(self) -> dict[str, str]:
-        value = self.config.get("nodeType", {})
-        return value if isinstance(value, dict) else {}
+        return edocat_config.node_type_config(self.config)
 
     def _document_node_type(self) -> str:
-        node_type_cfg = self._node_type_config()
-        return (
-            node_type_cfg.get("baseDoc")
-            or node_type_cfg.get("file")
-            or "ctbd:baseDoc"
-        )
+        return edocat_config.document_node_type(self.config)
 
     def _copy_max_nodes(self) -> int:
-        copy_cfg = self.config.get("copy", {})
-        if isinstance(copy_cfg, dict):
-            value = copy_cfg.get("maxNodes")
-            if isinstance(value, int) and value > 0:
-                return value
-        return 200
+        return edocat_config.copy_max_nodes(self.config)
 
     def _delete_max_nodes(self) -> int:
-        delete_cfg = self.config.get("delete", {})
-        if isinstance(delete_cfg, dict):
-            value = delete_cfg.get("maxNodes")
-            if isinstance(value, int) and value > 0:
-                return value
-        return self._copy_max_nodes()
+        return edocat_config.delete_max_nodes(self.config)
 
     def _download_max_bytes(self) -> int:
-        download_cfg = self.config.get("download", {})
-        if isinstance(download_cfg, dict):
-            value = download_cfg.get("maxBase64Bytes")
-            if isinstance(value, int) and value > 0:
-                return value
-
-        transfer_cfg = self.config.get("transfer", {})
-        if isinstance(transfer_cfg, dict):
-            value = transfer_cfg.get("maxBase64Bytes")
-            if isinstance(value, int) and value > 0:
-                return value
-        return 20 * 1024 * 1024
+        return edocat_config.download_max_bytes(self.config)
 
     def _download_max_nodes(self) -> int:
-        download_cfg = self.config.get("download", {})
-        if isinstance(download_cfg, dict):
-            value = download_cfg.get("maxNodes")
-            if isinstance(value, int) and value > 0:
-                return value
-
-        transfer_cfg = self.config.get("transfer", {})
-        if isinstance(transfer_cfg, dict):
-            value = transfer_cfg.get("maxNodes")
-            if isinstance(value, int) and value > 0:
-                return value
-        return 500
+        return edocat_config.download_max_nodes(self.config)
 
     def _download_zip_endpoint(self) -> str | None:
-        download_cfg = self.config.get("download", {})
-        if not isinstance(download_cfg, dict):
-            return None
-        endpoint = download_cfg.get("zipEndpoint")
-        if isinstance(endpoint, str):
-            endpoint = endpoint.strip()
-            if endpoint:
-                return endpoint
-        return None
+        return edocat_config.download_zip_endpoint(self.config)
 
     def _download_zip_method(self) -> str:
-        download_cfg = self.config.get("download", {})
-        if isinstance(download_cfg, dict):
-            method = str(download_cfg.get("zipMethod") or "POST").strip().upper()
-            if method in {"GET", "POST"}:
-                return method
-        return "POST"
+        return edocat_config.download_zip_method(self.config)
 
     def _download_zip_content_type(self) -> str:
-        download_cfg = self.config.get("download", {})
-        if isinstance(download_cfg, dict):
-            content_type = download_cfg.get("zipContentType")
-            if isinstance(content_type, str) and content_type.strip():
-                return content_type.strip()
-        return "application/zip"
+        return edocat_config.download_zip_content_type(self.config)
 
     def _download_zip_url(self, endpoint: str) -> str:
-        if endpoint.startswith("http://") or endpoint.startswith("https://"):
-            return endpoint
         base_url = str(getattr(self.client, "base_url", "") or "").rstrip("/")
-        if not base_url:
-            return endpoint
-        if endpoint.startswith("/"):
-            return f"{base_url}{endpoint}"
         api_root = str(getattr(self.client, "api_root", "") or "").strip("/")
-        prefix = f"/{api_root}" if api_root else ""
-        return f"{base_url}{prefix}/{endpoint}"
+        return edocat_config.download_zip_url(base_url, api_root, endpoint)
 
     def _download_zip_payload(self, node_uuid: str) -> dict[str, object]:
-        download_cfg = self.config.get("download", {})
-        if isinstance(download_cfg, dict):
-            payload_mode = str(download_cfg.get("zipPayloadMode") or "uuids").strip().lower()
-            if payload_mode == "uuid":
-                return {"uuid": node_uuid}
-            if payload_mode == "path":
-                return {"path": node_uuid}
-        return {"uuids": [node_uuid]}
+        return edocat_config.download_zip_payload(self.config, node_uuid)
 
     def _download_zip_for_node(self, node_uuid: str, resolved_path: str, auth: BridgeAuthContext | None) -> OperationResult:
         endpoint = self._download_zip_endpoint()
@@ -195,12 +125,7 @@ class EdocatProvider(Provider):
         )
 
     def _folder_node_type(self) -> str:
-        node_type_cfg = self._node_type_config()
-        return (
-            node_type_cfg.get("folder")
-            or node_type_cfg.get("baseFolder")
-            or "com.onlio.edocat.BaseFolder"
-        )
+        return edocat_config.folder_node_type(self.config)
 
     def _normalize_node_path(self, node: dict) -> str:
         return edocat_paths.normalize_node_path(node)
@@ -242,45 +167,15 @@ class EdocatProvider(Provider):
 
     def _item_from_node(self, node: dict, fallback_path: str) -> DmsItem:
         node_path = self._normalize_node_path(node) or fallback_path
-        public_path = self._public_path(node_path)
-        name = str(node.get("name") or node_path.rstrip("/").split("/")[-1] or "/")
-        node_type = str(node.get("nodeType") or "")
-        is_folder = node_type.lower().endswith("folder") or node_type.lower().endswith("basefolder")
-        size = node.get("size")
-        if not isinstance(size, int):
-            size = None
-        modified_at = (
-            node.get("modifiedAt")
-            or node.get("lastModified")
-            or node.get("modified")
-            or node.get("lastModificationDate")
-        )
-        if modified_at is not None:
-            modified_at = str(modified_at)
-        read_only_flag = node.get("readOnly")
-        if not isinstance(read_only_flag, bool):
-            read_only_flag = None
-        return DmsItem(
-            id=str(node.get("uuid") or node.get("id") or name),
-            name=name,
-            path=public_path,
-            is_folder=is_folder,
-            size=size,
-            mime_type=str(node.get("mimeType")) if node.get("mimeType") else None,
-            modified_at=modified_at,
-            is_read_only=read_only_flag,
-        )
+        normalized_node = dict(node)
+        normalized_node["_normalized_path"] = node_path
+        return edocat_items.item_from_node(normalized_node, fallback_path, self._public_path)
 
     def _node_uuid(self, node: dict | None) -> str:
-        if not isinstance(node, dict):
-            return ""
-        return str(node.get("uuid") or node.get("id") or "")
+        return edocat_nodes.node_uuid(node)
 
     def _is_folder_node(self, node: dict | None) -> bool:
-        if not isinstance(node, dict):
-            return False
-        node_type = str(node.get("nodeType") or "").lower()
-        return node_type.endswith("folder") or node_type.endswith("basefolder")
+        return edocat_nodes.is_folder_node(node)
 
     def _delete_folder_tree(self, folder_path: str, auth: BridgeAuthContext | None, username: str | None, password: str | None, visited: set[str] | None = None) -> None:
         normalized_folder = self._resolve_path(folder_path).rstrip("/") or "/"
@@ -290,13 +185,7 @@ class EdocatProvider(Provider):
         seen.add(normalized_folder)
 
         children = self._query_nodes(normalized_folder, auth, include_content=False)
-        descendant_paths: set[str] = set()
-        for child in children:
-            child_path = self._normalize_node_path(child)
-            if not child_path or child_path == normalized_folder:
-                continue
-            if child_path.startswith(f"{normalized_folder}/"):
-                descendant_paths.add(child_path)
+        descendant_paths = edocat_tree.descendant_paths(children, normalized_folder, self._normalize_node_path)
 
         for child_path in sorted(descendant_paths, key=lambda p: p.count("/"), reverse=True):
             child_node = self._query_single_node(child_path, auth, include_content=False)
@@ -318,33 +207,17 @@ class EdocatProvider(Provider):
     def _direct_child_nodes(self, folder_path: str, auth: BridgeAuthContext | None, include_content: bool = False) -> list[dict]:
         normalized_folder = self._resolve_path(folder_path).rstrip("/") or "/"
         nodes = self._query_nodes(normalized_folder, auth, include_content=include_content)
-        direct_children: list[dict] = []
-        seen_paths: set[str] = set()
-        for node in nodes:
-            child_path = self._normalize_node_path(node)
-            if not child_path or child_path == normalized_folder:
-                continue
-            child_parent = child_path.rsplit("/", 1)[0] or "/"
-            if child_parent != normalized_folder or child_path in seen_paths:
-                continue
-            direct_children.append(node)
-            seen_paths.add(child_path)
-        return direct_children
+        return edocat_tree.direct_child_nodes(nodes, normalized_folder, self._normalize_node_path)
 
     def _copy_payload(self, source_node: dict, destination_path: str) -> dict[str, object]:
         parent, name = self._parent_and_name(destination_path)
-        is_folder = self._is_folder_node(source_node)
-        payload: dict[str, object] = {
-            "path": parent.lstrip("/"),
-            "name": name,
-            "nodeType": self._folder_node_type() if is_folder else self._document_node_type(),
-        }
-        if not is_folder:
-            if isinstance(source_node.get("content"), str):
-                payload["content"] = source_node.get("content")
-            if source_node.get("mimeType"):
-                payload["mimeType"] = source_node.get("mimeType")
-        return payload
+        return edocat_items.copy_payload(
+            source_node,
+            parent,
+            name,
+            self._folder_node_type(),
+            self._document_node_type(),
+        )
 
     def _count_folder_tree_nodes(self, folder_path: str, auth: BridgeAuthContext | None) -> int:
         total = 1
@@ -370,11 +243,7 @@ class EdocatProvider(Provider):
             child_source_path = self._normalize_node_path(child_node)
             if not child_source_path:
                 continue
-            child_destination_path = (
-                f"{destination_folder_path.rstrip('/')}/{child_source_path.rsplit('/', 1)[-1]}"
-                if destination_folder_path != "/"
-                else f"/{child_source_path.rsplit('/', 1)[-1]}"
-            )
+            child_destination_path = edocat_tree.child_destination_path(destination_folder_path, child_source_path)
 
             if self._is_folder_node(child_node):
                 self.client.create_node(

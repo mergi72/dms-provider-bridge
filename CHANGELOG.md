@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.12 - 2026-06-11
+
+### Changed
+- Release/version bump to `0.4.12`.
+- Refactored eDoCat provider internals into focused helper modules for config, node metadata, item mapping, and tree/path operations.
+- Kept the external bridge/provider contract unchanged while reducing `edocat.py` size and preserving Alfresco runtime behavior.
+- Verified local FastAPI runtime for Alfresco list/stat/upload flow after the eDoCat helper split.
+
+---
+
 ## 0.4.11 - 2026-06-11
 
 ### Changed
