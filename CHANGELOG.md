@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.13 - 2026-06-11
+
+### Changed
+- Release/version bump to `0.4.13`.
+- Refactored Alfresco provider internals into focused helper modules for config limits, share URL parsing, item mapping, and versioning metadata.
+- Kept the external bridge/provider contract unchanged while reducing `alfresco.py` size.
+- Verified local FastAPI runtime for Alfresco list/stat/version-upload flow after the helper split.
+
+---
+
 ## 0.4.12 - 2026-06-11
 
 ### Changed

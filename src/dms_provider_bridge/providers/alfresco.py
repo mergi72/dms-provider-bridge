@@ -4,7 +4,6 @@ import base64
 from collections.abc import Callable
 from typing import IO
 from urllib.error import HTTPError
-from urllib.parse import unquote, urlparse
 
 from dms_provider_bridge.clients.alfresco_client import AlfrescoClient
 from dms_provider_bridge.core.config_loader import load_provider_config
@@ -15,6 +14,7 @@ from dms_provider_bridge.models.item import DmsItem
 from dms_provider_bridge.models.listing import ListingResult
 from dms_provider_bridge.models.operation import OperationResult
 from dms_provider_bridge.providers.base import Provider
+from dms_provider_bridge.providers import alfresco_config, alfresco_items, alfresco_share, alfresco_versioning
 
 
 class AlfrescoProvider(Provider):
@@ -42,34 +42,10 @@ class AlfrescoProvider(Provider):
         return True
 
     def share_url_to_path(self, share_url: str) -> str:
-        parsed = urlparse(share_url)
-        fragment = parsed.fragment or ""
-        if not fragment:
-            raise ValueError("Share URL must contain a hash path (fragment).")
-
-        fragment_path = fragment.split("?", 1)[0].strip()
-        if not fragment_path:
-            raise ValueError("Share URL fragment path is empty.")
-
-        normalized = unquote(fragment_path).replace("\\", "/")
-        if not normalized.startswith("/"):
-            normalized = f"/{normalized}"
-        return normalized
+        return alfresco_share.share_url_to_path(share_url)
 
     def _download_max_bytes(self) -> int:
-        download_cfg = self.config.get("download", {})
-        if isinstance(download_cfg, dict):
-            value = download_cfg.get("maxBase64Bytes")
-            if isinstance(value, int) and value > 0:
-                return value
-
-        transfer_cfg = self.config.get("transfer", {})
-        if isinstance(transfer_cfg, dict):
-            value = transfer_cfg.get("maxBase64Bytes")
-            if isinstance(value, int) and value > 0:
-                return value
-
-        return 20 * 1024 * 1024
+        return alfresco_config.download_max_bytes(self.config)
 
     def _ticket(self, auth: BridgeAuthContext | None) -> str:
         username, password, token = self._runtime_credentials(auth)
@@ -133,78 +109,24 @@ class AlfrescoProvider(Provider):
         return resolved["node_id"], None, resolved["path"]
 
     def _item_from_entry(self, entry: dict, fallback_path: str | None = None) -> DmsItem:
-        props = entry.get("properties", {}) if isinstance(entry, dict) else {}
-        name = entry.get("name") or (fallback_path.rstrip("/").split("/")[-1] if fallback_path else "") or "/"
-        path = fallback_path or entry.get("path", {}).get("name", "/") or "/"
-        is_folder = entry.get("isFolder") if isinstance(entry.get("isFolder"), bool) else str(entry.get("nodeType", "")).endswith("folder")
-        modified_at = entry.get("modifiedAt")
-        if modified_at is not None:
-            modified_at = str(modified_at)
-        lock_type = props.get("cm:lockType") if isinstance(props, dict) else None
-        is_read_only = bool(lock_type) if lock_type is not None else None
-        return DmsItem(
-            id=str(entry.get("id") or self.client.node_id_from_path(path)),
-            name=str(name),
-            path=self.client.normalize_path(path),
-            is_folder=bool(is_folder),
-            size=entry.get("content", {}).get("sizeInBytes") if isinstance(entry.get("content"), dict) else None,
-            mime_type=entry.get("content", {}).get("mimeType") if isinstance(entry.get("content"), dict) else props.get("cm:content.mimetype"),
-            modified_at=modified_at,
-            is_read_only=is_read_only,
+        return alfresco_items.item_from_entry(
+            entry,
+            fallback_path,
+            self.client.normalize_path,
+            lambda path: self.client.node_id_from_path(path),
         )
 
     def _version_label_from_entry(self, entry: dict | None) -> str | None:
-        if not isinstance(entry, dict):
-            return None
-        props = entry.get("properties")
-        if isinstance(props, dict):
-            for key in ("cm:versionLabel", "versionLabel"):
-                value = props.get(key)
-                if value is not None:
-                    return str(value)
-        for key in ("versionLabel", "version"):
-            value = entry.get(key)
-            if value is not None:
-                return str(value)
-        return None
+        return alfresco_versioning.version_label_from_entry(entry)
 
     def _version_type_from_entry(self, entry: dict | None) -> str | None:
-        if not isinstance(entry, dict):
-            return None
-        props = entry.get("properties")
-        if isinstance(props, dict):
-            value = props.get("cm:versionType") or props.get("versionType")
-            if value is not None:
-                return str(value)
-        return None
+        return alfresco_versioning.version_type_from_entry(entry)
 
     def _user_name_from_entry(self, entry: dict | None, field: str) -> str | None:
-        if not isinstance(entry, dict):
-            return None
-        value = entry.get(field)
-        if isinstance(value, dict):
-            for key in ("id", "displayName"):
-                user_value = value.get(key)
-                if user_value is not None:
-                    return str(user_value)
-        if value is not None:
-            return str(value)
-        return None
+        return alfresco_versioning.user_name_from_entry(entry, field)
 
     def _audit_from_entry(self, entry: dict | None) -> dict[str, object | None]:
-        if not isinstance(entry, dict):
-            return {
-                "created_at": None,
-                "created_by": None,
-                "modified_at": None,
-                "modified_by": None,
-            }
-        return {
-            "created_at": str(entry.get("createdAt")) if entry.get("createdAt") is not None else None,
-            "created_by": self._user_name_from_entry(entry, "createdByUser"),
-            "modified_at": str(entry.get("modifiedAt")) if entry.get("modifiedAt") is not None else None,
-            "modified_by": self._user_name_from_entry(entry, "modifiedByUser"),
-        }
+        return alfresco_versioning.audit_from_entry(entry)
 
     def _node_detail_entry(self, ticket: str, node_id: str) -> dict | None:
         try:
@@ -215,36 +137,10 @@ class AlfrescoProvider(Provider):
         return entry if isinstance(entry, dict) else None
 
     def _versioning_choice(self, versioning: dict | None) -> tuple[bool, str | None] | None:
-        if not isinstance(versioning, dict):
-            return None
-        mode = str(versioning.get("mode") or "").strip().lower()
-        if mode != "version":
-            return None
-
-        major_version = bool(versioning.get("majorVersion", False))
-        comment = versioning.get("comment")
-        return major_version, str(comment) if isinstance(comment, str) and comment.strip() else None
+        return alfresco_versioning.versioning_choice(versioning)
 
     def _existing_upload_metadata(self, target_destination: str, existing: dict) -> dict[str, object]:
-        audit = self._audit_from_entry(existing)
-        return {
-            "action": "version_required",
-            "provider": self.name,
-            "path": target_destination,
-            "name": str(existing.get("name") or target_destination.rstrip("/").split("/")[-1]),
-            "node_id": str(existing.get("id") or ""),
-            "current_version": self._version_label_from_entry(existing),
-            "current_version_type": self._version_type_from_entry(existing),
-            "current_created_at": audit["created_at"],
-            "current_created_by": audit["created_by"],
-            "current_modified_at": audit["modified_at"],
-            "current_modified_by": audit["modified_by"],
-            "versioning": {
-                "mode": "version",
-                "majorVersion": False,
-                "comment_supported": True,
-            },
-        }
+        return alfresco_versioning.existing_upload_metadata(self.name, target_destination, existing)
 
     def _resolve_path(self, path: str, ticket: str | None = None, strict: bool = False) -> dict[str, str]:
         normalized = self.client.normalize_path(path)
