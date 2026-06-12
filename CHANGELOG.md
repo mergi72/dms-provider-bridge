@@ -1,10 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.4.19 - 2026-06-13
 
 ### Fixed
 - Cross-provider copy/move now checks unsuccessful download/upload `OperationResult` values instead of assuming all provider failures raise exceptions.
 - Cross-provider move no longer deletes the source when the destination upload returns an unsuccessful result.
+
+### Added
+- Release/version bump to `0.4.19`.
+- Cross-provider copy/move requests can now provide separate `source_auth` and `destination_auth` values, with backward-compatible fallback to `auth`.
+- Transfer auth is validated on separate auth instances so source credential resolution cannot mutate destination credential resolution.
 
 ---
 

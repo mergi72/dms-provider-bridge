@@ -64,6 +64,14 @@ class WfxMoveRequest(BaseModel):
         description="Destination path in format provider:/path. Use the same provider prefix for same-provider operations.",
     )
     auth: BridgeAuthContext
+    source_auth: BridgeAuthContext | None = Field(
+        default=None,
+        description="Optional source-provider auth override for provider-to-provider copy/move operations. Falls back to auth.",
+    )
+    destination_auth: BridgeAuthContext | None = Field(
+        default=None,
+        description="Optional destination-provider auth override for provider-to-provider copy/move operations. Falls back to auth.",
+    )
 
 
 class WfxUploadRequest(BaseModel):

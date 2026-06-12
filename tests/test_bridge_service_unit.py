@@ -38,6 +38,10 @@ def _auth() -> BridgeAuthContext:
     return BridgeAuthContext(mode="credentials", username="user", password="pass")
 
 
+def _credential_auth(credential_id: str) -> BridgeAuthContext:
+    return BridgeAuthContext(mode="credentials", credential_id=credential_id)
+
+
 def test_copy_path_same_provider_delegates_to_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     provider = DummyProvider("edocat")
     provider.copy_item.return_value = OperationResult(success=True, operation="copy", provider="edocat")
@@ -87,6 +91,54 @@ def test_copy_path_cross_provider_downloads_and_uploads(monkeypatch: pytest.Monk
         auth=_auth(),
     )
     assert response.metadata["transfer"] == "download-upload"
+
+
+def test_copy_path_cross_provider_uses_separate_source_and_destination_auth_instances(monkeypatch: pytest.MonkeyPatch) -> None:
+    src_provider = DummyProvider("edocat")
+    dst_provider = DummyProvider("alfresco")
+    src_provider.download_item.return_value = OperationResult(
+        success=True,
+        operation="download",
+        provider="edocat",
+        content_base64="dGVzdA==",
+        size=4,
+    )
+    dst_provider.upload_item.return_value = OperationResult(success=True, operation="upload", provider="alfresco")
+    fallback_auth = _credential_auth("fallback")
+    source_auth = _credential_auth("source")
+    destination_auth = _credential_auth("destination")
+
+    def _validate(auth: BridgeAuthContext) -> BridgeAuthContext:
+        auth.username = f"{auth.credential_id}-user"
+        auth.password = f"{auth.credential_id}-password"
+        return auth
+
+    monkeypatch.setattr(bridge_service_module, "validate_bridge_auth", _validate)
+    monkeypatch.setattr(
+        bridge_service_module,
+        "_resolve",
+        lambda path: (src_provider, type("P", (), {"path": "/source.txt"})())
+        if path == "edocat:/source.txt"
+        else (dst_provider, type("P", (), {"path": "/target.txt"})()),
+    )
+
+    response = bridge_service_module.copy_path(
+        "edocat:/source.txt",
+        "alfresco:/target.txt",
+        fallback_auth,
+        source_auth=source_auth,
+        destination_auth=destination_auth,
+    )
+
+    assert response.ok is True
+    download_auth = src_provider.download_item.call_args.args[1]
+    upload_auth = dst_provider.upload_item.call_args.kwargs["auth"]
+    assert download_auth is not upload_auth
+    assert download_auth.username == "source-user"
+    assert upload_auth.username == "destination-user"
+    assert source_auth.username is None
+    assert destination_auth.username is None
+    assert fallback_auth.username is None
 
 
 def test_copy_path_cross_provider_uses_temp_file_when_inline_limit_is_exceeded(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -159,6 +211,52 @@ def test_rename_path_cross_provider_downloads_uploads_and_deletes(monkeypatch: p
     )
     src_provider.delete_item.assert_called_once_with("/source.txt", _auth())
     assert response.metadata["transfer"] == "download-upload-delete"
+
+
+def test_rename_path_cross_provider_uses_source_auth_for_delete_and_destination_auth_for_upload(monkeypatch: pytest.MonkeyPatch) -> None:
+    src_provider = DummyProvider("alfresco")
+    dst_provider = DummyProvider("edocat")
+    src_provider.download_item.return_value = OperationResult(
+        success=True,
+        operation="download",
+        provider="alfresco",
+        content_base64="Y29udGVudA==",
+        size=7,
+    )
+    dst_provider.upload_item.return_value = OperationResult(success=True, operation="upload", provider="edocat")
+    src_provider.delete_item.return_value = OperationResult(success=True, operation="delete", provider="alfresco")
+
+    def _validate(auth: BridgeAuthContext) -> BridgeAuthContext:
+        auth.username = f"{auth.credential_id}-user"
+        auth.password = f"{auth.credential_id}-password"
+        return auth
+
+    monkeypatch.setattr(bridge_service_module, "validate_bridge_auth", _validate)
+    monkeypatch.setattr(
+        bridge_service_module,
+        "_resolve",
+        lambda path: (src_provider, type("P", (), {"path": "/source.txt"})())
+        if path == "alfresco:/source.txt"
+        else (dst_provider, type("P", (), {"path": "/folder/target.txt"})()),
+    )
+
+    response = bridge_service_module.rename_path(
+        "alfresco:/source.txt",
+        "edocat:/folder/target.txt",
+        _credential_auth("fallback"),
+        source_auth=_credential_auth("source"),
+        destination_auth=_credential_auth("destination"),
+    )
+
+    assert response.ok is True
+    download_auth = src_provider.download_item.call_args.args[1]
+    upload_auth = dst_provider.upload_item.call_args.kwargs["auth"]
+    delete_auth = src_provider.delete_item.call_args.args[1]
+    assert download_auth is delete_auth
+    assert upload_auth is not download_auth
+    assert download_auth.username == "source-user"
+    assert delete_auth.username == "source-user"
+    assert upload_auth.username == "destination-user"
 
 
 def test_rename_path_cross_provider_does_not_delete_when_upload_fails(monkeypatch: pytest.MonkeyPatch) -> None:

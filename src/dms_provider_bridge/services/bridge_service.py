@@ -135,6 +135,16 @@ def _operation_failure_message(operation: str, result) -> str:
     return f"Cross-provider {operation} failed: {detail}."
 
 
+def _copy_auth(auth: BridgeAuthContext) -> BridgeAuthContext:
+    return auth.model_copy(deep=True)
+
+
+def _validated_auth(auth: BridgeAuthContext) -> BridgeAuthContext:
+    auth_copy = _copy_auth(auth)
+    validate_bridge_auth(auth_copy)
+    return auth_copy
+
+
 def _provider_root_listing() -> ListingResult:
     providers = list_registered_providers()
     items = [
@@ -358,7 +368,13 @@ def delete_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
         return _log_and_return("delete", provider_name, resolved_path, started_at, response, str(exc))
 
 
-def rename_path(source: str, destination: str, auth: BridgeAuthContext) -> WfxResponse:
+def rename_path(
+    source: str,
+    destination: str,
+    auth: BridgeAuthContext,
+    source_auth: BridgeAuthContext | None = None,
+    destination_auth: BridgeAuthContext | None = None,
+) -> WfxResponse:
     started_at = time.perf_counter()
     provider_name: str | None = None
     operation_path = f"{source} -> {destination}"
@@ -367,24 +383,25 @@ def rename_path(source: str, destination: str, auth: BridgeAuthContext) -> WfxRe
         dst_provider, dst = _resolve(destination)
         provider_name = src_provider.name
         operation_path = f"{src.path} -> {dst.path}"
-        validate_bridge_auth(auth)
+        src_auth = _validated_auth(source_auth or auth)
         if src_provider.name != dst_provider.name:
+            dst_auth = _validated_auth(destination_auth or auth)
             target_folder, file_name = _split_parent_and_name(dst.path)
             if not file_name:
                 response = _failure(WfxErrorCode.BAD_PATH, "Cross-provider move requires a destination file name.")
                 return _log_and_return("rename", provider_name, operation_path, started_at, response, response.message)
-            download_result = src_provider.download_item(src.path, auth)
+            download_result = src_provider.download_item(src.path, src_auth)
             if not download_result.success:
                 response = _failure(WfxErrorCode.INTERNAL_ERROR, _operation_failure_message("move download", download_result))
                 return _log_and_return("rename", provider_name, operation_path, started_at, response, response.message)
             if not download_result.content_base64:
                 response = _failure(WfxErrorCode.INTERNAL_ERROR, "Cross-provider move failed: source download returned no content.")
                 return _log_and_return("rename", provider_name, operation_path, started_at, response, response.message)
-            upload_result = _upload_downloaded_content(dst_provider, target_folder, file_name, auth, download_result.content_base64)
+            upload_result = _upload_downloaded_content(dst_provider, target_folder, file_name, dst_auth, download_result.content_base64)
             if not upload_result.success:
                 response = _failure(WfxErrorCode.INTERNAL_ERROR, _operation_failure_message("move upload", upload_result))
                 return _log_and_return("rename", provider_name, operation_path, started_at, response, response.message)
-            delete_result = src_provider.delete_item(src.path, auth)
+            delete_result = src_provider.delete_item(src.path, src_auth)
             response = _success(
                 data=upload_result.model_dump(),
                 metadata={
@@ -396,7 +413,7 @@ def rename_path(source: str, destination: str, auth: BridgeAuthContext) -> WfxRe
                 },
             )
             return _log_and_return("rename", provider_name, operation_path, started_at, response)
-        result = src_provider.rename_item(src.path, dst.path, auth)
+        result = src_provider.rename_item(src.path, dst.path, src_auth)
         response = _success(data=result.model_dump(), metadata=_metadata(src_provider, "rename"))
         return _log_and_return("rename", provider_name, operation_path, started_at, response)
     except Exception as exc:
@@ -404,7 +421,13 @@ def rename_path(source: str, destination: str, auth: BridgeAuthContext) -> WfxRe
         return _log_and_return("rename", provider_name, operation_path, started_at, response, str(exc))
 
 
-def copy_path(source: str, destination: str, auth: BridgeAuthContext) -> WfxResponse:
+def copy_path(
+    source: str,
+    destination: str,
+    auth: BridgeAuthContext,
+    source_auth: BridgeAuthContext | None = None,
+    destination_auth: BridgeAuthContext | None = None,
+) -> WfxResponse:
     started_at = time.perf_counter()
     provider_name: str | None = None
     operation_path = f"{source} -> {destination}"
@@ -413,24 +436,25 @@ def copy_path(source: str, destination: str, auth: BridgeAuthContext) -> WfxResp
         dst_provider, dst = _resolve(destination)
         provider_name = f"{src_provider.name}->{dst_provider.name}"
         operation_path = f"{src.path} -> {dst.path}"
-        validate_bridge_auth(auth)
+        src_auth = _validated_auth(source_auth or auth)
         if src_provider.name == dst_provider.name:
-            result = src_provider.copy_item(src.path, dst.path, auth)
+            result = src_provider.copy_item(src.path, dst.path, src_auth)
             response = _success(data=result.model_dump(), metadata=_metadata(src_provider, "copy"))
             return _log_and_return("copy", provider_name, operation_path, started_at, response)
 
+        dst_auth = _validated_auth(destination_auth or auth)
         target_folder, file_name = _split_parent_and_name(dst.path)
         if not file_name:
             response = _failure(WfxErrorCode.BAD_PATH, "Cross-provider copy requires a destination file name.")
             return _log_and_return("copy", provider_name, operation_path, started_at, response, response.message)
-        download_result = src_provider.download_item(src.path, auth)
+        download_result = src_provider.download_item(src.path, src_auth)
         if not download_result.success:
             response = _failure(WfxErrorCode.INTERNAL_ERROR, _operation_failure_message("copy download", download_result))
             return _log_and_return("copy", provider_name, operation_path, started_at, response, response.message)
         if not download_result.content_base64:
             response = _failure(WfxErrorCode.INTERNAL_ERROR, "Cross-provider copy failed: source download returned no content.")
             return _log_and_return("copy", provider_name, operation_path, started_at, response, response.message)
-        upload_result = _upload_downloaded_content(dst_provider, target_folder, file_name, auth, download_result.content_base64)
+        upload_result = _upload_downloaded_content(dst_provider, target_folder, file_name, dst_auth, download_result.content_base64)
         if not upload_result.success:
             response = _failure(WfxErrorCode.INTERNAL_ERROR, _operation_failure_message("copy upload", upload_result))
             return _log_and_return("copy", provider_name, operation_path, started_at, response, response.message)

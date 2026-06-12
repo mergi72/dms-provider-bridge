@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Alpha-orange)](https://github.com/mergi72/dms-provider-bridge)
-[![Bridge Version](https://img.shields.io/badge/Bridge-v0.4.18-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.4.18)
-[![Bridge Setup](https://img.shields.io/badge/Setup-v0.4.18-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.4.18)
+[![Bridge Version](https://img.shields.io/badge/Bridge-v0.4.19-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.4.19)
+[![Bridge Setup](https://img.shields.io/badge/Setup-v0.4.19-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.4.19)
 
 Current development branch: `develop`  
 Stable release branch: `main`
@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.4.18`
-- Latest bridge-only release: `v0.4.18`
+- Bridge repository latest changelog version: `0.4.19`
+- Latest bridge-only release: `v0.4.19`
 
 ## Runtime Modes
 
@@ -27,10 +27,10 @@ Bridge can be run in two different Windows runtime models. Keep them separate:
 - Service mode:
   - Intended for server-style local bridge usage.
   - Runs as the `DMSProviderBridge` Windows Service via NSSM.
-  - Current `v0.4.18` installer installs this service as `LocalSystem`.
+  - Current `v0.4.19` installer installs this service as `LocalSystem`.
   - `LocalSystem` cannot see credentials stored in an interactive user's Windows Credential Manager.
 
-Current setup release `v0.4.18` is the Service mode installer. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
+Current setup release `v0.4.19` is the Service mode installer. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
 
 ## Provider Operations
 
@@ -40,6 +40,29 @@ The bridge supports file operations inside one provider and between different pr
 - Copy between providers, for example `edocat:/...` to `alfresco:/...`, is handled as download plus upload.
 - Move between providers is handled as download, upload, then delete from the source provider.
 - Large provider-to-provider transfers use a temporary file fallback when the payload exceeds the inline upload limit.
+
+Provider-to-provider copy/move can use separate credentials for each side:
+
+```json
+{
+  "source": "edocat:/source/file.txt",
+  "destination": "alfresco:/target/file.txt",
+  "auth": {
+    "mode": "credentials",
+    "credential_id": "fallback-credential"
+  },
+  "source_auth": {
+    "mode": "credentials",
+    "credential_id": "edocat-credential"
+  },
+  "destination_auth": {
+    "mode": "credentials",
+    "credential_id": "alfresco-credential"
+  }
+}
+```
+
+`source_auth` and `destination_auth` are optional. When omitted, the bridge falls back to `auth` for backward compatibility.
 
 ## Related Projects
 

@@ -355,6 +355,40 @@ def test_core_wfx_operations_smoke() -> None:
     assert download_raw_resp.status_code == 200
 
 
+def test_bridge_copy_accepts_source_and_destination_auth(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured = {}
+
+    def _copy_path(source, destination, auth, source_auth=None, destination_auth=None):
+        captured["source"] = source
+        captured["destination"] = destination
+        captured["auth"] = auth
+        captured["source_auth"] = source_auth
+        captured["destination_auth"] = destination_auth
+        return WfxResponse(ok=True, data={"copied": True})
+
+    monkeypatch.setattr(bridge_routes, "copy_path", _copy_path)
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/bridge/wfx/copy",
+        json={
+            "source": "edocat:/source.txt",
+            "destination": "alfresco:/target.txt",
+            "auth": {"mode": "credentials", "credential_id": "fallback"},
+            "source_auth": {"mode": "credentials", "credential_id": "edocat-credential"},
+            "destination_auth": {"mode": "credentials", "credential_id": "alfresco-credential"},
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+    assert captured["source"] == "edocat:/source.txt"
+    assert captured["destination"] == "alfresco:/target.txt"
+    assert captured["auth"].credential_id == "fallback"
+    assert captured["source_auth"].credential_id == "edocat-credential"
+    assert captured["destination_auth"].credential_id == "alfresco-credential"
+
+
 def test_upload_raw_streams_file_via_source_path(monkeypatch: pytest.MonkeyPatch) -> None:
     client = TestClient(create_app())
 
