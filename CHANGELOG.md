@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Cross-provider copy/move now checks unsuccessful download/upload `OperationResult` values instead of assuming all provider failures raise exceptions.
+- Cross-provider move no longer deletes the source when the destination upload returns an unsuccessful result.
+
+---
+
 ## 0.4.18 - 2026-06-12
 
 ### Changed
