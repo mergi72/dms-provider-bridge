@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "v0.4.16",
+    [string]$Version = "v0.4.17",
     [string]$BridgeExePath = "dist\dms-provider-bridge.exe",
     [string]$NssmExePath,
     [string]$InnoCompilerPath,
@@ -80,6 +80,11 @@ $userProviderLocalConfigNames = @(
     "alfresco.local.json",
     "edocat.local.json"
 )
+$userProviderLocalTemplate = Join-Path $repoRoot "config\provider.local.json"
+
+if (-not (Test-Path $userProviderLocalTemplate)) {
+    throw "Required user provider local config template missing: $userProviderLocalTemplate"
+}
 
 if (Test-Path $payloadDir) {
     Remove-Item -Path $payloadDir -Recurse -Force
@@ -103,7 +108,7 @@ foreach ($configName in $machineConfigWhitelist) {
 }
 
 foreach ($configName in $userProviderLocalConfigNames) {
-    Set-Content -Path (Join-Path $userConfigPayloadDir $configName) -Value "{}" -Encoding ASCII
+    Copy-Item -Path $userProviderLocalTemplate -Destination (Join-Path $userConfigPayloadDir $configName) -Force
 }
 
 Write-Host "Installer payload prepared: $payloadDir"

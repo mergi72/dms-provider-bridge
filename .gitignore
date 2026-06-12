@@ -29,6 +29,7 @@ config/local.json
 config/user.json
 config/user.local.json
 config/*.local.json
+!config/provider.local.json
 
 # Build artifacts
 build/

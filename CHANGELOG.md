@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.17 - 2026-06-12
+
+### Changed
+- Release/version bump to `0.4.17`.
+- Added tracked `config/provider.local.json` as the template for user provider override files.
+- Bridge installer and service package now seed user provider local config files from the shared provider-local template.
+
+---
+
 ## 0.4.16 - 2026-06-12
 
 ### Changed

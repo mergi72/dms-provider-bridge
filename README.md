@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Alpha-orange)](https://github.com/mergi72/dms-provider-bridge)
-[![Bridge Version](https://img.shields.io/badge/Bridge-v0.4.16-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.4.16)
-[![Bridge Setup](https://img.shields.io/badge/Setup-v0.4.16-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.4.16)
+[![Bridge Version](https://img.shields.io/badge/Bridge-v0.4.17-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.4.17)
+[![Bridge Setup](https://img.shields.io/badge/Setup-v0.4.17-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.4.17)
 
 Current development branch: `develop`  
 Stable release branch: `main`
@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.4.16`
-- Latest bridge-only release: `v0.4.16`
+- Bridge repository latest changelog version: `0.4.17`
+- Latest bridge-only release: `v0.4.17`
 
 ## Runtime Modes
 
@@ -27,10 +27,10 @@ Bridge can be run in two different Windows runtime models. Keep them separate:
 - Service mode:
   - Intended for server-style local bridge usage.
   - Runs as the `DMSProviderBridge` Windows Service via NSSM.
-  - Current `v0.4.16` installer installs this service as `LocalSystem`.
+  - Current `v0.4.17` installer installs this service as `LocalSystem`.
   - `LocalSystem` cannot see credentials stored in an interactive user's Windows Credential Manager.
 
-Current setup release `v0.4.16` is the Service mode installer. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
+Current setup release `v0.4.17` is the Service mode installer. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
 
 ## Related Projects
 
@@ -194,6 +194,7 @@ The machine config is authoritative. For each config file, the bridge loads the 
 - User overrides: `bridge.local.json`, `<provider>.local.json`
 
 User `*.local.json` values override existing machine keys and may add missing keys. If the machine JSON file is missing, the matching user `*.local.json` is ignored.
+The tracked `config/provider.local.json` file is a provider-neutral template for seeding user `<provider>.local.json` files under `%APPDATA%\DMS Provider\config`.
 
 For local development, set `DMS_PROVIDER_MACHINE_CONFIG_DIR` and optionally `DMS_PROVIDER_USER_CONFIG_DIR` to test config directories.
 The default provider comes from `provider.default` in `bridge.json`; `DMS_PROVIDER_DEFAULT_PROVIDER` can override it for local runs.

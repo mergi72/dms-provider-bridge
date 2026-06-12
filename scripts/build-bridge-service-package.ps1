@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "v0.4.16",
+    [string]$Version = "v0.4.17",
     [string]$BridgeExePath = "dist\dms-provider-bridge.exe",
     [string]$NssmExePath,
     [string]$OutputDir = "artifacts\service-package"
@@ -92,6 +92,11 @@ $userProviderLocalConfigNames = @(
     "alfresco.local.json",
     "edocat.local.json"
 )
+$userProviderLocalTemplate = Join-Path $repoRoot "config\provider.local.json"
+
+if (-not (Test-Path $userProviderLocalTemplate)) {
+    throw "Required user provider local config template missing: $userProviderLocalTemplate"
+}
 
 if (Test-Path $staging) {
     Remove-Item -Path $staging -Recurse -Force
@@ -115,7 +120,7 @@ foreach ($configName in $configWhitelist) {
 }
 
 foreach ($configName in $userProviderLocalConfigNames) {
-    Set-Content -Path (Join-Path $userConfigTarget $configName) -Value "{}" -Encoding ASCII
+    Copy-Item -Path $userProviderLocalTemplate -Destination (Join-Path $userConfigTarget $configName) -Force
 }
 
 New-ZipFromDirectory -SourceDir $staging -DestinationPath $zipPath

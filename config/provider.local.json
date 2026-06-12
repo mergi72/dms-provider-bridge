@@ -1,0 +1,20 @@
+{
+    "_comment": "Template for user provider overrides. Copy or install as <provider>.local.json and replace provider_name with the provider key.",
+
+    "key": "provider_name",
+
+    "provider_name": {
+        "base_url": "https://dms-provider.example/base-url",
+
+        "timeouts": {
+            "requestSeconds": 60,
+            "downloadSeconds": 300,
+            "uploadSeconds": 7200
+        },
+
+        "debug": {
+            "enable": false,
+            "path": "%APPDATA%\\DMS Provider\\logs"
+        }
+    }
+}
