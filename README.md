@@ -8,7 +8,7 @@
 Current development branch: `develop`  
 Stable release branch: `main`
 
-`dms-provider-bridge` is a base bridge service skeleton for integrating multiple DMS providers (eDoCat, Alfresco, ...).
+`dms-provider-bridge` is a base bridge service skeleton for integrating multiple DMS providers such as Alfresco and other document repositories.
 
 Current release mapping:
 
@@ -156,7 +156,7 @@ $env:BRIDGE_USER = "user@domain"
 $env:BRIDGE_PASSWORD = "secret"
 
 $body = @{
-  path = "edocat:/deals"
+  path = "alfresco:/"
   auth = @{
     mode = "credentials"
     username = $env:BRIDGE_USER
@@ -175,7 +175,7 @@ export BRIDGE_PASSWORD='secret'
 
 curl -sS http://127.0.0.1:8765/bridge/wfx/list \
   -H 'Content-Type: application/json' \
-  -d "{\"path\":\"edocat:/deals\",\"auth\":{\"mode\":\"credentials\",\"username\":\"$BRIDGE_USER\",\"password\":\"$BRIDGE_PASSWORD\"}}"
+  -d "{\"path\":\"alfresco:/\",\"auth\":{\"mode\":\"credentials\",\"username\":\"$BRIDGE_USER\",\"password\":\"$BRIDGE_PASSWORD\"}}"
 ```
 
 ## WFX Bridge API (for C# plugin)
@@ -190,7 +190,7 @@ Configuration is loaded from two fixed Windows scopes:
 The machine config is authoritative. For each config file, the bridge loads the machine JSON first, then merges the matching user `*.local.json` only if the machine JSON exists.
 
 - Bridge/system config: `bridge.json`
-- Provider config (`edocat`, `alfresco`, ...): `<provider>.json`
+- Provider config (`alfresco`, `sharepoint`, ...): `<provider>.json`
 - User overrides: `bridge.local.json`, `<provider>.local.json`
 
 User `*.local.json` values override existing machine keys and may add missing keys. If the machine JSON file is missing, the matching user `*.local.json` is ignored.
@@ -231,7 +231,7 @@ Provider implementations should use `provider_debug_logger(provider_name, config
 
 Remote path format:
 
-- `edocat:/folder/file.txt`
+- `<provider>:/folder/file.txt`
 - `alfresco:/folder/file.txt`
 
 Endpoints:
@@ -258,7 +258,7 @@ Authentication (`auth`) is required for every call:
 The bridge uses one incoming authentication model for all providers. Provider specific upstream HTTP authentication is resolved inside the provider implementation.
 
 - `credentials`:
-  `{ "auth": { "mode": "credentials", "credential_id": "edocat-prod" } }`
+  `{ "auth": { "mode": "credentials", "credential_id": "dms-prod" } }`
   or
   `{ "auth": { "mode": "credentials", "username": "user", "password": "secret" } }`
 
@@ -268,7 +268,7 @@ The bridge uses one incoming authentication model for all providers. Provider sp
 
 Example request:
 
-`{ "path": "edocat:/", "auth": { "mode": "winuser", "win_user": "DOMAIN\\user" } }`
+`{ "path": "alfresco:/", "auth": { "mode": "winuser", "win_user": "DOMAIN\\user" } }`
 
 Response uses a unified shape:
 
@@ -306,7 +306,7 @@ Alfresco upload transport:
 - Bridge then forwards this file to Alfresco as `multipart/form-data` using streamed file chunks.
 - Large uploads avoid `content_base64` in the transfer path.
 
-eDoCat Share URL to bridge path conversion:
+Alfresco Share URL to bridge path conversion:
 
 - `resolve-share-url`: `{ "share_url": "https://.../documentlibrary#/Team%20Documents/Upload?page=1", "provider": "alfresco" }`
 - Response returns `data.path` in `alfresco:/...` format, usable for `list/stat/copy/...`.
@@ -359,8 +359,8 @@ Invoke-RestMethod -Method Get -Uri http://127.0.0.1:8765/health | ConvertTo-Json
 Diagnostics when the same file keeps appearing (typically "welcome.pdf"):
 
 - Verify you are calling `POST /bridge/wfx/list` (not legacy `GET /listing`).
-- Verify provider format is `provider=edocat`, not `provider=edocat:`.
-- Verify payload sends correct provider-prefixed `path` (`edocat:/...` or `alfresco:/...`) and `auth`.
+- Verify provider format is `provider=alfresco`, not `provider=alfresco:`.
+- Verify payload sends correct provider-prefixed `path` (`alfresco:/...`) and `auth`.
 - For Alfresco, first call may be slower; repeated call should be faster (warm cache).
 
 ## Structure
