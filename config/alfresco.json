@@ -84,6 +84,16 @@
 
         "download": {
             "maxBase64Bytes": 314572800
+        },
+
+        "transfer": {
+            "maxBase64Bytes": 314572800
+        },
+
+        "upload": {
+            "inline": {
+                "maxBytes": 314572800
+            }
         }
     }
 }

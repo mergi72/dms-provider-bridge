@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.18 - 2026-06-12
+
+### Changed
+- Release/version bump to `0.4.18`.
+- Added cross-provider copy fallback using download plus upload.
+- Added cross-provider move/rename fallback using download, upload, then delete.
+- Added temp-file upload fallback for large cross-provider transfers that exceed inline payload limits.
+- Raised provider transfer limits to 300 MB for large provider-to-provider copy/move tests.
+- Verified cross-provider copy and move between eDoCat and Alfresco with small files, 2 MB ZIP, and 176 MB ZIP.
+
+---
+
 ## 0.4.17 - 2026-06-12
 
 ### Changed

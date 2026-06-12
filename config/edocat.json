@@ -41,7 +41,7 @@
             "maxNodes": 200
         },
         "transfer": {
-            "maxBase64Bytes": 20971520,
+            "maxBase64Bytes": 314572800,
             "maxNodes": 500
         },
         "upload": {

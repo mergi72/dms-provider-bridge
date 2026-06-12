@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import base64
+import os
+import tempfile
 import time
 
 from dms_provider_bridge.adapters.commander_api import WfxErrorCode, build_wfx_path, parse_wfx_path
@@ -11,7 +14,7 @@ from dms_provider_bridge.models.listing import ListingResult
 from dms_provider_bridge.services.auth_service import validate_bridge_auth
 from dms_provider_bridge.services.bridge_errors import map_exception
 from dms_provider_bridge.services.provider_service import get_default_provider_name, get_provider, list_registered_providers
-from dms_provider_bridge.services.bridge_transfer_ops import upload_with_preflight
+from dms_provider_bridge.services.bridge_transfer_ops import estimated_binary_size_from_base64, max_inline_upload_bytes, upload_with_preflight
 
 
 _LOGGER = get_logger(__name__)
@@ -64,6 +67,67 @@ def _deduplicate_repeated_leaf(path: str) -> str | None:
 def _is_provider_root_path(path: str | None) -> bool:
     normalized = (path or "").strip().replace("\\", "/")
     return normalized in {"", "/"}
+
+
+def _split_parent_and_name(path: str) -> tuple[str, str]:
+    normalized = (path or "").strip().replace("\\", "/") or "/"
+    if not normalized.startswith("/"):
+        normalized = f"/{normalized}"
+    normalized = normalized.rstrip("/") or "/"
+    if normalized == "/":
+        return "/", ""
+    parent, name = normalized.rsplit("/", 1)
+    return parent or "/", name
+
+
+def _write_base64_to_temp_file(content_base64: str) -> str:
+    payload = content_base64.strip()
+    handle = tempfile.NamedTemporaryFile(prefix="dms-provider-transfer-", suffix=".bin", delete=False)
+    try:
+        chunk_chars = 4 * 1024 * 1024
+        for offset in range(0, len(payload), chunk_chars):
+            chunk = payload[offset : offset + chunk_chars]
+            handle.write(base64.b64decode(chunk))
+        return handle.name
+    except Exception:
+        temp_path = handle.name
+        handle.close()
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            pass
+        raise
+    finally:
+        handle.close()
+
+
+def _upload_downloaded_content(dst_provider, target_folder: str, file_name: str, auth: BridgeAuthContext, content_base64: str):
+    payload_size = estimated_binary_size_from_base64(content_base64)
+    if payload_size <= max_inline_upload_bytes(dst_provider):
+        return upload_with_preflight(
+            dst_provider,
+            target_folder,
+            file_name,
+            auth,
+            content_base64=content_base64,
+            overwrite=False,
+        )
+
+    temp_path = _write_base64_to_temp_file(content_base64)
+    try:
+        return upload_with_preflight(
+            dst_provider,
+            target_folder,
+            file_name,
+            auth,
+            source_path=temp_path,
+            overwrite=False,
+        )
+    finally:
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            _LOGGER.warning("transfer_temp_file_cleanup_failed path=%s", temp_path)
 
 
 def _provider_root_listing() -> ListingResult:
@@ -300,8 +364,27 @@ def rename_path(source: str, destination: str, auth: BridgeAuthContext) -> WfxRe
         operation_path = f"{src.path} -> {dst.path}"
         validate_bridge_auth(auth)
         if src_provider.name != dst_provider.name:
-            response = _failure(WfxErrorCode.NOT_SUPPORTED, "Cross-provider rename is not supported.")
-            return _log_and_return("rename", provider_name, operation_path, started_at, response, response.message)
+            target_folder, file_name = _split_parent_and_name(dst.path)
+            if not file_name:
+                response = _failure(WfxErrorCode.BAD_PATH, "Cross-provider move requires a destination file name.")
+                return _log_and_return("rename", provider_name, operation_path, started_at, response, response.message)
+            download_result = src_provider.download_item(src.path, auth)
+            if not download_result.content_base64:
+                response = _failure(WfxErrorCode.INTERNAL_ERROR, "Cross-provider move failed: source download returned no content.")
+                return _log_and_return("rename", provider_name, operation_path, started_at, response, response.message)
+            upload_result = _upload_downloaded_content(dst_provider, target_folder, file_name, auth, download_result.content_base64)
+            delete_result = src_provider.delete_item(src.path, auth)
+            response = _success(
+                data=upload_result.model_dump(),
+                metadata={
+                    "operation": "rename",
+                    "transfer": "download-upload-delete",
+                    "source_provider": src_provider.name,
+                    "destination_provider": dst_provider.name,
+                    "delete": delete_result.model_dump(),
+                },
+            )
+            return _log_and_return("rename", provider_name, operation_path, started_at, response)
         result = src_provider.rename_item(src.path, dst.path, auth)
         response = _success(data=result.model_dump(), metadata=_metadata(src_provider, "rename"))
         return _log_and_return("rename", provider_name, operation_path, started_at, response)
@@ -325,8 +408,25 @@ def copy_path(source: str, destination: str, auth: BridgeAuthContext) -> WfxResp
             response = _success(data=result.model_dump(), metadata=_metadata(src_provider, "copy"))
             return _log_and_return("copy", provider_name, operation_path, started_at, response)
 
-        response = _failure(WfxErrorCode.NOT_SUPPORTED, "Cross-provider copy is not supported by bridge.")
-        return _log_and_return("copy", provider_name, operation_path, started_at, response, response.message)
+        target_folder, file_name = _split_parent_and_name(dst.path)
+        if not file_name:
+            response = _failure(WfxErrorCode.BAD_PATH, "Cross-provider copy requires a destination file name.")
+            return _log_and_return("copy", provider_name, operation_path, started_at, response, response.message)
+        download_result = src_provider.download_item(src.path, auth)
+        if not download_result.content_base64:
+            response = _failure(WfxErrorCode.INTERNAL_ERROR, "Cross-provider copy failed: source download returned no content.")
+            return _log_and_return("copy", provider_name, operation_path, started_at, response, response.message)
+        upload_result = _upload_downloaded_content(dst_provider, target_folder, file_name, auth, download_result.content_base64)
+        response = _success(
+            data=upload_result.model_dump(),
+            metadata={
+                "operation": "copy",
+                "transfer": "download-upload",
+                "source_provider": src_provider.name,
+                "destination_provider": dst_provider.name,
+            },
+        )
+        return _log_and_return("copy", provider_name, operation_path, started_at, response)
     except Exception as exc:
         response = _failure_from_exception(exc)
         return _log_and_return("copy", provider_name, operation_path, started_at, response, str(exc))
