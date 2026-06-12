@@ -32,6 +32,15 @@ Bridge can be run in two different Windows runtime models. Keep them separate:
 
 Current setup release `v0.4.18` is the Service mode installer. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
 
+## Provider Operations
+
+The bridge supports file operations inside one provider and between different providers:
+
+- Copy within the same provider uses the provider-native copy operation when available.
+- Copy between providers, for example `edocat:/...` to `alfresco:/...`, is handled as download plus upload.
+- Move between providers is handled as download, upload, then delete from the source provider.
+- Large provider-to-provider transfers use a temporary file fallback when the payload exceeds the inline upload limit.
+
 ## Related Projects
 
 - `tc-wfx-plugin`
