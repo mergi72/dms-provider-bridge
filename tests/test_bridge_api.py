@@ -358,7 +358,7 @@ def test_core_wfx_operations_smoke() -> None:
 def test_bridge_copy_accepts_source_and_destination_auth(monkeypatch: pytest.MonkeyPatch) -> None:
     captured = {}
 
-    def _copy_path(source, destination, auth, source_auth=None, destination_auth=None):
+    def _copy_path(source, destination, auth, source_auth=None, destination_auth=None, versioning=None):
         captured["source"] = source
         captured["destination"] = destination
         captured["auth"] = auth
@@ -387,6 +387,32 @@ def test_bridge_copy_accepts_source_and_destination_auth(monkeypatch: pytest.Mon
     assert captured["auth"].credential_id == "fallback"
     assert captured["source_auth"].credential_id == "edocat-credential"
     assert captured["destination_auth"].credential_id == "alfresco-credential"
+
+
+def test_bridge_copy_accepts_versioning(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured = {}
+
+    def _copy_path(source, destination, auth, source_auth=None, destination_auth=None, versioning=None):
+        captured["versioning"] = versioning
+        return WfxResponse(ok=True, data={"copied": True})
+
+    monkeypatch.setattr(bridge_routes, "copy_path", _copy_path)
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/bridge/wfx/copy",
+        json={
+            "source": "edocat:/source.txt",
+            "destination": "alfresco:/target.txt",
+            "auth": {"mode": "credentials", "credential_id": "fallback"},
+            "versioning": {"mode": "version", "majorVersion": True, "comment": "copy"},
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+    assert captured["versioning"].majorVersion is True
+    assert captured["versioning"].comment == "copy"
 
 
 def test_upload_raw_streams_file_via_source_path(monkeypatch: pytest.MonkeyPatch) -> None:

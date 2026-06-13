@@ -101,7 +101,14 @@ def _write_base64_to_temp_file(content_base64: str) -> str:
         handle.close()
 
 
-def _upload_downloaded_content(dst_provider, target_folder: str, file_name: str, auth: BridgeAuthContext, content_base64: str):
+def _upload_downloaded_content(
+    dst_provider,
+    target_folder: str,
+    file_name: str,
+    auth: BridgeAuthContext,
+    content_base64: str,
+    versioning: dict | None = None,
+):
     payload_size = estimated_binary_size_from_base64(content_base64)
     if payload_size <= max_inline_upload_bytes(dst_provider):
         return upload_with_preflight(
@@ -111,6 +118,7 @@ def _upload_downloaded_content(dst_provider, target_folder: str, file_name: str,
             auth,
             content_base64=content_base64,
             overwrite=False,
+            versioning=versioning,
         )
 
     temp_path = _write_base64_to_temp_file(content_base64)
@@ -122,6 +130,7 @@ def _upload_downloaded_content(dst_provider, target_folder: str, file_name: str,
             auth,
             source_path=temp_path,
             overwrite=False,
+            versioning=versioning,
         )
     finally:
         try:
@@ -374,6 +383,7 @@ def rename_path(
     auth: BridgeAuthContext,
     source_auth: BridgeAuthContext | None = None,
     destination_auth: BridgeAuthContext | None = None,
+    versioning: object = None,
 ) -> WfxResponse:
     started_at = time.perf_counter()
     provider_name: str | None = None
@@ -397,7 +407,7 @@ def rename_path(
             if not download_result.content_base64:
                 response = _failure(WfxErrorCode.INTERNAL_ERROR, "Cross-provider move failed: source download returned no content.")
                 return _log_and_return("rename", provider_name, operation_path, started_at, response, response.message)
-            upload_result = _upload_downloaded_content(dst_provider, target_folder, file_name, dst_auth, download_result.content_base64)
+            upload_result = _upload_downloaded_content(dst_provider, target_folder, file_name, dst_auth, download_result.content_base64, _versioning_payload(versioning))
             if not upload_result.success:
                 response = _failure(WfxErrorCode.INTERNAL_ERROR, _operation_failure_message("move upload", upload_result))
                 return _log_and_return("rename", provider_name, operation_path, started_at, response, response.message)
@@ -427,6 +437,7 @@ def copy_path(
     auth: BridgeAuthContext,
     source_auth: BridgeAuthContext | None = None,
     destination_auth: BridgeAuthContext | None = None,
+    versioning: object = None,
 ) -> WfxResponse:
     started_at = time.perf_counter()
     provider_name: str | None = None
@@ -454,7 +465,7 @@ def copy_path(
         if not download_result.content_base64:
             response = _failure(WfxErrorCode.INTERNAL_ERROR, "Cross-provider copy failed: source download returned no content.")
             return _log_and_return("copy", provider_name, operation_path, started_at, response, response.message)
-        upload_result = _upload_downloaded_content(dst_provider, target_folder, file_name, dst_auth, download_result.content_base64)
+        upload_result = _upload_downloaded_content(dst_provider, target_folder, file_name, dst_auth, download_result.content_base64, _versioning_payload(versioning))
         if not upload_result.success:
             response = _failure(WfxErrorCode.INTERNAL_ERROR, _operation_failure_message("copy upload", upload_result))
             return _log_and_return("copy", provider_name, operation_path, started_at, response, response.message)

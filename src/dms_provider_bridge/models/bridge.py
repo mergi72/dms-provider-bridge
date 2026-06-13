@@ -72,6 +72,7 @@ class WfxMoveRequest(BaseModel):
         default=None,
         description="Optional destination-provider auth override for provider-to-provider copy/move operations. Falls back to auth.",
     )
+    versioning: UploadVersioning | None = None
 
 
 class WfxUploadRequest(BaseModel):

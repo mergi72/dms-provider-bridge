@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.20 - 2026-06-13
+
+- Provider-to-provider copy/move now accepts the same versioning payload as uploads.
+- Cross-provider copy/move propagates versioning to the destination provider upload path.
+- Added tests for provider-to-provider versioning propagation and WFX move/copy request schema.
+- Release/version bump to `0.4.20`.
+
 ## 0.4.19 - 2026-06-13
 
 ### Fixed
