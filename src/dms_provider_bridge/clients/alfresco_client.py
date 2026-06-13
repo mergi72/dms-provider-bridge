@@ -470,7 +470,7 @@ class AlfrescoClient:
         return self._request_json("GET", url, headers=self.auth_headers(ticket))
 
     def get_children(self, ticket: str, node_id: str, max_items: int = 200, skip_count: int = 0) -> dict:
-        params = urlencode({"maxItems": max_items, "skipCount": skip_count})
+        params = urlencode({"maxItems": max_items, "skipCount": skip_count, "include": "path,properties"})
         return self._request_json("GET", f"{self.node_children_url(node_id)}?{params}", headers=self.auth_headers(ticket))
 
     def child_by_name(self, ticket: str, parent_id: str, name: str) -> dict | None:

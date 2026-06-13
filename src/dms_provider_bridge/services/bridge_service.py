@@ -80,6 +80,85 @@ def _split_parent_and_name(path: str) -> tuple[str, str]:
     return parent or "/", name
 
 
+def _item_version_metadata(prefix: str, provider_name: str, path: str, item: DmsItem | None) -> dict[str, object]:
+    return {
+        f"{prefix}_provider": provider_name,
+        f"{prefix}_path": path,
+        f"{prefix}_id": item.id if item is not None else None,
+        f"{prefix}_name": item.name if item is not None else None,
+        f"{prefix}_version": item.version_label if item is not None else None,
+        f"{prefix}_version_type": item.version_type if item is not None else None,
+        f"{prefix}_size": item.size if item is not None else None,
+        f"{prefix}_modified_at": item.modified_at if item is not None else None,
+    }
+
+
+def _cross_provider_target_conflict_response(
+    operation: str,
+    src_provider,
+    src_path: str,
+    src_item: DmsItem | None,
+    dst_provider,
+    dst_path: str,
+    dst_item: DmsItem,
+) -> WfxResponse:
+    metadata: dict[str, object] = {
+        "action": "version_required",
+        "reason": "target_exists",
+        "operation": operation,
+        "transfer": "download-upload" if operation == "copy" else "download-upload-delete",
+        "allowed_actions": ["upload_as_new_version", "cancel"],
+        "versioning": {
+            "mode": "version",
+            "majorVersion": False,
+            "comment_supported": True,
+        },
+    }
+    metadata.update(_item_version_metadata("source", src_provider.name, src_path, src_item))
+    metadata.update(_item_version_metadata("target", dst_provider.name, dst_path, dst_item))
+    metadata.update(
+        {
+            "provider": dst_provider.name,
+            "path": dst_path,
+            "name": dst_item.name,
+            "node_id": dst_item.id,
+            "current_version": dst_item.version_label,
+            "current_version_type": dst_item.version_type,
+            "current_modified_at": dst_item.modified_at,
+        }
+    )
+    return _failure(
+        WfxErrorCode.ACCESS_DENIED,
+        f"Cross-provider {operation} target exists and requires version choice: {dst_path}",
+        metadata,
+    )
+
+
+def _cross_provider_existing_target_response(
+    operation: str,
+    src_provider,
+    src_path: str,
+    src_auth: BridgeAuthContext,
+    dst_provider,
+    dst_path: str,
+    dst_auth: BridgeAuthContext,
+    versioning: object,
+) -> WfxResponse | None:
+    target_item = dst_provider.stat_item(dst_path, dst_auth)
+    if target_item is None or _versioning_payload(versioning) is not None:
+        return None
+    source_item = src_provider.stat_item(src_path, src_auth)
+    return _cross_provider_target_conflict_response(
+        operation,
+        src_provider,
+        src_path,
+        source_item,
+        dst_provider,
+        dst_path,
+        target_item,
+    )
+
+
 def _write_base64_to_temp_file(content_base64: str) -> str:
     payload = content_base64.strip()
     handle = tempfile.NamedTemporaryFile(prefix="dms-provider-transfer-", suffix=".bin", delete=False)
@@ -400,6 +479,18 @@ def rename_path(
             if not file_name:
                 response = _failure(WfxErrorCode.BAD_PATH, "Cross-provider move requires a destination file name.")
                 return _log_and_return("rename", provider_name, operation_path, started_at, response, response.message)
+            conflict_response = _cross_provider_existing_target_response(
+                "move",
+                src_provider,
+                src.path,
+                src_auth,
+                dst_provider,
+                dst.path,
+                dst_auth,
+                versioning,
+            )
+            if conflict_response is not None:
+                return _log_and_return("rename", provider_name, operation_path, started_at, conflict_response, conflict_response.message)
             download_result = src_provider.download_item(src.path, src_auth)
             if not download_result.success:
                 response = _failure(WfxErrorCode.INTERNAL_ERROR, _operation_failure_message("move download", download_result))
@@ -458,6 +549,18 @@ def copy_path(
         if not file_name:
             response = _failure(WfxErrorCode.BAD_PATH, "Cross-provider copy requires a destination file name.")
             return _log_and_return("copy", provider_name, operation_path, started_at, response, response.message)
+        conflict_response = _cross_provider_existing_target_response(
+            "copy",
+            src_provider,
+            src.path,
+            src_auth,
+            dst_provider,
+            dst.path,
+            dst_auth,
+            versioning,
+        )
+        if conflict_response is not None:
+            return _log_and_return("copy", provider_name, operation_path, started_at, conflict_response, conflict_response.message)
         download_result = src_provider.download_item(src.path, src_auth)
         if not download_result.success:
             response = _failure(WfxErrorCode.INTERNAL_ERROR, _operation_failure_message("copy download", download_result))

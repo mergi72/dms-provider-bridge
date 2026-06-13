@@ -388,7 +388,7 @@ def test_list_items_maps_file_size_from_edocat_metadata(monkeypatch: pytest.Monk
                 "name": "a.txt",
                 "path": "/deals/folder",
                 "nodeType": "com.onlio.edocat.BaseDoc",
-                "props": {"contentSize": "12345"},
+                "props": {"contentSize": "12345", "versionLabel": "2.0", "versionType": "MAJOR"},
             },
             {
                 "uuid": "nested-size-file",
@@ -396,6 +396,7 @@ def test_list_items_maps_file_size_from_edocat_metadata(monkeypatch: pytest.Monk
                 "path": "/deals/folder",
                 "nodeType": "com.onlio.edocat.BaseDoc",
                 "content": {"sizeInBytes": 67890},
+                "metadata": {"cm:versionLabel": "1.3", "cm:versionType": "MINOR"},
             },
         ]
     }
@@ -407,6 +408,35 @@ def test_list_items_maps_file_size_from_edocat_metadata(monkeypatch: pytest.Monk
         ("a.txt", 12345),
         ("b.txt", 67890),
     ]
+    assert [(item.name, item.version_label, item.version_type) for item in listing.items] == [
+        ("a.txt", "2.0", "MAJOR"),
+        ("b.txt", "1.3", "MINOR"),
+    ]
+
+
+def test_stat_item_enriches_missing_edocat_version_from_alfresco_uuid(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    client.query_nodes.return_value = {
+        "nodes": [
+            {
+                "uuid": "node-1",
+                "name": "a.txt",
+                "path": "/deals/folder/a.txt",
+                "nodeType": "com.onlio.edocat.BaseDoc",
+            },
+        ]
+    }
+    provider = _make_provider(monkeypatch, client)
+    provider._alfresco_version_metadata_from_uuid = Mock(  # type: ignore[method-assign]
+        return_value={"version_label": "0.0", "version_type": "MAJOR"}
+    )
+
+    item = provider.stat_item("/folder/a.txt", BridgeAuthContext(mode="credentials", username="user", password="pass"))
+
+    assert item is not None
+    assert item.version_label == "0.0"
+    assert item.version_type == "MAJOR"
+    provider._alfresco_version_metadata_from_uuid.assert_called_once()
 
 
 def test_delete_item_deletes_folder_bottom_up(monkeypatch: pytest.MonkeyPatch) -> None:

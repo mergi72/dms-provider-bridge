@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.21 - 2026-06-13
+
+- Cross-provider copy/move to an existing target now returns structured version conflict metadata before upload.
+- Version conflict metadata includes source and target provider/path/version fields plus allowed actions for WFX dialogs.
+- eDoCat item mapping now exposes version labels from native eDoCat payloads and falls back to Alfresco node metadata by UUID when needed.
+- Alfresco list/stat item mapping continues to expose version label/type for WFX provider-to-provider conflict decisions.
+- Release/version bump to `0.4.21`.
+
 ## 0.4.20 - 2026-06-13
 
 - Provider-to-provider copy/move now accepts the same versioning payload as uploads.

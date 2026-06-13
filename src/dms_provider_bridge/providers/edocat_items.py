@@ -69,6 +69,54 @@ def _extract_size(node: dict) -> int | None:
     return None
 
 
+def _string_value(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _extract_string(node: dict, keys: tuple[str, ...]) -> str | None:
+    containers: list[dict] = [node]
+    for property_key in ("props", "properties", "metadata"):
+        properties = node.get(property_key)
+        if isinstance(properties, dict):
+            containers.append(properties)
+
+    for container in containers:
+        for key in keys:
+            value = _string_value(container.get(key))
+            if value is not None:
+                return value
+    return None
+
+
+def _extract_version_label(node: dict) -> str | None:
+    return _extract_string(
+        node,
+        (
+            "cm:versionLabel",
+            "versionLabel",
+            "version_label",
+            "version",
+            "revision",
+        ),
+    )
+
+
+def _extract_version_type(node: dict) -> str | None:
+    return _extract_string(
+        node,
+        (
+            "cm:versionType",
+            "versionType",
+            "version_type",
+            "versionKind",
+            "versionMode",
+        ),
+    )
+
+
 def item_from_node(node: dict, fallback_path: str, public_path: Callable[[str], str]) -> DmsItem:
     node_path = str(node.get("_normalized_path") or "") or fallback_path
     exposed_path = public_path(node_path)
@@ -94,6 +142,8 @@ def item_from_node(node: dict, fallback_path: str, public_path: Callable[[str], 
         mime_type=str(node.get("mimeType")) if node.get("mimeType") else None,
         modified_at=modified_at,
         is_read_only=read_only_flag,
+        version_label=_extract_version_label(node),
+        version_type=_extract_version_type(node),
     )
 
 

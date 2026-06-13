@@ -5,6 +5,7 @@ import os
 from urllib.error import HTTPError
 from urllib.parse import quote
 
+from dms_provider_bridge.clients.alfresco_client import AlfrescoClient
 from dms_provider_bridge.core.debug import (
     log_provider_operation_done,
     log_provider_operation_failed,
@@ -19,6 +20,7 @@ from dms_provider_bridge.models.item import DmsItem
 from dms_provider_bridge.models.listing import ListingResult
 from dms_provider_bridge.models.operation import OperationResult
 from dms_provider_bridge.providers.base import Provider
+from dms_provider_bridge.providers import alfresco_versioning
 from dms_provider_bridge.providers import edocat_config, edocat_items, edocat_nodes, edocat_paths, edocat_tree
 
 
@@ -30,6 +32,8 @@ class EdocatProvider(Provider):
         self.config = load_provider_config(self.name)
         self.client = EdocatClient.from_config(self.config)
         self.debug_logger = provider_debug_logger(self.name, self.config)
+        self._alfresco_version_client: AlfrescoClient | None = None
+        self._alfresco_version_cache: dict[str, dict[str, str | None]] = {}
 
     def _browse_root(self) -> str:
         return edocat_paths.browse_root(self.config)
@@ -307,11 +311,60 @@ class EdocatProvider(Provider):
 
         return self._find_exact_node(parent_nodes, resolved_path)
 
-    def _item_from_node(self, node: dict, fallback_path: str) -> DmsItem:
+    def _alfresco_version_metadata_from_uuid(self, uuid: str, auth: BridgeAuthContext | None) -> dict[str, str | None]:
+        cached = self._alfresco_version_cache.get(uuid)
+        if cached is not None:
+            return cached
+
+        username, password = self._runtime_credentials(auth)
+        if not (username and password):
+            return {}
+
+        if self._alfresco_version_client is None:
+            self._alfresco_version_client = AlfrescoClient.from_config(load_provider_config("alfresco"))
+
+        try:
+            ticket = self._alfresco_version_client.basic_auth_token(username, password)
+            detail = self._alfresco_version_client.get_node(ticket, uuid, include=["aspectNames", "properties"])
+        except Exception as exc:
+            self.debug_logger.debug(
+                "provider_version_fallback_failed provider=%s uuid=%s error=%s",
+                self.name,
+                uuid,
+                exc,
+            )
+            return {}
+
+        entry = detail.get("entry") if isinstance(detail, dict) else None
+        if not isinstance(entry, dict):
+            return {}
+
+        metadata = {
+            "version_label": alfresco_versioning.version_label_from_entry(entry),
+            "version_type": alfresco_versioning.version_type_from_entry(entry),
+        }
+        self._alfresco_version_cache[uuid] = metadata
+        return metadata
+
+    def _item_from_node(self, node: dict, fallback_path: str, auth: BridgeAuthContext | None = None) -> DmsItem:
         node_path = self._normalize_node_path(node) or fallback_path
         normalized_node = dict(node)
         normalized_node["_normalized_path"] = node_path
-        return edocat_items.item_from_node(normalized_node, fallback_path, self._public_path)
+        item = edocat_items.item_from_node(normalized_node, fallback_path, self._public_path)
+        if item.is_folder or item.version_label:
+            return item
+
+        uuid = self._node_uuid(node)
+        if not uuid:
+            return item
+
+        version_metadata = self._alfresco_version_metadata_from_uuid(uuid, auth)
+        version_label = version_metadata.get("version_label")
+        version_type = version_metadata.get("version_type")
+        if not (version_label or version_type):
+            return item
+
+        return item.model_copy(update={"version_label": version_label, "version_type": version_type})
 
     def _node_uuid(self, node: dict | None) -> str:
         return edocat_nodes.node_uuid(node)
@@ -415,7 +468,7 @@ class EdocatProvider(Provider):
     def list_items(self, path: str, auth: BridgeAuthContext | None = None) -> ListingResult:
         resolved_path = self._resolve_path(path)
         nodes = self._direct_child_nodes(resolved_path, auth, include_content=False)
-        items = [self._item_from_node(node, resolved_path) for node in nodes if isinstance(node, dict)]
+        items = [self._item_from_node(node, resolved_path, auth) for node in nodes if isinstance(node, dict)]
         return ListingResult(provider=self.name, path=self._public_path(resolved_path), total=len(items), items=items)
 
     def bridge_endpoint_for(self, operation: str) -> str | None:
@@ -435,7 +488,7 @@ class EdocatProvider(Provider):
         resolved_path = self._resolve_path(path)
         node = self._query_single_node(resolved_path, auth, include_content=False)
         if node is not None:
-            return self._item_from_node(node, resolved_path)
+            return self._item_from_node(node, resolved_path, auth)
 
         if self._public_path(resolved_path) == "/":
             return DmsItem(id="edo-root", name="/", path="/", is_folder=True)

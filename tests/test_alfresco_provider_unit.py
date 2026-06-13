@@ -593,13 +593,15 @@ def test_item_from_entry_maps_modified_and_read_only_metadata(monkeypatch: pytes
             "path": {"name": "/deals/reports/report.docx"},
             "isFolder": False,
             "modifiedAt": "2026-06-03T08:55:12.123Z",
-            "properties": {"cm:lockType": "WRITE_LOCK"},
+            "properties": {"cm:lockType": "WRITE_LOCK", "cm:versionLabel": "1.7", "cm:versionType": "MAJOR"},
             "content": {"sizeInBytes": 123, "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
         }
     )
 
     assert item.modified_at == "2026-06-03T08:55:12.123Z"
     assert item.is_read_only is True
+    assert item.version_label == "1.7"
+    assert item.version_type == "MAJOR"
 
 
 def test_list_items_retries_once_after_ticket_expiration(monkeypatch: pytest.MonkeyPatch) -> None:

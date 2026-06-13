@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from dms_provider_bridge.models.item import DmsItem
+from dms_provider_bridge.providers import alfresco_versioning
 
 
 def item_from_entry(
@@ -30,4 +31,6 @@ def item_from_entry(
         mime_type=content.get("mimeType") if isinstance(content, dict) else props.get("cm:content.mimetype"),
         modified_at=modified_at,
         is_read_only=is_read_only,
+        version_label=alfresco_versioning.version_label_from_entry(entry),
+        version_type=alfresco_versioning.version_type_from_entry(entry),
     )
