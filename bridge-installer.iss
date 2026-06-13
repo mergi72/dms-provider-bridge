@@ -1,7 +1,7 @@
 [Setup]
 AppId={{CFD8BDCC-B59A-4CB3-93D7-530BB5283773}
 AppName=DMS Provider Bridge Setup
-AppVersion=0.4.21
+AppVersion=0.4.22
 AppPublisher=mergi72
 DefaultDirName={autopf}\DMS Provider
 DefaultGroupName=DMS Provider Bridge
@@ -10,13 +10,14 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=artifacts\installer
-OutputBaseFilename=DmsProviderBridgeSetup-v0.4.21
+OutputBaseFilename=DmsProviderBridgeSetup-v0.4.22
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 
 [Files]
 Source: "artifacts\bridge-installer-payload\dms-provider-bridge.exe"; DestDir: "{tmp}\dms-provider-payload\app"; Flags: ignoreversion deleteafterinstall
+Source: "artifacts\bridge-installer-payload\_internal\*"; DestDir: "{tmp}\dms-provider-payload\app\_internal"; Flags: ignoreversion recursesubdirs createallsubdirs deleteafterinstall skipifsourcedoesntexist
 Source: "artifacts\bridge-installer-payload\nssm.exe"; DestDir: "{tmp}\dms-provider-payload\app"; Flags: ignoreversion deleteafterinstall
 Source: "artifacts\bridge-installer-payload\install-bridge-service.ps1"; DestDir: "{tmp}\dms-provider-payload\app"; Flags: ignoreversion deleteafterinstall
 Source: "artifacts\bridge-installer-payload\uninstall-bridge-service.ps1"; DestDir: "{tmp}\dms-provider-payload\app"; Flags: ignoreversion deleteafterinstall
@@ -243,6 +244,14 @@ begin
     'Write-InstallLog "[INFO] Install path: $appRoot"' + #13#10 +
     'Write-InstallLog "[INFO] User phase log: ' + UserLogPath + '"' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "app\dms-provider-bridge.exe") (Join-Path $appRoot "dms-provider-bridge.exe")' + #13#10 +
+    '$payloadInternal = Join-Path $payloadRoot "app\_internal"' + #13#10 +
+    'if (Test-Path $payloadInternal) {' + #13#10 +
+    '    $targetInternal = Join-Path $appRoot "_internal"' + #13#10 +
+    '    if (Test-Path $targetInternal) { Remove-Item -Path $targetInternal -Recurse -Force }' + #13#10 +
+    '    Write-InstallLog "[STEP] Copying directory: $payloadInternal -> $targetInternal"' + #13#10 +
+    '    Copy-Item -Path $payloadInternal -Destination $targetInternal -Recurse -Force' + #13#10 +
+    '    Write-InstallLog "[ OK ] $targetInternal"' + #13#10 +
+    '}' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "app\nssm.exe") (Join-Path $appRoot "nssm.exe")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "app\install-bridge-service.ps1") (Join-Path $appRoot "install-bridge-service.ps1")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "app\uninstall-bridge-service.ps1") (Join-Path $appRoot "uninstall-bridge-service.ps1")' + #13#10 +
@@ -273,7 +282,7 @@ begin
     'Invoke-Nssm @("set", $serviceName, "DisplayName", $serviceDisplayName)' + #13#10 +
     'Invoke-Nssm @("set", $serviceName, "AppStdout", $stdoutLog)' + #13#10 +
     'Invoke-Nssm @("set", $serviceName, "AppStderr", $stderrLog)' + #13#10 +
-    'Invoke-Nssm @("set", $serviceName, "AppEnvironmentExtra", "DMS_PROVIDER_MACHINE_CONFIG_DIR=$machineConfigRoot", "DMS_PROVIDER_USER_CONFIG_DIR=$userConfigRoot")' + #13#10 +
+    'Invoke-Nssm @("set", $serviceName, "AppEnvironmentExtra", "DMS_PROVIDER_MACHINE_CONFIG_DIR=$machineConfigRoot", "DMS_PROVIDER_USER_CONFIG_DIR=$userConfigRoot", "DMS_PROVIDER_LOG_DIR=$appRoot\logs")' + #13#10 +
     'Invoke-Nssm @("set", $serviceName, "ObjectName", "LocalSystem")' + #13#10 +
     'Invoke-Nssm @("set", $serviceName, "Start", "SERVICE_AUTO_START")' + #13#10 +
     '$registeredService = Get-Service -Name $serviceName -ErrorAction SilentlyContinue' + #13#10 +
@@ -287,16 +296,8 @@ begin
     'Write-ServiceControlShortcut "stop-bridge-service" "DMS Provider Bridge - Stop Service"' + #13#10 +
     'Write-ServiceControlShortcut "status-bridge-service" "DMS Provider Bridge - Service Status"' + #13#10 +
     'Write-InstallLog "[STEP] Starting Windows service"' + #13#10 +
-    'try {' + #13#10 +
-    '    Write-InstallLog "[INFO] Start-Service: $serviceName"' + #13#10 +
-    '    $startWarnings = @()' + #13#10 +
-    '    Start-Service -Name $serviceName -ErrorAction Stop -WarningAction Continue -WarningVariable startWarnings' + #13#10 +
-    '    foreach ($warning in @($startWarnings)) { if (-not [string]::IsNullOrWhiteSpace([string]$warning)) { Write-InstallLog "[WARN] Start-Service warning: $warning" } }' + #13#10 +
-    '    Write-InstallLog "[INFO] Start-Service returned"' + #13#10 +
-    '}' + #13#10 +
-    'catch {' + #13#10 +
-    '    Write-InstallLog "[WARN] Start-Service reported: $($_.Exception.Message)"' + #13#10 +
-    '}' + #13#10 +
+    'Invoke-Nssm @("start", $serviceName)' + #13#10 +
+    'Write-InstallLog "[INFO] NSSM start requested: $serviceName"' + #13#10 +
     'for ($attempt = 1; $attempt -le 15; $attempt++) {' + #13#10 +
     '    $serviceState = Get-Service -Name $serviceName -ErrorAction SilentlyContinue' + #13#10 +
     '    if ($null -ne $serviceState) { Write-InstallLog "[INFO] Service status attempt $attempt/15: $($serviceState.Status)" }' + #13#10 +

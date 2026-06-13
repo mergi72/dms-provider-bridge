@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.22 - 2026-06-13
+
+- Bridge setup now packages the complete PyInstaller one-folder runtime, including `_internal\python312.dll`.
+- Bridge service installation copies the `_internal` runtime directory next to `dms-provider-bridge.exe`.
+- Bridge service now sets `DMS_PROVIDER_LOG_DIR` in the NSSM service environment.
+- Bridge installer service start now uses `nssm start`, matching the service install script.
+- Release/version bump to `0.4.22`.
+
 ## 0.4.21 - 2026-06-13
 
 - Cross-provider copy/move to an existing target now returns structured version conflict metadata before upload.

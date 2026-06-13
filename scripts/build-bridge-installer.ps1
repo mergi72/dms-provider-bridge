@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "v0.4.21",
+    [string]$Version = "v0.4.22",
     [string]$BridgeExePath = "dist\dms-provider-bridge.exe",
     [string]$NssmExePath,
     [string]$InnoCompilerPath,
@@ -94,7 +94,13 @@ New-Item -ItemType Directory -Path $payloadDir -Force | Out-Null
 New-Item -ItemType Directory -Path $configPayloadDir -Force | Out-Null
 New-Item -ItemType Directory -Path $userConfigPayloadDir -Force | Out-Null
 
+$bridgeExeParent = Split-Path -Parent $BridgeExePath
+$bridgeInternalDir = Join-Path $bridgeExeParent "_internal"
+
 Copy-Item -Path $BridgeExePath -Destination (Join-Path $payloadDir "dms-provider-bridge.exe") -Force
+if (Test-Path $bridgeInternalDir) {
+    Copy-Item -Path $bridgeInternalDir -Destination (Join-Path $payloadDir "_internal") -Recurse -Force
+}
 Copy-Item -Path $resolvedNssm -Destination (Join-Path $payloadDir "nssm.exe") -Force
 Copy-Item -Path (Join-Path $repoRoot "scripts\install-bridge-service.ps1") -Destination (Join-Path $payloadDir "install-bridge-service.ps1") -Force
 Copy-Item -Path (Join-Path $repoRoot "scripts\uninstall-bridge-service.ps1") -Destination (Join-Path $payloadDir "uninstall-bridge-service.ps1") -Force

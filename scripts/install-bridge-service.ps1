@@ -480,6 +480,17 @@ Write-Step "Copying bridge executable..."
 Copy-Item -Path $BridgeExePath -Destination $bridgeExeTargetPath -Force
 Write-Ok $bridgeExeTargetPath
 
+$bridgeInternalSource = Join-Path (Split-Path -Parent $BridgeExePath) "_internal"
+if (Test-Path $bridgeInternalSource) {
+    $bridgeInternalTarget = Join-Path $InstallRoot "_internal"
+    Write-Step "Copying bridge runtime directory..."
+    if (Test-Path $bridgeInternalTarget) {
+        Remove-Item -Path $bridgeInternalTarget -Recurse -Force
+    }
+    Copy-Item -Path $bridgeInternalSource -Destination $bridgeInternalTarget -Recurse -Force
+    Write-Ok $bridgeInternalTarget
+}
+
 $machineConfigNames = @(
     "bridge.json",
     "alfresco.json",
@@ -563,7 +574,7 @@ Invoke-Nssm -Arguments @("set", $ServiceName, "AppDirectory", $InstallRoot)
 Invoke-Nssm -Arguments @("set", $ServiceName, "DisplayName", $ServiceDisplayName)
 Invoke-Nssm -Arguments @("set", $ServiceName, "AppStdout", $stdoutLog)
 Invoke-Nssm -Arguments @("set", $ServiceName, "AppStderr", $stderrLog)
-Invoke-Nssm -Arguments @("set", $ServiceName, "AppEnvironmentExtra", "DMS_PROVIDER_MACHINE_CONFIG_DIR=$machineConfigRoot", "DMS_PROVIDER_USER_CONFIG_DIR=$userConfigRoot")
+Invoke-Nssm -Arguments @("set", $ServiceName, "AppEnvironmentExtra", "DMS_PROVIDER_MACHINE_CONFIG_DIR=$machineConfigRoot", "DMS_PROVIDER_USER_CONFIG_DIR=$userConfigRoot", "DMS_PROVIDER_LOG_DIR=$bridgeLogs")
 Write-Ok "$ServiceDisplayName registered"
 
 if ($ServiceAccount -eq "LocalSystem") {
