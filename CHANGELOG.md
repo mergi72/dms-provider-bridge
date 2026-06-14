@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0-beta - 2026-06-14
+
+- Beta release candidate for external Total Commander testing.
+- Includes provider-to-provider copy/move, version-aware conflict handling, localized WFX dialogs, and eDoCat/Alfresco version metadata support.
+- Release/version bump to `0.5.0-beta`.
+
 ## 0.4.22 - 2026-06-13
 
 - Bridge setup now packages the complete PyInstaller one-folder runtime, including `_internal\python312.dll`.

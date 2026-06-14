@@ -1,9 +1,9 @@
 # dms-provider-bridge
 
 [![CI](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml)
-[![Status](https://img.shields.io/badge/Status-Alpha-orange)](https://github.com/mergi72/dms-provider-bridge)
-[![Bridge Version](https://img.shields.io/badge/Bridge-v0.4.22-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.4.22)
-[![Bridge Setup](https://img.shields.io/badge/Setup-v0.4.22-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.4.22)
+[![Status](https://img.shields.io/badge/Status-Beta-yellowgreen)](https://github.com/mergi72/dms-provider-bridge)
+[![Bridge Version](https://img.shields.io/badge/Bridge-v0.5.0--beta-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.5.0-beta)
+[![Bridge Setup](https://img.shields.io/badge/Setup-v0.5.0--beta-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.5.0-beta)
 
 Current development branch: `develop`  
 Stable release branch: `main`
@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.4.22`
-- Latest bridge-only release: `v0.4.22`
+- Bridge repository latest changelog version: `0.5.0-beta`
+- Latest bridge-only release: `v0.5.0-beta`
 
 ## Runtime Modes
 
@@ -27,10 +27,10 @@ Bridge can be run in two different Windows runtime models. Keep them separate:
 - Service mode:
   - Intended for server-style local bridge usage.
   - Runs as the `DMSProviderBridge` Windows Service via NSSM.
-  - Current `v0.4.22` installer installs this service as `LocalSystem`.
+  - Current `v0.5.0-beta` installer installs this service as `LocalSystem`.
   - `LocalSystem` cannot see credentials stored in an interactive user's Windows Credential Manager.
 
-Current setup release `v0.4.22` is the Service mode installer. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
+Current setup release `v0.5.0-beta` is the Service mode installer. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
 
 ## Provider Operations
 
