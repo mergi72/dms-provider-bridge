@@ -1,0 +1,139 @@
+{
+    "projectInfo": {
+        "name": "DMS Driver / Filesystem Driver",
+        "author": "DMS Provider Bridge contributors",
+        "email": "",
+        "version": "0.6.0-beta",
+        "description": "Generic Driver contract template, equivalent to a filesystem driver definition.",
+        "license": ""
+    },
+
+    "config.json": {
+        "version": "0.6.0-beta",
+        "lastModified": "",
+        "_comment": "Driver / filesystem driver contract template. Concrete DMS implementation values belong here."
+    },
+
+    "_comment": "Unix/VFS mapping: driver.json = filesystem driver definition. It maps the Provider ABC contract to a concrete DMS API.",
+
+    "debug": {
+        "enable": false,
+        "path": ""
+    },
+
+    "key": "driver_name",
+
+    "driver_name": {
+        "display_name": "",
+        "description": "",
+
+        "provider_abc": "provider",
+
+        "api": {
+            "base": "",
+            "version": "",
+            "root": "",
+            "search_root": "",
+            "repo_root": ""
+        },
+
+        "endpoints": {
+            "health": "",
+            "search": "",
+            "nodes": "",
+            "node": "",
+            "query": "",
+            "tracker": "",
+            "people_me": "",
+            "download": "",
+            "upload": "",
+            "copy": "",
+            "move": "",
+            "delete": "",
+            "mkdir": ""
+        },
+
+        "search": {
+            "language": "",
+
+            "scope": {
+                "document_library": "",
+                "current_folder": "",
+                "current_folder_tree": ""
+            },
+
+            "defaults": {
+                "include": [],
+                "sort": {
+                    "field": "",
+                    "ascending": true
+                },
+                "paging": {
+                    "maxItems": 200,
+                    "skipCount": 0
+                }
+            }
+        },
+
+        "nodeType": {
+            "file": [],
+            "folder": [],
+            "all": [],
+            "baseFolder": "",
+            "baseDoc": ""
+        },
+
+        "capabilities": {
+            "versioning": {
+                "supported": false,
+                "modes": [],
+                "existing_upload": "",
+                "majorVersion": false,
+                "comment_supported": false
+            },
+            "shareUrl": {
+                "supported": false
+            },
+            "folderDownload": {
+                "supported": false
+            },
+            "stream": {
+                "download": false,
+                "upload": false,
+                "copy": false
+            }
+        },
+
+        "limits": {
+            "timeouts": {
+                "requestSeconds": 0,
+                "downloadSeconds": 0,
+                "uploadSeconds": 0
+            },
+            "copy": {
+                "maxNodes": 0
+            },
+            "download": {
+                "maxBase64Bytes": 0,
+                "maxNodes": 0
+            },
+            "upload": {
+                "maxBase64Bytes": 0,
+                "inline": {
+                    "maxBytes": 0
+                },
+                "raw": {
+                    "chunkBytes": 0,
+                    "maxBytes": 0
+                }
+            },
+            "transfer": {
+                "maxInlineBytes": 0,
+                "maxBase64Bytes": 0,
+                "maxNodes": 0,
+                "preferStream": false,
+                "tempFallback": false
+            }
+        }
+    }
+}

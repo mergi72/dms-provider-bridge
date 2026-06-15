@@ -1,22 +1,25 @@
 {
-  "debug": {
-    "enable": false,
-    "path": "%APPDATA%\\DMS Provider\\logs"
-  },
   "server": {
     "host": "127.0.0.1",
     "port": 8765
   },
-  "provider": {
-    "default": "alfresco"
+  "paths": {
+    "providers": "providers",
+    "drivers": "drivers",
+    "connections": "connections"
   },
-  "upload": {
-    "inline": {
-      "maxBytes": 4194304
-    },
-    "raw": {
-      "chunkBytes": 1048576,
-      "maxBytes": 536870912
-    }
+  "operations": {
+    "list": true,
+    "stat": true,
+    "download": true,
+    "upload": true,
+    "copy": true,
+    "move": true,
+    "delete": true,
+    "mkdir": true
+  },
+  "debug": {
+    "enable": false,
+    "path": "%APPDATA%\\DMS Provider\\logs"
   }
 }

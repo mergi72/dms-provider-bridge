@@ -1,0 +1,45 @@
+{
+    "projectInfo": {
+        "name": "DMS Connection / Mount",
+        "author": "DMS Provider Bridge contributors",
+        "email": "",
+        "version": "0.6.0-beta",
+        "description": "Generic Connection contract template, equivalent to a mount definition.",
+        "license": ""
+    },
+
+    "config.json": {
+        "version": "0.6.0-beta",
+        "lastModified": "",
+        "_comment": "Connection / mount contract template. Concrete user-visible mount values belong here."
+    },
+
+    "_comment": "Unix/VFS mapping: connection.json = mount definition. Connection is the named mount exposed as connection:/path.",
+
+    "debug": {
+        "enable": false,
+        "path": ""
+    },
+
+    "key": "connection_name",
+
+    "connection_name": {
+        "display_name": "",
+        "description": "",
+
+        "mount": "connection:/",
+        "driver": "driver_name",
+
+        "base_url": "",
+        "root_path": "",
+        "doc_library": "",
+
+        "credentials": {
+            "mode": "credentials",
+            "credential_id": "",
+            "target": "",
+            "targetBase": "",
+            "required": true
+        }
+    }
+}

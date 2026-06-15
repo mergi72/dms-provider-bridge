@@ -1,0 +1,105 @@
+{
+    "projectInfo": {
+        "name": "DMS Provider ABC / VFS Contract",
+        "author": "DMS Provider Bridge contributors",
+        "email": "",
+        "version": "0.6.0-beta",
+        "description": "Generic Provider ABC contract, equivalent to the VFS/common operation contract.",
+        "license": ""
+    },
+
+    "config.json": {
+        "version": "0.6.0-beta",
+        "lastModified": "",
+        "_comment": "Provider ABC / VFS contract. Driver and mount specific values belong to driver.json and connection.json."
+    },
+
+    "_comment": "Unix/VFS mapping: provider.json = VFS contract. It defines common request/response shapes, capabilities and transfer limits. It does not define concrete DMS endpoints or mount values.",
+
+    "path": {
+        "format": "connection:/path"
+    },
+
+    "auth": {
+        "modes": [
+            "credentials",
+            "winuser",
+            "windows"
+        ],
+        "fields": {
+            "mode": "",
+            "credential_id": "",
+            "target": "",
+            "targetBase": "",
+            "username": "",
+            "password": "",
+            "token": "",
+            "win_user": "",
+            "required": true
+        }
+    },
+
+    "item": {
+        "id": "",
+        "name": "",
+        "path": "",
+        "is_folder": false,
+        "size": 0,
+        "mime_type": "",
+        "modified": "",
+        "version": "",
+        "metadata": {}
+    },
+
+    "listing": {
+        "provider": "",
+        "path": "",
+        "total": 0,
+        "items": []
+    },
+
+    "operationResult": {
+        "provider": "",
+        "path": "",
+        "success": false,
+        "message": "",
+        "error": "",
+        "content_base64": "",
+        "mime_type": "",
+        "metadata": {}
+    },
+
+    "transfer": {
+        "maxInlineBytes": 10485760,
+        "maxBase64Bytes": 314572800,
+        "maxNodes": 500,
+        "preferStream": true,
+        "tempFallback": true
+    },
+
+    "capabilities": {
+        "versioning": {
+            "supported": false,
+            "modes": [],
+            "existing_upload": "",
+            "majorVersion": false,
+            "comment_supported": false
+        },
+        "shareUrl": {
+            "supported": false
+        },
+        "folderDownload": {
+            "supported": false
+        },
+        "stream": {
+            "download": false,
+            "upload": false,
+            "copy": false
+        }
+    },
+
+    "debug": {
+        "enable": false,
+        "path": "%APPDATA%\\DMS Provider\\logs"
+    }
+}

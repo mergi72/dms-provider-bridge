@@ -41,6 +41,274 @@ Do `v0.5.0-beta` patří už jen minimální bugfixy. Větší architektonické 
 - Obecné machine configy se nikdy needitují přes UI/API.
 - Každý update konfigurace vytváří nebo upravuje pouze `*.local.json`.
 
+## Finální slovník architektury
+
+Pro `v0.6.0-beta` používáme tyto pojmy:
+
+```text
+DMS Provider Bridge
+Provider ABC
+Driver
+Connection
+```
+
+Význam vrstev:
+
+```text
+DMS Provider Bridge
+  celá lokální služba a hostitel architektury
+
+Provider ABC
+  společný základ a abstraktní kontrakt
+  definuje povinné runtime operace
+  definuje společný konfigurační základ
+
+Driver
+  konkrétní implementace jednoho typu DMS
+  vychází z Provider ABC
+  může rozšířit základní config o vlastní special klíče
+  může rozšířit capabilities podle možností konkrétního systému
+
+Connection
+  konkrétní pojmenované připojení
+  používá jeden driver
+  nese konkrétní local config
+  jde ven do WFX/API a používá ho uživatel
+```
+
+Krátká definice:
+
+```text
+Provider ABC říká, co musí umět každý DMS provider.
+Driver říká, jak se mluví s konkrétním DMS.
+Connection říká, kam se konkrétní uživatel připojuje.
+```
+
+Příklad:
+
+```text
+DMS Provider Bridge
+├─ Provider ABC
+├─ Driver: alfresco
+│  ├─ Connection: alfresco
+│  ├─ Connection: moje_alfresco
+│  └─ Connection: test_alfresco
+└─ Driver: edocat
+   ├─ Connection: edocat
+   └─ Connection: chem_edocat
+```
+
+Pravidlo proti budoucímu zmatku:
+
+```text
+Provider ABC není Driver.
+Driver není Connection.
+Connection je to, co vidí uživatel ve WFX.
+```
+
+## Hlavní mentální model: jsme mount
+
+`DMS Provider Bridge` není framework pro vývojáře. Je to runtime, který vystavuje DMS systémy jako pojmenované mounty.
+
+Unix/VFS model:
+
+```text
+application
+  -> mount point
+  -> VFS operations
+  -> filesystem driver
+```
+
+Náš model:
+
+```text
+Total Commander / user application
+  -> connection:/
+  -> Provider ABC operations
+  -> Driver
+  -> DMS
+```
+
+Mapování pojmů:
+
+```text
+Provider ABC = ops kontrakt
+Driver       = filesystem/DMS driver
+Connection   = mount instance
+```
+
+Venku existuje jen runtime kontrakt:
+
+```text
+connection:/path
+```
+
+Příklad:
+
+```text
+moje_alfresco:/03 zakázky/Test_DMS/file.pdf
+chem_edocat:/03 zakázky/Test_DMS/file.pdf
+```
+
+User application neřeší driver, config schema, credentials internals ani provider speciality. User application zná jen connection name a runtime operace.
+
+Pravda pro pozdější implementaci:
+
+```text
+resolve connection
+find driver
+call ops
+```
+
+Žádná magie navíc.
+
+## Config layout podle Unix/VFS
+
+Fyzické rozložení config šablon:
+
+```text
+config/
+  provider.json
+  provider.local.json
+
+  drivers/
+    driver.json
+    alfresco.json
+    edocat.json
+
+  connections/
+    connection.json
+```
+
+Význam:
+
+```text
+provider.json
+  jeden globální skrytý Provider ABC / VFS contract
+
+provider.local.json
+  volitelný advanced override Provider ABC contractu
+
+drivers/
+  filesystem driver definitions
+
+connections/
+  mount definitions
+```
+
+Poznámka k odladěným limitům z `v0.5.0-beta`:
+
+```json
+{
+  "upload": {
+    "raw": {
+      "chunkBytes": 1048576,
+      "maxBytes": 536870912
+    }
+  }
+}
+```
+
+Ve slepé `driver.json` šabloně jsou tyto hodnoty `0`. Konkrétní driver je může použít jako rozumný výchozí limit, pokud pro něj dávají smysl.
+
+Uživatel běžně řeší jen:
+
+```text
+drivers
+connections
+```
+
+`provider.json` je interní základ bridge. AOS ho může ukázat read-only. Pokud bude existovat `provider.local.json`, AOS ho může editovat jen jako advanced local override, nikdy nesmí zapisovat do `provider.json`.
+
+Driver special nastavení:
+
+```text
+Provider ABC dá společný základ.
+Driver k němu přidá svoje rozšíření.
+Connection vyplní konkrétní hodnoty.
+```
+
+## Provider ABC a provider.json
+
+`provider.json` je obecný základ Provider ABC. Není to konfigurace konkrétního DMS a nesmí obsahovat názvy konkrétních implementací.
+
+`provider.json` definuje:
+
+```text
+operations
+transfer
+capabilities
+config
+```
+
+Význam:
+
+```text
+operations
+  obecné funkce, které Provider ABC zná
+
+transfer
+  obecné mantinely přenosu souborů
+
+capabilities
+  obecný tvar volitelných schopností
+
+config
+  společný konfigurační základ
+```
+
+Obecné funkce musí být definované v ABC:
+
+```text
+list
+stat
+download
+upload
+copy
+move
+delete
+mkdir
+```
+
+Tyto funkce nejsou seznam konkrétních implementací. Jsou to operace, které tvoří společný jazyk bridge.
+
+Transfer mantinely patří do ABC:
+
+```json
+{
+    "transfer": {
+        "maxInlineBytes": 10485760,
+        "maxBase64Bytes": 314572800,
+        "preferStream": true,
+        "tempFallback": true
+    }
+}
+```
+
+Význam:
+
+```text
+maxInlineBytes
+  hranice pro malý inline přenos
+
+maxBase64Bytes
+  horní mantinel pro base64 fallback
+
+preferStream
+  preferovat stream, pokud ho implementace umí
+
+tempFallback
+  povolit fallback přes dočasný soubor
+```
+
+Pravidlo:
+
+```text
+Co je obecná DMS operace, patří do ABC.
+Co je zvláštní pro konkrétní systém, patří do implementace.
+Co je konkrétní adresa nebo hodnota, patří do connection.
+```
+
 ## Dva druhy konfigurace
 
 Konfigurace se dělí na dvě hlavní oblasti.
