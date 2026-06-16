@@ -76,6 +76,8 @@ def test_config_new_driver_page_uses_template() -> None:
 
     assert response.status_code == 200
     assert "New file will be created from template driver.json" in response.text
+    assert "new_driver" in response.text
+    assert "driver_name" not in response.text
     assert "<form" in response.text
     assert "Create" in response.text
 
@@ -137,6 +139,85 @@ def test_config_save_new_connection_creates_file(tmp_path: Path, monkeypatch: py
     assert created.exists()
     assert json.loads(created.read_text(encoding="utf-8"))["key"] == "test_connection"
     assert "Saved test_connection.json" in response.text
+
+
+def test_config_save_new_connection_requires_overwrite_confirmation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo_config = Path(__file__).resolve().parents[1] / "config"
+    config_dir = tmp_path / "config"
+    shutil.copytree(repo_config, config_dir)
+    existing = config_dir / "connections" / "existing.json"
+    existing.write_text('{"key": "existing", "existing": {"display_name": "Old"}}', encoding="utf-8")
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(config_dir))
+    client = TestClient(create_app())
+    payload = {
+        "key": "existing",
+        "existing": {
+            "display_name": "New",
+            "driver": "alfresco",
+        },
+    }
+
+    response = client.post(
+        "/config/connections/save",
+        data={"file_name": "", "payload": json.dumps(payload)},
+    )
+
+    assert response.status_code == 200
+    assert "Confirm overwrite" in response.text
+    assert "Overwrite" in response.text
+    assert json.loads(existing.read_text(encoding="utf-8"))["existing"]["display_name"] == "Old"
+
+
+def test_config_save_new_connection_overwrites_after_confirmation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo_config = Path(__file__).resolve().parents[1] / "config"
+    config_dir = tmp_path / "config"
+    shutil.copytree(repo_config, config_dir)
+    existing = config_dir / "connections" / "existing.json"
+    existing.write_text('{"key": "existing", "existing": {"display_name": "Old"}}', encoding="utf-8")
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(config_dir))
+    client = TestClient(create_app())
+    payload = {
+        "key": "existing",
+        "existing": {
+            "display_name": "New",
+            "driver": "alfresco",
+        },
+    }
+
+    response = client.post(
+        "/config/connections/save",
+        data={"file_name": "", "payload": json.dumps(payload), "overwrite": "true"},
+    )
+
+    assert response.status_code == 200
+    assert "Saved existing.json" in response.text
+    assert json.loads(existing.read_text(encoding="utf-8"))["existing"]["display_name"] == "New"
+
+
+def test_config_save_existing_file_can_change_key_to_new_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo_config = Path(__file__).resolve().parents[1] / "config"
+    config_dir = tmp_path / "config"
+    shutil.copytree(repo_config, config_dir)
+    source = config_dir / "connections" / "old_name.json"
+    source.write_text('{"key": "old_name", "old_name": {"driver": "alfresco"}}', encoding="utf-8")
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(config_dir))
+    client = TestClient(create_app())
+    payload = {"key": "new_name", "new_name": {"driver": "alfresco"}}
+
+    response = client.post(
+        "/config/connections/save",
+        data={"file_name": "old_name.json", "payload": json.dumps(payload)},
+    )
+
+    assert response.status_code == 200
+    assert (config_dir / "connections" / "new_name.json").exists()
+    assert source.exists()
 
 
 def test_config_save_rejects_template_overwrite() -> None:

@@ -50,6 +50,11 @@ _TEMPLATE_FILES = {
 _RESERVED_KEYS = {"driver_name", "connection_name", "provider_name"}
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
 
+_NEW_KEYS = {
+    "drivers": "new_driver",
+    "connections": "new_connection",
+}
+
 
 def _registry_paths() -> dict[str, Path]:
     config = load_config()
@@ -207,6 +212,24 @@ def _parse_json_payload(raw_json: str) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="Config JSON must contain an object.")
     return payload
+
+
+def _new_payload_from_template(section: str, payload: dict[str, Any]) -> dict[str, Any]:
+    old_key = payload.get("key")
+    new_key = _NEW_KEYS.get(section, "new_config")
+    if not isinstance(old_key, str) or not old_key:
+        updated = dict(payload)
+        updated["key"] = new_key
+        return updated
+    updated = dict(payload)
+    updated["key"] = new_key
+    section_payload = updated.pop(old_key, {})
+    updated[new_key] = section_payload
+    if isinstance(section_payload, dict):
+        mount = section_payload.get("mount")
+        if isinstance(mount, str) and mount == "connection:/":
+            section_payload["mount"] = f"{new_key}:/"
+    return updated
 
 
 def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
@@ -370,7 +393,7 @@ def config_section(section: str) -> HTMLResponse:
 @router.get("/{section}/new", response_class=HTMLResponse)
 def config_new(section: str) -> HTMLResponse:
     template = _template_path(section)
-    payload = _read_json_file(template)
+    payload = _new_payload_from_template(section, _read_json_file(template))
     rendered = json.dumps(payload, ensure_ascii=False, indent=4)
     body = _render_editor(
         section=section,
@@ -402,6 +425,9 @@ def _render_editor(
     rendered: str,
     message: str = "",
     is_new: bool = False,
+    original_file_name: str = "",
+    confirm_overwrite: bool = False,
+    target_file_name: str = "",
 ) -> str:
     readonly_attr = "readonly" if _file_read_only(section, file_name) else ""
     disabled_attr = "disabled" if readonly_attr else ""
@@ -414,6 +440,15 @@ def _render_editor(
     if readonly_attr:
         read_only_warning = '<p class="read-only-warning">This file is read-only. Use New to create an editable copy.</p>'
     submit_label = "Create" if is_new else "Save"
+    original_value = original_file_name or ("" if is_new else file_name)
+    overwrite_value = "true" if confirm_overwrite else "false"
+    confirm = ""
+    if confirm_overwrite:
+        submit_label = "Overwrite"
+        confirm = (
+            f'<p class="read-only-warning">File {html.escape(target_file_name)} already exists. '
+            "Confirm overwrite or cancel.</p>"
+        )
     form_open = f'<form method="post" action="/config/{html.escape(section)}/save">'
     form_close = "</form>"
     return f"""
@@ -429,6 +464,7 @@ def _render_editor(
     <div class="panel-content">
       {notice}
       {read_only_warning}
+      {confirm}
       <p class="meta">
         <span>Section: {html.escape(_SECTION_TITLES[section])}</span>
         <span>Role: {html.escape(_SECTION_ROLES[section])}</span>
@@ -438,10 +474,12 @@ def _render_editor(
       <p><strong>{html.escape(key)}</strong> {html.escape(display_name)}</p>
       <p class="muted">{html.escape(str(_section_dir(section) / file_name))}</p>
       {form_open}
-        <input type="hidden" name="file_name" value="{html.escape('' if is_new else file_name)}">
+        <input type="hidden" name="file_name" value="{html.escape(original_value)}">
+        <input type="hidden" name="overwrite" value="{html.escape(overwrite_value)}">
         <textarea name="payload" {readonly_attr}>{html.escape(rendered)}</textarea>
         <div class="actions">
           <button type="submit" {disabled_attr}>{html.escape(submit_label)}</button>
+          <a href="/config/{html.escape(section)}">Cancel</a>
           <span class="muted">Templates and Provider ABC are read-only.</span>
         </div>
       {form_close}
@@ -456,16 +494,37 @@ def config_save(
     section: str,
     file_name: str = Form(default=""),
     payload: str = Form(...),
+    overwrite: str = Form(default="false"),
 ) -> HTMLResponse:
     if not _section_can_create(section):
         raise HTTPException(status_code=403, detail=f"Section is read-only: {section}")
+    original_file = file_name.strip()
+    if original_file:
+        _validate_config_file_name(original_file)
+        if _file_read_only(section, original_file):
+            raise HTTPException(status_code=403, detail=f"Config file is read-only: {original_file}")
     parsed = _parse_json_payload(payload)
     key = _payload_key(parsed, "")
-    target_file = file_name.strip() if file_name.strip() else _safe_file_name_from_key(key)
+    target_file = _safe_file_name_from_key(key)
     _validate_config_file_name(target_file)
     if _file_read_only(section, target_file):
         raise HTTPException(status_code=403, detail=f"Config file is read-only: {target_file}")
     target_path = _section_dir(section) / target_file
+    is_same_file_save = bool(original_file) and original_file == target_file
+    if target_path.exists() and not is_same_file_save and overwrite.casefold() != "true":
+        rendered = json.dumps(parsed, ensure_ascii=False, indent=4)
+        body = _render_editor(
+            section=section,
+            file_name=target_file,
+            payload=parsed,
+            rendered=rendered,
+            message="No file was written yet.",
+            is_new=not original_file,
+            original_file_name=original_file,
+            confirm_overwrite=True,
+            target_file_name=target_file,
+        )
+        return _render_layout(f"Overwrite {target_file}", body, section)
     _write_json_atomic(target_path, parsed)
     rendered = json.dumps(parsed, ensure_ascii=False, indent=4)
     body = _render_editor(
