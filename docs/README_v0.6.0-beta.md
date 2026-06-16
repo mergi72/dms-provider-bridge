@@ -62,6 +62,7 @@ Provider ABC
   společný základ a abstraktní kontrakt
   definuje povinné runtime operace
   definuje společný konfigurační základ
+  může být měněn a konfigurován, ale jen když člověk ví přesně co dělá
 
 Driver
   konkrétní implementace jednoho typu DMS
@@ -104,6 +105,14 @@ Pravidlo proti budoucímu zmatku:
 Provider ABC není Driver.
 Driver není Connection.
 Connection je to, co vidí uživatel ve WFX.
+```
+
+Ještě kratší verze pro uživatele:
+
+```text
+Connection je mount.
+Driver je způsob připojení.
+Provider ABC je společný kontrakt.
 ```
 
 ## Hlavní mentální model: jsme mount
@@ -571,7 +580,7 @@ Po refaktoru má vracet provider instance:
 
 WFX nemusí vědět, jestli provider root reprezentuje Alfresco, eDoCat nebo WebDAV. WFX jen zobrazí názvy, které vrátí bridge.
 
-## Config UI
+## Config UI / AOS
 
 Konfigurátor bude dostupný na:
 
@@ -581,24 +590,46 @@ http://127.0.0.1:8765/config
 
 Je to uživatelská stránka podobná Swagger `/docs`, ale zaměřená jen na konfiguraci.
 
-Pro první verzi nebude formulář po jednotlivých polích. Bude to JSON editor v textovém okně.
+Pro první verzi není formulář po jednotlivých polích. Je to JSON editor v textovém okně.
 
-Princip:
+Aktuální mentální model UI:
 
 ```text
-Bridge config
-  textarea s bridge.local.json
-  Save
-  Delete local
-  Reload
+Provider ABC
+  provider.json
+  společný kontrakt
+  viditelný jako readonly / advanced kontrakt
+  může být konfigurován ručně, ale jen když člověk ví přesně co dělá
 
-Providers
-  výběr provider instance
-  textarea s <provider_name>.local.json
+Drivers
+  driver.json
+  readonly template
+
+  alfresco.json
+  edocat.json
+  konkrétní driver definice
+
+  New Driver
+  vytvoří nový driver podle driver.json
+
   Save
-  Delete local
-  Reload
-  Test connection
+  uloží konkrétní driver
+  nikdy nepřepíše driver.json
+
+Connections
+  connection.json
+  readonly template
+
+  moje_alfresco.json
+  chem_edocat.json
+  konkrétní mount / connection
+
+  New Connection
+  vytvoří novou connection podle connection.json
+
+  Save
+  uloží konkrétní connection
+  nikdy nepřepíše connection.json
 ```
 
 Výhody:
@@ -607,6 +638,21 @@ Výhody:
 - provider speciality zůstanou v JSONu,
 - admin vidí přesně, co se ukládá,
 - je to podobné `/docs`, ale jednodušší pro konfiguraci.
+
+Pravidla bezpečnosti UI:
+
+- `provider.json` je Provider ABC kontrakt a v UI je chráněný před běžným přepisem.
+- `driver.json` a `connection.json` jsou šablony a jsou readonly.
+- `New Driver` a `New Connection` vždy vychází ze šablony.
+- `Save` smí uložit pouze konkrétní driver nebo konkrétní connection.
+- Uložení musí validovat JSON a nesmí dovolit path traversal.
+- Pokud běží lokální vývoj, bridge musí být spuštěný nad repo configem přes `DMS_PROVIDER_MACHINE_CONFIG_DIR`.
+
+Věta pro README/forum:
+
+```text
+Connection je mount, Driver je způsob připojení, Provider ABC je společný kontrakt.
+```
 
 ## Config API
 

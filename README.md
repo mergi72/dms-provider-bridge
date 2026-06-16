@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Beta-yellowgreen)](https://github.com/mergi72/dms-provider-bridge)
-[![Bridge Version](https://img.shields.io/badge/Bridge-v0.6.1--beta-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.6.1-beta)
+[![Bridge Version](https://img.shields.io/badge/Bridge-v0.6.2--beta-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.6.2-beta)
 [![Bridge Setup](https://img.shields.io/badge/Setup-v0.5.0--beta-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.5.0-beta)
 
 Current development branch: `develop`  
@@ -12,8 +12,33 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.6.1-beta`
-- Latest bridge-only release: `v0.6.1-beta`
+- Bridge repository latest changelog version: `0.6.2-beta`
+- Latest bridge-only release: `v0.6.2-beta`
+
+## Configuration Model
+
+Short version:
+
+```text
+Connection is the mount users open.
+Driver is how the bridge talks to a DMS type.
+Provider ABC is the shared contract underneath.
+```
+
+The bridge configuration follows a simple VFS-style model:
+
+- `Provider ABC` is the common bridge contract. It can be changed and configured, but only when you know exactly what you are doing.
+- `Driver` describes one DMS type, for example Alfresco, eDoCat, WebDAV or another backend.
+- `Connection` is the named mount exposed to clients and Total Commander, for example `alfresco:/` or `company-dms:/`.
+
+Config UI is available at [http://127.0.0.1:8765/config](http://127.0.0.1:8765/config).
+
+Current UI rules:
+
+- `provider.json` is shown as the Provider ABC contract.
+- `driver.json` and `connection.json` are templates and are shown as readonly.
+- Concrete driver and connection files can be created and saved from the UI.
+- The template files are never overwritten by `Save`.
 
 ## Runtime Modes
 
@@ -82,6 +107,7 @@ Verify bridge:
 
 - Health: [http://127.0.0.1:8765/health](http://127.0.0.1:8765/health)
 - Swagger UI: [http://127.0.0.1:8765/docs](http://127.0.0.1:8765/docs)
+- Config UI: [http://127.0.0.1:8765/config](http://127.0.0.1:8765/config)
 - OpenAPI: [http://127.0.0.1:8765/openapi.json](http://127.0.0.1:8765/openapi.json)
 
 The Swagger UI is the fastest way to:

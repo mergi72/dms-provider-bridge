@@ -3,14 +3,15 @@ from __future__ import annotations
 import html
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Form, HTTPException
 from fastapi.responses import HTMLResponse
 
 from dms_provider_bridge.core.config_loader import load_config
-from dms_provider_bridge.core.paths import MACHINE_CONFIG_DIR
+from dms_provider_bridge.core.paths import MACHINE_CONFIG_DIR, PROJECT_ROOT
 
 router = APIRouter()
 
@@ -26,6 +27,28 @@ _SECTION_ROLES = {
     "drivers": "filesystem driver definitions",
     "connections": "mount definitions",
 }
+
+_SECTION_HELP = {
+    "providers": (
+        "Provider ABC is the internal bridge contract. It can be changed and configured, "
+        "but only when you know exactly what you are doing."
+    ),
+    "drivers": (
+        "Driver defines how the bridge talks to one DMS type, for example Alfresco, eDoCat or WebDAV. "
+        "Most users do not need to create a new driver."
+    ),
+    "connections": (
+        "Connection is the named mount exposed to clients and Total Commander, for example alfresco:/ or firma-dms:/."
+    ),
+}
+
+_TEMPLATE_FILES = {
+    "drivers": "driver.json",
+    "connections": "connection.json",
+}
+
+_RESERVED_KEYS = {"driver_name", "connection_name", "provider_name"}
+_SAFE_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
 def _registry_paths() -> dict[str, Path]:
@@ -51,9 +74,15 @@ def _section_dir(section: str) -> Path:
 
 def _json_files(section: str) -> list[Path]:
     directory = _section_dir(section)
-    if not directory.exists():
-        return []
-    return sorted(path for path in directory.glob("*.json") if path.is_file())
+    files = []
+    if directory.exists():
+        files = [path for path in directory.glob("*.json") if path.is_file()]
+    template_file = _TEMPLATE_FILES.get(section)
+    if template_file and not any(path.name == template_file for path in files):
+        fallback = _fallback_template_path(section, template_file)
+        if fallback.exists() and fallback.is_file():
+            files.append(fallback)
+    return sorted(files, key=lambda path: path.name)
 
 
 def _read_json_file(path: Path) -> dict[str, Any]:
@@ -67,8 +96,12 @@ def _read_json_file(path: Path) -> dict[str, Any]:
     return payload
 
 
-def _section_read_only(section: str) -> bool:
-    return section == "providers"
+def _file_read_only(section: str, file_name: str) -> bool:
+    return section == "providers" or _TEMPLATE_FILES.get(section) == file_name
+
+
+def _section_can_create(section: str) -> bool:
+    return section in _TEMPLATE_FILES
 
 
 def _payload_key(payload: dict[str, Any], fallback: str) -> str:
@@ -93,9 +126,9 @@ def _payload_display_name(payload: dict[str, Any], key: str) -> str:
 def _file_mode(section: str, file_name: str) -> str:
     if section == "providers":
         return "read-only contract"
-    if file_name in {"driver.json", "connection.json"}:
-        return "template preview"
-    return "preview"
+    if _TEMPLATE_FILES.get(section) == file_name:
+        return "template read only"
+    return "editable"
 
 
 def _mode_badge_class(mode: str) -> str:
@@ -103,18 +136,85 @@ def _mode_badge_class(mode: str) -> str:
         return "badge-read-only"
     if mode.startswith("template"):
         return "badge-template"
-    return "badge-preview"
+    return "badge-editable"
 
 
 def _file_links(section: str, active_file: str) -> str:
     links = []
+    if _section_can_create(section):
+        links.append(f'<a class="new" href="/config/{html.escape(section)}/new">New {_SECTION_TITLES[section][:-1]}</a>')
     for path in _json_files(section):
         class_name = "active" if path.name == active_file else ""
+        mode = _file_mode(section, path.name)
+        label = path.name
+        if mode.startswith("template"):
+            label = f"{path.name} - TEMPLATE READ ONLY"
         links.append(
             f'<a class="{class_name}" href="/config/{html.escape(section)}/{html.escape(path.name)}">'
-            f"{html.escape(path.name)}</a>"
+            f"{html.escape(label)}</a>"
         )
     return "\n".join(links) or '<span class="muted">No JSON files found.</span>'
+
+
+def _template_path(section: str) -> Path:
+    template_file = _TEMPLATE_FILES.get(section)
+    if not template_file:
+        raise HTTPException(status_code=400, detail=f"Section cannot create files: {section}")
+    path = _section_dir(section) / template_file
+    if not path.exists() or not path.is_file():
+        path = _fallback_template_path(section, template_file)
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail=f"Template file not found: {template_file}")
+    return path
+
+
+def _fallback_template_path(section: str, template_file: str) -> Path:
+    return PROJECT_ROOT / "config" / section / template_file
+
+
+def _config_file_path(section: str, file_name: str) -> Path:
+    path = _section_dir(section) / file_name
+    if path.exists() and path.is_file():
+        return path
+    if _TEMPLATE_FILES.get(section) == file_name:
+        fallback = _fallback_template_path(section, file_name)
+        if fallback.exists() and fallback.is_file():
+            return fallback
+    return path
+
+
+def _validate_config_file_name(file_name: str) -> None:
+    if "/" in file_name or "\\" in file_name or not file_name.endswith(".json"):
+        raise HTTPException(status_code=400, detail="Invalid config file name.")
+
+
+def _safe_file_name_from_key(key: str) -> str:
+    normalized = key.strip()
+    if not normalized:
+        raise HTTPException(status_code=400, detail="Config key is required.")
+    if normalized in _RESERVED_KEYS:
+        raise HTTPException(status_code=400, detail=f"Config key must be changed from template value: {normalized}")
+    if not _SAFE_NAME.match(normalized):
+        raise HTTPException(status_code=400, detail="Config key may contain only letters, numbers, dot, underscore and dash.")
+    return f"{normalized}.json"
+
+
+def _parse_json_payload(raw_json: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(raw_json)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Config JSON must contain an object.")
+    return payload
+
+
+def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    serialized = json.dumps(payload, ensure_ascii=False, indent=4) + "\n"
+    tmp_path = path.with_name(f"{path.name}.tmp")
+    tmp_path.write_text(serialized, encoding="utf-8")
+    tmp_path.replace(path)
 
 
 def _render_nav(active: str | None = None) -> str:
@@ -147,18 +247,28 @@ def _render_layout(title: str, body: str, active: str | None = None) -> HTMLResp
     .file-list {{ display: flex; flex-direction: column; gap: 6px; }}
     .file-list a {{ color: #1f2933; text-decoration: none; padding: 7px 9px; border: 1px solid #d7dde5; background: #fff; border-radius: 3px; }}
     .file-list a.active {{ background: #e7f0ff; border-color: #6b9de8; }}
+    .file-list a.new {{ background: #eefaf1; border-color: #9ad1aa; color: #137333; font-weight: 600; }}
     table {{ width: 100%; border-collapse: collapse; background: white; }}
     th, td {{ border-bottom: 1px solid #d7dde5; padding: 8px 10px; text-align: left; vertical-align: top; }}
     th {{ background: #eef2f7; }}
     pre {{ margin: 0; padding: 12px; background: #111827; color: #e5e7eb; overflow: auto; }}
     textarea {{ width: 100%; min-height: 560px; box-sizing: border-box; font: 13px Consolas, monospace; border: 1px solid #9aa6b2; padding: 10px; background: #fcfcfd; }}
+    textarea[readonly] {{ background: #f3f4f6; border-color: #c7ced8; color: #4b5563; }}
+    form {{ margin: 0; }}
+    button {{ cursor: pointer; border: 1px solid #2d6cdf; background: #2d6cdf; color: white; padding: 7px 14px; border-radius: 3px; font-weight: 600; }}
+    button:disabled {{ cursor: default; border-color: #c7ced8; background: #eef2f7; color: #64748b; }}
+    .actions {{ display: flex; gap: 8px; align-items: center; margin-top: 10px; }}
     .muted {{ color: #64748b; }}
+    .notice {{ margin: 0 0 10px; padding: 8px 10px; border-radius: 3px; border: 1px solid #9ad1aa; background: #e6f4ea; color: #137333; }}
+    .read-only-warning {{ margin: 0 0 10px; padding: 8px 10px; border-radius: 3px; border: 1px solid #f0c36d; background: #fff4e5; color: #9a5b00; font-weight: 600; }}
+    .help {{ margin: 0 0 12px; padding: 10px 12px; border-left: 4px solid #6b9de8; background: #eef5ff; color: #243b53; }}
     .meta {{ display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 10px; }}
     .meta span {{ background: #eef2f7; border: 1px solid #d7dde5; padding: 4px 7px; border-radius: 3px; }}
     .badge {{ display: inline-block; min-width: 82px; text-align: center; padding: 3px 7px; border-radius: 3px; font-size: 12px; font-weight: 600; }}
     .badge-read-only {{ background: #e6f4ea; color: #137333; border: 1px solid #9ad1aa; }}
     .badge-template {{ background: #fff4e5; color: #9a5b00; border: 1px solid #f0c36d; }}
     .badge-preview {{ background: #e7f0ff; color: #1a5fb4; border: 1px solid #9fc3ff; }}
+    .badge-editable {{ background: #e7f0ff; color: #1a5fb4; border: 1px solid #9fc3ff; }}
     .grid {{ display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }}
     .panel {{ background: white; border: 1px solid #d7dde5; border-radius: 4px; overflow: hidden; }}
     .panel h2 {{ font-size: 16px; margin: 0; padding: 10px 12px; border-bottom: 1px solid #d7dde5; background: #eef2f7; }}
@@ -189,20 +299,23 @@ def config_home() -> HTMLResponse:
     <h2>Provider ABC</h2>
     <div>
       <p><span class="badge badge-read-only">READ ONLY</span></p>
+      <p class="help">Provider ABC is the internal bridge contract. It can be changed and configured, but only when you know exactly what you are doing.</p>
       <p>VFS/common contract used internally by the bridge.</p>
     </div>
   </a>
   <a class="section-card" href="/config/drivers">
     <h2>Drivers</h2>
     <div>
-      <p><span class="badge badge-preview">PREVIEW</span></p>
+      <p><span class="badge badge-preview">EDITABLE</span> <span class="badge badge-template">TEMPLATE READ ONLY</span></p>
+      <p class="help">Driver defines how the bridge talks to a DMS type. Most users do not need a new driver.</p>
       <p>Filesystem driver definitions for concrete DMS implementations.</p>
     </div>
   </a>
   <a class="section-card" href="/config/connections">
     <h2>Connections</h2>
     <div>
-      <p><span class="badge badge-preview">PREVIEW</span></p>
+      <p><span class="badge badge-preview">EDITABLE</span> <span class="badge badge-template">TEMPLATE READ ONLY</span></p>
+      <p class="help">Connection is what Total Commander opens, for example alfresco:/Projects.</p>
       <p>Mount definitions exposed to clients as connection:/path.</p>
     </div>
   </a>
@@ -215,6 +328,9 @@ def config_home() -> HTMLResponse:
 def config_section(section: str) -> HTMLResponse:
     directory = _section_dir(section)
     files = _json_files(section)
+    new_link = ""
+    if _section_can_create(section):
+        new_link = f'<p><a class="badge badge-read-only" href="/config/{html.escape(section)}/new">NEW {_SECTION_TITLES[section][:-1].upper()}</a></p>'
     rows = []
     for path in files:
         payload = _read_json_file(path)
@@ -238,6 +354,8 @@ def config_section(section: str) -> HTMLResponse:
   <h2>{html.escape(_SECTION_TITLES[section])}</h2>
   <div class="panel-content">
     <p>{html.escape(_SECTION_ROLES[section])}</p>
+    <p class="help">{html.escape(_SECTION_HELP[section])}</p>
+    {new_link}
     <p class="muted">Directory: {html.escape(str(directory))}</p>
     <table>
       <tr><th>File</th><th>Key</th><th>Name</th><th>Path</th><th>Mode</th></tr>
@@ -249,21 +367,56 @@ def config_section(section: str) -> HTMLResponse:
     return _render_layout(f"Config {section}", body, section)
 
 
+@router.get("/{section}/new", response_class=HTMLResponse)
+def config_new(section: str) -> HTMLResponse:
+    template = _template_path(section)
+    payload = _read_json_file(template)
+    rendered = json.dumps(payload, ensure_ascii=False, indent=4)
+    body = _render_editor(
+        section=section,
+        file_name="new.json",
+        payload=payload,
+        rendered=rendered,
+        message=f"New file will be created from template {template.name}. Change the root key before saving.",
+        is_new=True,
+    )
+    return _render_layout(f"New {section}", body, section)
+
+
 @router.get("/{section}/{file_name}", response_class=HTMLResponse)
 def config_file(section: str, file_name: str) -> HTMLResponse:
-    if "/" in file_name or "\\" in file_name or not file_name.endswith(".json"):
-        raise HTTPException(status_code=400, detail="Invalid config file name.")
-    path = _section_dir(section) / file_name
+    _validate_config_file_name(file_name)
+    path = _config_file_path(section, file_name)
     if not path.exists() or not path.is_file():
         raise HTTPException(status_code=404, detail=f"Config file not found: {file_name}")
     payload = _read_json_file(path)
     rendered = json.dumps(payload, ensure_ascii=False, indent=4)
-    readonly = "readonly" if _section_read_only(section) else ""
+    body = _render_editor(section=section, file_name=file_name, payload=payload, rendered=rendered)
+    return _render_layout(f"Config {file_name}", body, section)
+
+
+def _render_editor(
+    section: str,
+    file_name: str,
+    payload: dict[str, Any],
+    rendered: str,
+    message: str = "",
+    is_new: bool = False,
+) -> str:
+    readonly_attr = "readonly" if _file_read_only(section, file_name) else ""
+    disabled_attr = "disabled" if readonly_attr else ""
     mode = _file_mode(section, file_name)
     badge_class = _mode_badge_class(mode)
-    key = _payload_key(payload, path.stem)
+    key = _payload_key(payload, Path(file_name).stem)
     display_name = _payload_display_name(payload, key)
-    body = f"""
+    notice = f'<p class="notice">{html.escape(message)}</p>' if message else ""
+    read_only_warning = ""
+    if readonly_attr:
+        read_only_warning = '<p class="read-only-warning">This file is read-only. Use New to create an editable copy.</p>'
+    submit_label = "Create" if is_new else "Save"
+    form_open = f'<form method="post" action="/config/{html.escape(section)}/save">'
+    form_close = "</form>"
+    return f"""
 <div class="grid">
   <section class="panel">
     <h2>{html.escape(_SECTION_TITLES[section])}</h2>
@@ -274,32 +427,67 @@ def config_file(section: str, file_name: str) -> HTMLResponse:
   <section class="panel">
     <h2>{html.escape(file_name)}</h2>
     <div class="panel-content">
+      {notice}
+      {read_only_warning}
       <p class="meta">
         <span>Section: {html.escape(_SECTION_TITLES[section])}</span>
         <span>Role: {html.escape(_SECTION_ROLES[section])}</span>
         <span>Mode: <span class="badge {badge_class}">{html.escape(mode.upper())}</span></span>
       </p>
+      <p class="help">{html.escape(_SECTION_HELP[section])}</p>
       <p><strong>{html.escape(key)}</strong> {html.escape(display_name)}</p>
-      <p class="muted">{html.escape(str(path))}</p>
-      <textarea {readonly}>{html.escape(rendered)}</textarea>
+      <p class="muted">{html.escape(str(_section_dir(section) / file_name))}</p>
+      {form_open}
+        <input type="hidden" name="file_name" value="{html.escape('' if is_new else file_name)}">
+        <textarea name="payload" {readonly_attr}>{html.escape(rendered)}</textarea>
+        <div class="actions">
+          <button type="submit" {disabled_attr}>{html.escape(submit_label)}</button>
+          <span class="muted">Templates and Provider ABC are read-only.</span>
+        </div>
+      {form_close}
     </div>
   </section>
 </div>
 """
-    return _render_layout(f"Config {file_name}", body, section)
+
+
+@router.post("/{section}/save", response_class=HTMLResponse)
+def config_save(
+    section: str,
+    file_name: str = Form(default=""),
+    payload: str = Form(...),
+) -> HTMLResponse:
+    if not _section_can_create(section):
+        raise HTTPException(status_code=403, detail=f"Section is read-only: {section}")
+    parsed = _parse_json_payload(payload)
+    key = _payload_key(parsed, "")
+    target_file = file_name.strip() if file_name.strip() else _safe_file_name_from_key(key)
+    _validate_config_file_name(target_file)
+    if _file_read_only(section, target_file):
+        raise HTTPException(status_code=403, detail=f"Config file is read-only: {target_file}")
+    target_path = _section_dir(section) / target_file
+    _write_json_atomic(target_path, parsed)
+    rendered = json.dumps(parsed, ensure_ascii=False, indent=4)
+    body = _render_editor(
+        section=section,
+        file_name=target_file,
+        payload=parsed,
+        rendered=rendered,
+        message=f"Saved {target_file}.",
+    )
+    return _render_layout(f"Config {target_file}", body, section)
 
 
 @router.get("/{section}/{file_name}/json")
 def config_file_json(section: str, file_name: str) -> dict[str, Any]:
-    if "/" in file_name or "\\" in file_name or not file_name.endswith(".json"):
-        raise HTTPException(status_code=400, detail="Invalid config file name.")
-    path = _section_dir(section) / file_name
+    _validate_config_file_name(file_name)
+    path = _config_file_path(section, file_name)
     if not path.exists() or not path.is_file():
         raise HTTPException(status_code=404, detail=f"Config file not found: {file_name}")
     return {
         "section": section,
         "file": file_name,
         "path": str(path),
-        "read_only": section == "providers",
+        "read_only": _file_read_only(section, file_name),
         "data": _read_json_file(path),
     }
