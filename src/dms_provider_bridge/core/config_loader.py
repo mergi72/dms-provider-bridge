@@ -133,23 +133,51 @@ def _config_dirs() -> tuple[Path, Path | None]:
     return machine_dir, user_dir
 
 
+def _configured_registry_paths(machine_dir: Path) -> dict[str, Path]:
+    config = _load_bridge_config(machine_dir, None)
+    paths = config.get("paths") if isinstance(config, dict) else None
+    if not isinstance(paths, dict):
+        paths = {}
+    return {
+        "providers": machine_dir / str(paths.get("providers") or "providers"),
+        "drivers": machine_dir / str(paths.get("drivers") or "drivers"),
+        "connections": machine_dir / str(paths.get("connections") or "connections"),
+    }
+
+
+def _provider_config_paths(machine_dir: Path, user_dir: Path | None, provider_name: str) -> tuple[Path, Path | None]:
+    legacy_base_path = machine_dir / f"{provider_name}.json"
+    legacy_user_path = user_dir / f"{provider_name}.local.json" if user_dir is not None else None
+    if legacy_base_path.exists():
+        return legacy_base_path, legacy_user_path
+
+    drivers_dir = _configured_registry_paths(machine_dir)["drivers"]
+    driver_base_path = drivers_dir / f"{provider_name}.json"
+    driver_user_path = user_dir / "drivers" / f"{provider_name}.local.json" if user_dir is not None else None
+    return driver_base_path, driver_user_path
+
+
 def list_provider_config_names() -> list[str]:
     machine_dir, _user_dir = _config_dirs()
     if not machine_dir.exists():
         return []
 
     names: set[str] = set()
-    for path in machine_dir.glob("*.json"):
-        if path.name == "bridge.json" or path.name.endswith(".local.json"):
+    search_dirs = [machine_dir, _configured_registry_paths(machine_dir)["drivers"]]
+    for directory in search_dirs:
+        if not directory.exists():
             continue
-        payload = _read_json(path)
-        if payload is None:
-            continue
-        key = payload.get("key")
-        if isinstance(key, str) and key.strip():
-            names.add(key.strip().lower())
-        else:
-            names.add(path.stem.lower())
+        for path in directory.glob("*.json"):
+            if path.name in {"bridge.json", "driver.json"} or path.name.endswith(".local.json"):
+                continue
+            payload = _read_json(path)
+            if payload is None:
+                continue
+            key = payload.get("key")
+            if isinstance(key, str) and key.strip():
+                names.add(key.strip().lower())
+            else:
+                names.add(path.stem.lower())
     return sorted(names)
 
 
@@ -164,8 +192,7 @@ def load_config() -> dict[str, Any]:
 def load_provider_config(provider_name: str) -> dict[str, Any]:
     machine_dir, user_dir = _config_dirs()
 
-    base_path = machine_dir / f"{provider_name}.json"
-    user_path = user_dir / f"{provider_name}.local.json" if user_dir is not None else None
+    base_path, user_path = _provider_config_paths(machine_dir, user_dir, provider_name)
     base_payload = _read_json(base_path)
 
     if base_payload is None:

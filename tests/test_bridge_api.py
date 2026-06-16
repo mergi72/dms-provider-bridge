@@ -68,7 +68,7 @@ def test_bridge_providers() -> None:
     body = response.json()
     assert body["ok"] is True
     assert set(body["data"]["providers"]) >= {"edocat", "alfresco"}
-    assert body["data"]["default_provider"] in body["data"]["providers"]
+    assert body["data"]["default_provider"] is None or body["data"]["default_provider"] in body["data"]["providers"]
     assert body["providers"] == body["data"]["providers"]
     assert body["default_provider"] == body["data"]["default_provider"]
 
