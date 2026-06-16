@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse
 
 from dms_provider_bridge.core.config_loader import load_config
 from dms_provider_bridge.core.paths import MACHINE_CONFIG_DIR, PROJECT_ROOT
+from dms_provider_bridge.services.provider_service import reload_provider_cache
 
 router = APIRouter()
 
@@ -245,7 +246,12 @@ def _render_nav(active: str | None = None) -> str:
     for section, title in _SECTION_TITLES.items():
         class_name = "active" if section == active else ""
         links.append(f'<a class="{class_name}" href="/config/{section}">{html.escape(title)}</a>')
-    utility = '<span class="utility"><a href="/docs">Docs</a><a href="/health">Health</a></span>'
+    utility = (
+        '<span class="utility">'
+        '<a href="/config/reload">Reload</a>'
+        '<a href="/docs">Docs</a><a href="/health">Health</a>'
+        "</span>"
+    )
     return "\n".join(links) + utility
 
 
@@ -280,6 +286,7 @@ def _render_layout(title: str, body: str, active: str | None = None) -> HTMLResp
     form {{ margin: 0; }}
     button {{ cursor: pointer; border: 1px solid #2d6cdf; background: #2d6cdf; color: white; padding: 7px 14px; border-radius: 3px; font-weight: 600; }}
     button:disabled {{ cursor: default; border-color: #c7ced8; background: #eef2f7; color: #64748b; }}
+    .link-button {{ color: #1f2933; text-decoration: none; padding: 5px 9px; border: 1px solid #c7ced8; background: white; border-radius: 3px; font-size: 13px; font-weight: 400; }}
     .actions {{ display: flex; gap: 8px; align-items: center; margin-top: 10px; }}
     .muted {{ color: #64748b; }}
     .notice {{ margin: 0 0 10px; padding: 8px 10px; border-radius: 3px; border: 1px solid #9ad1aa; background: #e6f4ea; color: #137333; }}
@@ -345,6 +352,21 @@ def config_home() -> HTMLResponse:
 </div>
 """
     return _render_layout("DMS Provider Bridge Config", body)
+
+
+@router.get("/reload", response_class=HTMLResponse)
+def config_reload() -> HTMLResponse:
+    reload_provider_cache()
+    body = """
+<section class="panel">
+  <h2>Reload</h2>
+  <div class="panel-content">
+    <p class="notice">Configuration cache was reloaded. Next bridge request will use current JSON files.</p>
+    <p><a href="/config">Back to Config</a></p>
+  </div>
+</section>
+"""
+    return _render_layout("Config Reload", body)
 
 
 @router.get("/{section}", response_class=HTMLResponse)
@@ -480,6 +502,7 @@ def _render_editor(
         <div class="actions">
           <button type="submit" {disabled_attr}>{html.escape(submit_label)}</button>
           <a href="/config/{html.escape(section)}">Cancel</a>
+          <a class="link-button" href="/config/reload">Reload</a>
           <span class="muted">Templates and Provider ABC are read-only.</span>
         </div>
       {form_close}
@@ -526,6 +549,7 @@ def config_save(
         )
         return _render_layout(f"Overwrite {target_file}", body, section)
     _write_json_atomic(target_path, parsed)
+    reload_provider_cache()
     rendered = json.dumps(parsed, ensure_ascii=False, indent=4)
     body = _render_editor(
         section=section,

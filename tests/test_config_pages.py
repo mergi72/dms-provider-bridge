@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+import dms_provider_bridge.app.routes.config as config_routes
 from dms_provider_bridge.app.server import create_app
 
 
@@ -27,9 +28,22 @@ def test_config_home_links_sections() -> None:
 
     assert response.status_code == 200
     assert "/docs" in response.text
+    assert "/config/reload" in response.text
     assert "/config/providers" in response.text
     assert "/config/drivers" in response.text
     assert "/config/connections" in response.text
+
+
+def test_config_reload_clears_provider_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+    monkeypatch.setattr(config_routes, "reload_provider_cache", lambda: calls.append("reload"))
+    client = TestClient(create_app())
+
+    response = client.get("/config/reload")
+
+    assert response.status_code == 200
+    assert calls == ["reload"]
+    assert "Configuration cache was reloaded" in response.text
 
 
 def test_docs_openapi_links_config() -> None:
@@ -139,6 +153,31 @@ def test_config_save_new_connection_creates_file(tmp_path: Path, monkeypatch: py
     assert created.exists()
     assert json.loads(created.read_text(encoding="utf-8"))["key"] == "test_connection"
     assert "Saved test_connection.json" in response.text
+
+
+def test_config_save_reloads_provider_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repo_config = Path(__file__).resolve().parents[1] / "config"
+    config_dir = tmp_path / "config"
+    shutil.copytree(repo_config, config_dir)
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(config_dir))
+    calls = []
+    monkeypatch.setattr(config_routes, "reload_provider_cache", lambda: calls.append("reload"))
+    client = TestClient(create_app())
+    payload = {
+        "key": "reload_connection",
+        "reload_connection": {
+            "display_name": "Reload Connection",
+            "driver": "alfresco",
+        },
+    }
+
+    response = client.post(
+        "/config/connections/save",
+        data={"file_name": "", "payload": json.dumps(payload)},
+    )
+
+    assert response.status_code == 200
+    assert calls == ["reload"]
 
 
 def test_config_save_new_connection_requires_overwrite_confirmation(
