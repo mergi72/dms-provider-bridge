@@ -27,8 +27,9 @@ class AlfrescoProvider(Provider):
     name = "alfresco"
     upstream_auth_scheme = "ticket"
 
-    def __init__(self) -> None:
-        self.config = load_provider_config(self.name)
+    def __init__(self, name: str | None = None, config: dict | None = None) -> None:
+        self.name = name or self.name
+        self.config = config or load_provider_config("alfresco")
         self.client = AlfrescoClient.from_config(self.config)
         self.debug_logger = provider_debug_logger(self.name, self.config)
 

@@ -31,6 +31,7 @@ def test_list_registered_providers_contains_known() -> None:
 
 
 def test_list_registered_providers_uses_configured_machine_providers(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(provider_service_module, "list_connection_config_names", lambda: [])
     monkeypatch.setattr(provider_service_module, "list_provider_config_names", lambda: ["alfresco", "unknown"])
 
     providers = provider_service_module.list_registered_providers()
@@ -41,6 +42,7 @@ def test_list_registered_providers_uses_configured_machine_providers(monkeypatch
 def test_reload_provider_cache_clears_cached_instances(monkeypatch: pytest.MonkeyPatch) -> None:
     provider_service_module.reload_provider_cache()
     monkeypatch.setattr(provider_service_module, "_PROVIDER_FACTORIES", {"dummy": _DummyProvider})
+    monkeypatch.setattr(provider_service_module, "list_connection_config_names", lambda: [])
     monkeypatch.setattr(provider_service_module, "list_provider_config_names", lambda: ["dummy"])
 
     first = provider_service_module.get_provider("dummy")
@@ -55,6 +57,7 @@ def test_reload_provider_cache_clears_cached_instances(monkeypatch: pytest.Monke
 
 def test_get_default_provider_name_uses_env_when_registered(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(provider_service_module, "load_config", lambda: {})
+    monkeypatch.setattr(provider_service_module, "list_connection_config_names", lambda: [])
     monkeypatch.setenv("DMS_PROVIDER_DEFAULT_PROVIDER", "alfresco")
 
     default_provider = provider_service_module.get_default_provider_name()
@@ -64,6 +67,7 @@ def test_get_default_provider_name_uses_env_when_registered(monkeypatch: pytest.
 
 def test_get_default_provider_name_requires_configured_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(provider_service_module, "load_config", lambda: {})
+    monkeypatch.setattr(provider_service_module, "list_connection_config_names", lambda: [])
     monkeypatch.setenv("DMS_PROVIDER_DEFAULT_PROVIDER", "unknown")
 
     with pytest.raises(ConfigurationError):
@@ -72,11 +76,43 @@ def test_get_default_provider_name_requires_configured_default(monkeypatch: pyte
 
 def test_get_default_provider_name_uses_config_when_registered(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(provider_service_module, "load_config", lambda: {"provider": {"default": "alfresco"}})
+    monkeypatch.setattr(provider_service_module, "list_connection_config_names", lambda: [])
     monkeypatch.setenv("DMS_PROVIDER_DEFAULT_PROVIDER", "edocat")
 
     default_provider = provider_service_module.get_default_provider_name()
 
     assert default_provider == "alfresco"
+
+
+def test_list_registered_providers_prefers_connections(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(provider_service_module, "list_connection_config_names", lambda: ["company", "unknown"])
+    monkeypatch.setattr(provider_service_module, "connection_driver_name", lambda name: {"company": "alfresco"}.get(name))
+
+    providers = provider_service_module.list_registered_providers()
+
+    assert providers == ["company"]
+
+
+def test_get_provider_instantiates_connection_driver(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider_service_module.reload_provider_cache()
+
+    class DummyProvider:
+        name = "dummy"
+
+        def __init__(self, name=None, config=None) -> None:
+            self.name = name
+            self.config = config
+
+    monkeypatch.setattr(provider_service_module, "_PROVIDER_FACTORIES", {"dummy": DummyProvider})
+    monkeypatch.setattr(provider_service_module, "list_connection_config_names", lambda: ["mount1"])
+    monkeypatch.setattr(provider_service_module, "connection_driver_name", lambda name: "dummy" if name == "mount1" else None)
+    monkeypatch.setattr(provider_service_module, "load_connection_config", lambda name: {"driver": "dummy", "base_url": "x"})
+
+    provider = provider_service_module.get_provider("mount1")
+
+    assert provider.name == "mount1"
+    assert provider.config == {"driver": "dummy", "base_url": "x"}
+    provider_service_module.reload_provider_cache()
 
 
 def test_listing_service_parses_wfx_path_when_provider_missing(monkeypatch: pytest.MonkeyPatch) -> None:

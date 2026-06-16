@@ -51,6 +51,20 @@ def _extract_provider_section(payload: dict[str, Any], provider_name: str) -> di
     return {}
 
 
+def _strip_empty_overrides(value: Any) -> Any:
+    if isinstance(value, dict):
+        cleaned = {}
+        for key, item in value.items():
+            stripped = _strip_empty_overrides(item)
+            if stripped in ("", None):
+                continue
+            if isinstance(stripped, dict) and not stripped:
+                continue
+            cleaned[key] = stripped
+        return cleaned
+    return value
+
+
 def _is_sensitive_config_key(key: str) -> bool:
     normalized = key.replace("_", "").replace("-", "").casefold()
     return any(part in normalized for part in _SENSITIVE_CONFIG_KEY_PARTS)
@@ -157,6 +171,13 @@ def _provider_config_paths(machine_dir: Path, user_dir: Path | None, provider_na
     return driver_base_path, driver_user_path
 
 
+def _connection_config_paths(machine_dir: Path, user_dir: Path | None, connection_name: str) -> tuple[Path, Path | None]:
+    connections_dir = _configured_registry_paths(machine_dir)["connections"]
+    connection_base_path = connections_dir / f"{connection_name}.json"
+    connection_user_path = user_dir / "connections" / f"{connection_name}.local.json" if user_dir is not None else None
+    return connection_base_path, connection_user_path
+
+
 def list_provider_config_names() -> list[str]:
     machine_dir, _user_dir = _config_dirs()
     if not machine_dir.exists():
@@ -178,6 +199,27 @@ def list_provider_config_names() -> list[str]:
                 names.add(key.strip().lower())
             else:
                 names.add(path.stem.lower())
+    return sorted(names)
+
+
+def list_connection_config_names() -> list[str]:
+    machine_dir, _user_dir = _config_dirs()
+    connections_dir = _configured_registry_paths(machine_dir)["connections"]
+    if not connections_dir.exists():
+        return []
+
+    names: set[str] = set()
+    for path in connections_dir.glob("*.json"):
+        if path.name == "connection.json" or path.name.endswith(".local.json"):
+            continue
+        payload = _read_json(path)
+        if payload is None:
+            continue
+        key = payload.get("key")
+        if isinstance(key, str) and key.strip():
+            names.add(key.strip().lower())
+        else:
+            names.add(path.stem.lower())
     return sorted(names)
 
 
@@ -215,3 +257,48 @@ def load_provider_config(provider_name: str) -> dict[str, Any]:
     merged = _merge_dicts(base_section, local_section)
     _log_provider_config(provider_name, merged, base_path, user_path)
     return merged
+
+
+def load_connection_config(connection_name: str) -> dict[str, Any]:
+    machine_dir, user_dir = _config_dirs()
+
+    base_path, user_path = _connection_config_paths(machine_dir, user_dir, connection_name)
+    base_payload = _read_json(base_path)
+    if base_payload is None:
+        _log_provider_config(connection_name, {}, base_path, user_path)
+        return {}
+
+    connection_section = _extract_provider_section(base_payload, connection_name)
+    if user_dir is not None:
+        user_payload = _read_json(user_path)
+        if user_payload is not None:
+            connection_section = _merge_dicts(
+                connection_section,
+                _extract_provider_section(user_payload, connection_name),
+            )
+
+    driver_name = connection_section.get("driver")
+    if not isinstance(driver_name, str) or not driver_name.strip():
+        _log_provider_config(connection_name, connection_section, base_path, user_path)
+        return connection_section
+
+    driver_config = load_provider_config(driver_name.strip())
+    connection_overrides = _strip_empty_overrides(connection_section)
+    merged = _merge_dicts(driver_config, connection_overrides)
+    _log_provider_config(connection_name, merged, base_path, user_path)
+    return merged
+
+
+def connection_driver_name(connection_name: str) -> str | None:
+    machine_dir, user_dir = _config_dirs()
+    base_path, user_path = _connection_config_paths(machine_dir, user_dir, connection_name)
+    payload = _read_json(base_path)
+    if payload is None:
+        return None
+    section = _extract_provider_section(payload, connection_name)
+    if user_dir is not None:
+        user_payload = _read_json(user_path)
+        if user_payload is not None:
+            section = _merge_dicts(section, _extract_provider_section(user_payload, connection_name))
+    driver_name = section.get("driver")
+    return driver_name.strip().lower() if isinstance(driver_name, str) and driver_name.strip() else None

@@ -7,7 +7,13 @@ import pkgutil
 from collections.abc import Callable
 
 import dms_provider_bridge.providers as providers_package
-from dms_provider_bridge.core.config_loader import list_provider_config_names, load_config
+from dms_provider_bridge.core.config_loader import (
+    connection_driver_name,
+    list_connection_config_names,
+    list_provider_config_names,
+    load_config,
+    load_connection_config,
+)
 from dms_provider_bridge.core.errors import ConfigurationError, ProviderNotFoundError
 from dms_provider_bridge.providers.base import Provider
 
@@ -71,12 +77,17 @@ def _resolve_default_provider_name() -> str:
 def get_provider(provider_name: str | None = None) -> Provider:
     name = _normalize_provider_name(provider_name) or _resolve_default_provider_name()
     registered = set(list_registered_providers())
-    factory = _provider_factories().get(name)
+    driver_name = connection_driver_name(name) or name
+    factory = _provider_factories().get(driver_name)
     if name not in registered or factory is None:
         raise ProviderNotFoundError(f"Provider '{name}' is not registered.")
     provider = _PROVIDER_CACHE.get(name)
     if provider is None:
-        provider = factory()
+        config = load_connection_config(name) if connection_driver_name(name) else None
+        try:
+            provider = factory(name=name, config=config)
+        except TypeError:
+            provider = factory()
         _PROVIDER_CACHE[name] = provider
     return provider
 
@@ -88,6 +99,11 @@ def reload_provider_cache() -> None:
 
 def list_registered_providers() -> list[str]:
     factories = _provider_factories()
+    connections = [
+        name for name in list_connection_config_names() if (connection_driver_name(name) or "") in factories
+    ]
+    if connections:
+        return connections
     configured = [name for name in list_provider_config_names() if name in factories]
     if configured:
         return configured

@@ -150,6 +150,89 @@ def test_list_provider_config_names_reads_driver_directory_layout(
     assert config_loader.list_provider_config_names() == ["alfresco", "edocat"]
 
 
+def test_list_connection_config_names_reads_connection_directory_layout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine_dir = tmp_path / "machine"
+    connections_dir = machine_dir / "connections"
+    connections_dir.mkdir(parents=True)
+    (machine_dir / "bridge.json").write_text(
+        '{"paths": {"connections": "connections"}}',
+        encoding="utf-8",
+    )
+    (connections_dir / "connection.json").write_text('{"key": "connection_name"}', encoding="utf-8")
+    (connections_dir / "alfresco.json").write_text('{"key": "alfresco"}', encoding="utf-8")
+    (connections_dir / "edocat.json").write_text('{"key": "edocat"}', encoding="utf-8")
+
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
+    monkeypatch.delenv("DMS_PROVIDER_USER_CONFIG_DIR", raising=False)
+
+    assert config_loader.list_connection_config_names() == ["alfresco", "edocat"]
+
+
+def test_load_connection_config_merges_driver_and_connection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine_dir = tmp_path / "machine"
+    drivers_dir = machine_dir / "drivers"
+    connections_dir = machine_dir / "connections"
+    drivers_dir.mkdir(parents=True)
+    connections_dir.mkdir(parents=True)
+    (machine_dir / "bridge.json").write_text(
+        '{"paths": {"drivers": "drivers", "connections": "connections"}}',
+        encoding="utf-8",
+    )
+    (drivers_dir / "alfresco.json").write_text(
+        '{"key": "alfresco", "alfresco": {"base_url": "https://driver.test", "credentials": {"target": "driver"}, "transfer": {"maxBase64Bytes": 100}}}',
+        encoding="utf-8",
+    )
+    (connections_dir / "company.json").write_text(
+        '{"key": "company", "company": {"driver": "alfresco", "display_name": "Company", "base_url": "https://connection.test", "credentials": {"target": "connection"}}}',
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
+    monkeypatch.delenv("DMS_PROVIDER_USER_CONFIG_DIR", raising=False)
+
+    config = config_loader.load_connection_config("company")
+
+    assert config["driver"] == "alfresco"
+    assert config["display_name"] == "Company"
+    assert config["base_url"] == "https://connection.test"
+    assert config["credentials"]["target"] == "connection"
+    assert config["transfer"]["maxBase64Bytes"] == 100
+
+
+def test_load_connection_config_ignores_blank_template_values(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine_dir = tmp_path / "machine"
+    drivers_dir = machine_dir / "drivers"
+    connections_dir = machine_dir / "connections"
+    drivers_dir.mkdir(parents=True)
+    connections_dir.mkdir(parents=True)
+    (machine_dir / "bridge.json").write_text(
+        '{"paths": {"drivers": "drivers", "connections": "connections"}}',
+        encoding="utf-8",
+    )
+    (drivers_dir / "alfresco.json").write_text(
+        '{"key": "alfresco", "alfresco": {"base_url": "https://driver.test", "doc_library": "/driver"}}',
+        encoding="utf-8",
+    )
+    (connections_dir / "company.json").write_text(
+        '{"key": "company", "company": {"driver": "alfresco", "base_url": "", "doc_library": ""}}',
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
+    monkeypatch.delenv("DMS_PROVIDER_USER_CONFIG_DIR", raising=False)
+
+    config = config_loader.load_connection_config("company")
+
+    assert config["base_url"] == "https://driver.test"
+    assert config["doc_library"] == "/driver"
+
+
 def test_load_provider_config_accepts_direct_provider_payload(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
