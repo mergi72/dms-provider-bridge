@@ -14,7 +14,11 @@ from dms_provider_bridge.models.item import DmsItem
 from dms_provider_bridge.models.listing import ListingResult
 from dms_provider_bridge.services.auth_service import validate_bridge_auth
 from dms_provider_bridge.services.bridge_errors import map_exception
-from dms_provider_bridge.services.provider_service import get_default_provider_name, get_provider, list_registered_providers
+from dms_provider_bridge.services.provider_service import (
+    get_connection_runtime,
+    get_default_connection_name,
+    list_registered_connections,
+)
 from dms_provider_bridge.services.bridge_transfer_ops import estimated_binary_size_from_base64, max_inline_upload_bytes, upload_with_preflight
 
 
@@ -36,7 +40,7 @@ def _failure_from_exception(exc: Exception) -> WfxResponse:
 
 def _resolve(path: str):
     parsed = parse_wfx_path(path)
-    provider = get_provider(parsed.provider)
+    provider = get_connection_runtime(parsed.provider)
     return provider, parsed
 
 
@@ -235,7 +239,7 @@ def _validated_auth(auth: BridgeAuthContext) -> BridgeAuthContext:
 
 
 def _provider_root_listing() -> ListingResult:
-    providers = list_registered_providers()
+    providers = list_registered_connections()
     items = [
         DmsItem(
             id=provider_name,
@@ -251,7 +255,7 @@ def _provider_root_listing() -> ListingResult:
 
 def _default_provider_name_or_none() -> str | None:
     try:
-        return get_default_provider_name()
+        return get_default_connection_name()
     except Exception as exc:
         _LOGGER.warning("default_provider_unavailable error=%s", exc)
         return None
@@ -332,7 +336,7 @@ def _log_and_return(
 
 def providers_path() -> WfxResponse:
     started_at = time.perf_counter()
-    providers = list_registered_providers()
+    providers = list_registered_connections()
     default_provider = _default_provider_name_or_none()
     response = _success(
         data={
@@ -347,7 +351,7 @@ def providers_path() -> WfxResponse:
 def provider_detail_path(provider_name: str) -> WfxResponse:
     started_at = time.perf_counter()
     try:
-        provider = get_provider(provider_name)
+        provider = get_connection_runtime(provider_name)
         connection_metadata = load_connection_metadata(provider.name)
         response = _success(
             data={
@@ -357,7 +361,7 @@ def provider_detail_path(provider_name: str) -> WfxResponse:
                 "mount": connection_metadata.get("mount") or build_wfx_path(provider.name, "/"),
                 "display_name": connection_metadata.get("display_name"),
                 "description": connection_metadata.get("description"),
-                "enabled": provider.name in list_registered_providers(),
+                "enabled": provider.name in list_registered_connections(),
                 "auth": _provider_auth_requirements(provider),
                 "capabilities": _provider_capabilities(provider),
                 "versioning": _provider_versioning(provider),
@@ -381,7 +385,7 @@ def list_path(path: str, auth: BridgeAuthContext | None) -> WfxResponse:
                 metadata={
                     "operation": "list",
                     "provider_root": True,
-                    "providers": list_registered_providers(),
+                    "providers": list_registered_connections(),
                     "default_provider": _default_provider_name_or_none(),
                 },
             )

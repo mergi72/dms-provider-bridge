@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dms-provider-bridge"
-version = "0.6.10b0"
+version = "0.6.11b0"
 description = "Provider bridge service for DMS systems such as eDoCat and Alfresco, with WFX API support."
 readme = "README.md"
 requires-python = ">=3.11"

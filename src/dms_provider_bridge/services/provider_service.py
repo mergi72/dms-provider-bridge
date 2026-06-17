@@ -19,11 +19,11 @@ from dms_provider_bridge.core.errors import ConfigurationError, ProviderNotFound
 from dms_provider_bridge.providers.base import Provider
 
 
-_PROVIDER_FACTORIES: dict[str, Callable[[], Provider]] | None = None
+_DRIVER_FACTORIES: dict[str, Callable[[], Provider]] | None = None
 _PROVIDER_CACHE: dict[str, Provider] = {}
 
 
-def _discover_provider_factories() -> dict[str, Callable[[], Provider]]:
+def _discover_driver_factories() -> dict[str, Callable[[], Provider]]:
     factories: dict[str, Callable[[], Provider]] = {}
     for module_info in pkgutil.iter_modules(providers_package.__path__):
         if module_info.name == "base":
@@ -32,56 +32,79 @@ def _discover_provider_factories() -> dict[str, Callable[[], Provider]]:
         for _name, candidate in inspect.getmembers(module, inspect.isclass):
             if candidate is Provider or not issubclass(candidate, Provider) or inspect.isabstract(candidate):
                 continue
-            provider_name = _normalize_provider_name(getattr(candidate, "name", None))
-            if provider_name:
-                factories[provider_name] = candidate
+            driver_name = _normalize_driver_name(getattr(candidate, "name", None))
+            if driver_name:
+                factories[driver_name] = candidate
     return factories
 
 
+def _driver_factories() -> dict[str, Callable[[], Provider]]:
+    global _DRIVER_FACTORIES
+    if _DRIVER_FACTORIES is None:
+        _DRIVER_FACTORIES = _discover_driver_factories()
+    return _DRIVER_FACTORIES
+
+
+def _discover_provider_factories() -> dict[str, Callable[[], Provider]]:
+    """Compatibility alias for the old provider-factory name."""
+    return _discover_driver_factories()
+
+
 def _provider_factories() -> dict[str, Callable[[], Provider]]:
-    global _PROVIDER_FACTORIES
-    if _PROVIDER_FACTORIES is None:
-        _PROVIDER_FACTORIES = _discover_provider_factories()
-    return _PROVIDER_FACTORIES
+    """Compatibility alias for the old provider-factory registry."""
+    return _driver_factories()
 
 
-def _normalize_provider_name(provider_name: str | None) -> str | None:
-    if provider_name is None:
+def _normalize_connection_name(connection_name: str | None) -> str | None:
+    if connection_name is None:
         return None
-    normalized = provider_name.strip().lower()
+    normalized = connection_name.strip().lower()
     if normalized.endswith(":"):
         normalized = normalized[:-1]
     return normalized or None
 
 
-def _resolve_default_provider_name() -> str:
-    """Return default provider name from config or DMS_PROVIDER_DEFAULT_PROVIDER."""
-    registered = set(list_registered_providers())
+def _normalize_driver_name(driver_name: str | None) -> str | None:
+    return _normalize_connection_name(driver_name)
+
+
+def _normalize_provider_name(provider_name: str | None) -> str | None:
+    return _normalize_connection_name(provider_name)
+
+
+def _resolve_default_connection_name() -> str:
+    """Return default connection name from config or legacy provider env/config."""
+    registered = set(list_registered_connections())
     try:
         config = load_config()
-        from_config = _normalize_provider_name(config.get("provider", {}).get("default"))
+        from_config = _normalize_connection_name(config.get("provider", {}).get("default"))
         if from_config and from_config in registered:
             return from_config
     except Exception:
         pass
-    from_env = _normalize_provider_name(os.getenv("DMS_PROVIDER_DEFAULT_PROVIDER"))
+    from_env = _normalize_connection_name(os.getenv("DMS_PROVIDER_DEFAULT_PROVIDER"))
     if from_env and from_env in registered:
         return from_env
     if registered:
         raise ConfigurationError(
-            "Default provider is not configured. Set provider.default in bridge.json "
+            "Default connection is not configured. Set provider.default in bridge.json "
             "or DMS_PROVIDER_DEFAULT_PROVIDER."
         )
-    raise ConfigurationError("No providers are registered.")
+    raise ConfigurationError("No connections are registered.")
 
 
-def get_provider(provider_name: str | None = None) -> Provider:
-    name = _normalize_provider_name(provider_name) or _resolve_default_provider_name()
-    registered = set(list_registered_providers())
+def _resolve_default_provider_name() -> str:
+    """Compatibility alias for legacy provider-named callers."""
+    return _resolve_default_connection_name()
+
+
+def get_connection_runtime(connection_name: str | None = None) -> Provider:
+    name = _normalize_connection_name(connection_name) or _resolve_default_connection_name()
+    registered = set(list_registered_connections())
     driver_name = connection_driver_name(name) or name
-    factory = _provider_factories().get(driver_name)
+    factory = _driver_factories().get(driver_name)
     if name not in registered or factory is None:
-        raise ProviderNotFoundError(f"Provider '{name}' is not registered.")
+        raise ProviderNotFoundError(f"Connection '{name}' is not registered.")
     provider = _PROVIDER_CACHE.get(name)
     if provider is None:
         config = load_connection_config(name) if connection_driver_name(name) else None
@@ -93,13 +116,25 @@ def get_provider(provider_name: str | None = None) -> Provider:
     return provider
 
 
+def get_provider(provider_name: str | None = None) -> Provider:
+    """Compatibility wrapper for legacy provider-named callers.
+
+    Public WFX endpoints still expose "providers", but the runtime name now
+    represents a configured connection/mount.
+    """
+    try:
+        return get_connection_runtime(provider_name)
+    except ProviderNotFoundError as exc:
+        raise ProviderNotFoundError(str(exc).replace("Connection", "Provider", 1)) from exc
+
+
 def reload_provider_cache() -> None:
     """Clear provider instances so subsequent calls load fresh config."""
     _PROVIDER_CACHE.clear()
 
 
-def list_registered_providers() -> list[str]:
-    factories = _provider_factories()
+def list_registered_connections() -> list[str]:
+    factories = _driver_factories()
     connections = [
         name for name in list_connection_config_names() if (connection_driver_name(name) or "") in factories
     ]
@@ -111,16 +146,24 @@ def list_registered_providers() -> list[str]:
     return sorted(factories.keys())
 
 
+def list_registered_providers() -> list[str]:
+    """Compatibility wrapper for WFX provider endpoints.
+
+    Returned names are connection/mount keys when connection config exists.
+    """
+    return list_registered_connections()
+
+
 def audit_connection_runtime() -> dict[str, object]:
     """Check that configured connections are visible as runtime WFX providers."""
-    factories = _provider_factories()
-    registered = set(list_registered_providers())
+    factories = _driver_factories()
+    registered = set(list_registered_connections())
     rows: list[dict[str, object]] = []
     mount_owners: dict[str, str] = {}
 
     for name in list_connection_config_names():
         metadata = load_connection_metadata(name)
-        driver_name = _normalize_provider_name(metadata.get("driver")) if isinstance(metadata, dict) else None
+        driver_name = _normalize_driver_name(metadata.get("driver")) if isinstance(metadata, dict) else None
         mount = metadata.get("mount") if isinstance(metadata, dict) else None
         issues: list[str] = []
 
@@ -149,7 +192,7 @@ def audit_connection_runtime() -> dict[str, object]:
         runtime_mount = None
         if name in registered and driver_name in factories:
             try:
-                provider = get_provider(name)
+                provider = get_connection_runtime(name)
                 runtime_name = provider.name
                 config = getattr(provider, "config", {})
                 if isinstance(config, dict):
@@ -188,4 +231,8 @@ def audit_connection_runtime() -> dict[str, object]:
 
 def get_default_provider_name() -> str:
     return _resolve_default_provider_name()
+
+
+def get_default_connection_name() -> str:
+    return _resolve_default_connection_name()
 

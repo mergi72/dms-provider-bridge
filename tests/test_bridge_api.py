@@ -205,7 +205,7 @@ def test_bridge_root_list_returns_provider_folders_without_auth() -> None:
 
 
 def test_bridge_root_list_returns_providers_when_default_is_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(bridge_service, "get_default_provider_name", lambda: (_ for _ in ()).throw(RuntimeError("bad default")))
+    monkeypatch.setattr(bridge_service, "get_default_connection_name", lambda: (_ for _ in ()).throw(RuntimeError("bad default")))
     client = TestClient(create_app())
 
     response = client.post("/bridge/wfx/list", json={"path": "/"})

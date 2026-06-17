@@ -30,6 +30,13 @@ def test_list_registered_providers_contains_known() -> None:
     assert set(providers) >= {"edocat", "alfresco"}
 
 
+def test_list_registered_connections_contains_known() -> None:
+    connections = provider_service_module.list_registered_connections()
+
+    assert set(connections) >= {"edocat", "alfresco"}
+    assert connections == provider_service_module.list_registered_providers()
+
+
 def test_list_registered_providers_uses_configured_machine_providers(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(provider_service_module, "list_connection_config_names", lambda: [])
     monkeypatch.setattr(provider_service_module, "list_provider_config_names", lambda: ["alfresco", "unknown"])
@@ -39,9 +46,17 @@ def test_list_registered_providers_uses_configured_machine_providers(monkeypatch
     assert providers == ["alfresco"]
 
 
+def test_list_registered_providers_wraps_registered_connections(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(provider_service_module, "list_connection_config_names", lambda: ["company"])
+    monkeypatch.setattr(provider_service_module, "connection_driver_name", lambda name: "alfresco" if name == "company" else None)
+
+    assert provider_service_module.list_registered_connections() == ["company"]
+    assert provider_service_module.list_registered_providers() == ["company"]
+
+
 def test_reload_provider_cache_clears_cached_instances(monkeypatch: pytest.MonkeyPatch) -> None:
     provider_service_module.reload_provider_cache()
-    monkeypatch.setattr(provider_service_module, "_PROVIDER_FACTORIES", {"dummy": _DummyProvider})
+    monkeypatch.setattr(provider_service_module, "_DRIVER_FACTORIES", {"dummy": _DummyProvider})
     monkeypatch.setattr(provider_service_module, "list_connection_config_names", lambda: [])
     monkeypatch.setattr(provider_service_module, "list_provider_config_names", lambda: ["dummy"])
 
@@ -53,6 +68,14 @@ def test_reload_provider_cache_clears_cached_instances(monkeypatch: pytest.Monke
     assert first is second
     assert third is not first
     provider_service_module.reload_provider_cache()
+
+
+def test_provider_factories_wrap_driver_factories(monkeypatch: pytest.MonkeyPatch) -> None:
+    factories = {"dummy": _DummyProvider}
+    monkeypatch.setattr(provider_service_module, "_DRIVER_FACTORIES", factories)
+
+    assert provider_service_module._driver_factories() is factories
+    assert provider_service_module._provider_factories() is factories
 
 
 def test_get_default_provider_name_uses_env_when_registered(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -84,6 +107,16 @@ def test_get_default_provider_name_uses_config_when_registered(monkeypatch: pyte
     assert default_provider == "alfresco"
 
 
+def test_get_default_connection_name_uses_env_when_registered(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(provider_service_module, "load_config", lambda: {})
+    monkeypatch.setattr(provider_service_module, "list_connection_config_names", lambda: [])
+    monkeypatch.setenv("DMS_PROVIDER_DEFAULT_PROVIDER", "alfresco")
+
+    default_connection = provider_service_module.get_default_connection_name()
+
+    assert default_connection == "alfresco"
+
+
 def test_list_registered_providers_prefers_connections(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(provider_service_module, "list_connection_config_names", lambda: ["company", "unknown"])
     monkeypatch.setattr(provider_service_module, "connection_driver_name", lambda name: {"company": "alfresco"}.get(name))
@@ -103,7 +136,7 @@ def test_get_provider_instantiates_connection_driver(monkeypatch: pytest.MonkeyP
             self.name = name
             self.config = config
 
-    monkeypatch.setattr(provider_service_module, "_PROVIDER_FACTORIES", {"dummy": DummyProvider})
+    monkeypatch.setattr(provider_service_module, "_DRIVER_FACTORIES", {"dummy": DummyProvider})
     monkeypatch.setattr(provider_service_module, "list_connection_config_names", lambda: ["mount1"])
     monkeypatch.setattr(provider_service_module, "connection_driver_name", lambda name: "dummy" if name == "mount1" else None)
     monkeypatch.setattr(provider_service_module, "load_connection_config", lambda name: {"driver": "dummy", "base_url": "x"})
@@ -112,6 +145,28 @@ def test_get_provider_instantiates_connection_driver(monkeypatch: pytest.MonkeyP
 
     assert provider.name == "mount1"
     assert provider.config == {"driver": "dummy", "base_url": "x"}
+    provider_service_module.reload_provider_cache()
+
+
+def test_get_connection_runtime_instantiates_connection_driver(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider_service_module.reload_provider_cache()
+
+    class DummyProvider:
+        name = "dummy"
+
+        def __init__(self, name=None, config=None) -> None:
+            self.name = name
+            self.config = config
+
+    monkeypatch.setattr(provider_service_module, "_DRIVER_FACTORIES", {"dummy": DummyProvider})
+    monkeypatch.setattr(provider_service_module, "list_connection_config_names", lambda: ["mount1"])
+    monkeypatch.setattr(provider_service_module, "connection_driver_name", lambda name: "dummy" if name == "mount1" else None)
+    monkeypatch.setattr(provider_service_module, "load_connection_config", lambda name: {"driver": "dummy", "base_url": "x"})
+
+    runtime = provider_service_module.get_connection_runtime("mount1")
+
+    assert runtime.name == "mount1"
+    assert runtime.config == {"driver": "dummy", "base_url": "x"}
     provider_service_module.reload_provider_cache()
 
 
