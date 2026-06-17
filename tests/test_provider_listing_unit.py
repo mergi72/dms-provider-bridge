@@ -208,3 +208,18 @@ def test_listing_service_keeps_explicit_provider(monkeypatch: pytest.MonkeyPatch
 
     assert dummy.calls == ["/contracts"]
     assert result == {"path": "/contracts"}
+
+
+def test_listing_service_accepts_connection_name_alias(monkeypatch: pytest.MonkeyPatch) -> None:
+    dummy = _DummyProvider()
+
+    def fake_get_connection_runtime(name: str | None = None):
+        assert name == "alfresco"
+        return dummy
+
+    monkeypatch.setattr(listing_service_module, "get_connection_runtime", fake_get_connection_runtime)
+
+    result = listing_service_module.list_items("/contracts", connection_name="alfresco")
+
+    assert dummy.calls == ["/contracts"]
+    assert result == {"path": "/contracts"}

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.2-beta - 2026-06-17
+
+- Added `connection` as the primary parsed WFX path field while keeping `provider` as a backward-compatible alias.
+- Added `connection_name` service aliases for listing, edit, and transfer helpers.
+- Kept existing `provider_name` service parameters compatible for current routes and callers.
+- Added tests for connection-name aliases.
+- Release/version bump to `0.7.2-beta`.
+
 ## 0.5.0-beta - 2026-06-14
 
 - Beta release candidate for external Total Commander testing.

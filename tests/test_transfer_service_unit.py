@@ -38,3 +38,21 @@ def test_copy_item_rejects_provider_mismatch(monkeypatch: pytest.MonkeyPatch) ->
             "edocat:/folder/copied.txt",
             provider_name="alfresco",
         )
+
+
+def test_copy_item_accepts_connection_name_alias(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = DummyProvider()
+
+    def fake_get_connection_runtime(connection_name=None):
+        assert connection_name == "edocat"
+        return provider
+
+    monkeypatch.setattr(transfer_service_module, "get_connection_runtime", fake_get_connection_runtime)
+
+    transfer_service_module.copy_item(
+        "/folder/source.txt",
+        "/folder/copied.txt",
+        connection_name="edocat",
+    )
+
+    provider.copy_item.assert_called_once_with("/folder/source.txt", "/folder/copied.txt")

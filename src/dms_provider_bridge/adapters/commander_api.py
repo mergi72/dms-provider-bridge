@@ -14,40 +14,45 @@ class WfxErrorCode:
 
 @dataclass(slots=True)
 class ParsedWfxPath:
-    provider: str
+    connection: str
     path: str
+
+    @property
+    def provider(self) -> str:
+        """Backward-compatible alias for older provider-named call sites."""
+        return self.connection
 
 
 def parse_wfx_path(raw_path: str) -> ParsedWfxPath:
-    """Parse path in format provider:/absolute/path."""
+    """Parse path in format connection:/absolute/path."""
     if not raw_path:
         raise ValueError("Path is empty.")
 
     prefix, sep, suffix = raw_path.partition(":")
-    provider = prefix.strip().lower()
-    if not sep or not provider:
-        raise ValueError("Expected path format 'provider:/path'.")
+    connection = prefix.strip().lower()
+    if not sep or not connection:
+        raise ValueError("Expected path format 'connection:/path'.")
 
     normalized = suffix.strip() or "/"
     if not normalized.startswith("/"):
         normalized = f"/{normalized}"
-    return ParsedWfxPath(provider=provider, path=normalized)
+    return ParsedWfxPath(connection=connection, path=normalized)
 
 
-def build_wfx_path(provider: str, path: str) -> str:
+def build_wfx_path(connection: str, path: str) -> str:
     normalized = path if path.startswith("/") else f"/{path}"
-    return f"{provider}:{normalized}"
+    return f"{connection}:{normalized}"
 
 
 def split_optional_wfx_path(path: str) -> tuple[str | None, str]:
-    """Split provider:/path when present; leave local/plain paths untouched."""
+    """Split connection:/path when present; leave local/plain paths untouched."""
     raw = path.strip()
     if not raw:
         return None, raw
     prefix, sep, suffix = raw.partition(":")
     if sep and len(prefix.strip()) > 1 and suffix.strip().replace("\\", "/").startswith("/"):
         parsed = parse_wfx_path(raw)
-        return parsed.provider, parsed.path
+        return parsed.connection, parsed.path
     return None, raw
 
 

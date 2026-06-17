@@ -49,3 +49,21 @@ def test_delete_item_parses_wfx_path(monkeypatch: pytest.MonkeyPatch) -> None:
 
     provider.delete_item.assert_called_once_with("/folder/Upload")
 
+
+def test_rename_item_accepts_connection_name_alias(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = DummyProvider()
+
+    def fake_get_connection_runtime(connection_name=None):
+        assert connection_name == "edocat"
+        return provider
+
+    monkeypatch.setattr(edit_service_module, "get_connection_runtime", fake_get_connection_runtime)
+
+    edit_service_module.rename_item(
+        "/folder/Upload",
+        "/folder/Upload_101",
+        connection_name="edocat",
+    )
+
+    provider.rename_item.assert_called_once_with("/folder/Upload", "/folder/Upload_101")
+

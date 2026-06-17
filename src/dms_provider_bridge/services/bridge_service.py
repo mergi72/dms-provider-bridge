@@ -41,7 +41,7 @@ def _failure_from_exception(exc: Exception) -> WfxResponse:
 
 def _resolve(path: str):
     parsed = parse_wfx_path(path)
-    provider = get_connection_runtime(parsed.provider)
+    provider = get_connection_runtime(parsed.connection)
     return provider, parsed
 
 

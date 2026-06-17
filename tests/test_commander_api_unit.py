@@ -10,6 +10,7 @@ pytestmark = pytest.mark.unit
 
 def test_parse_wfx_path_normalizes_provider_and_path() -> None:
     parsed = parse_wfx_path("AlFrEsCo:contracts/sample.txt")
+    assert parsed.connection == "alfresco"
     assert parsed.provider == "alfresco"
     assert parsed.path == "/contracts/sample.txt"
 
