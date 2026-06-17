@@ -6,7 +6,7 @@ import os
 import pkgutil
 from collections.abc import Callable
 
-import dms_provider_bridge.providers as providers_package
+import dms_provider_bridge.drivers as drivers_package
 from dms_provider_bridge.core.config_loader import (
     connection_driver_name,
     load_connection_metadata,
@@ -25,10 +25,10 @@ _PROVIDER_CACHE: dict[str, Provider] = {}
 
 def _discover_driver_factories() -> dict[str, Callable[[], Provider]]:
     factories: dict[str, Callable[[], Provider]] = {}
-    for module_info in pkgutil.iter_modules(providers_package.__path__):
+    for module_info in pkgutil.iter_modules(drivers_package.__path__):
         if module_info.name == "base":
             continue
-        module = importlib.import_module(f"{providers_package.__name__}.{module_info.name}")
+        module = importlib.import_module(f"{drivers_package.__name__}.{module_info.name}")
         for _name, candidate in inspect.getmembers(module, inspect.isclass):
             if candidate is Provider or not issubclass(candidate, Provider) or inspect.isabstract(candidate):
                 continue

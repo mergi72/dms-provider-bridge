@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import pytest
+import pkgutil
 
+import dms_provider_bridge.drivers as drivers_package
 import dms_provider_bridge.services.listing_service as listing_service_module
 import dms_provider_bridge.services.provider_service as provider_service_module
 from dms_provider_bridge.core.errors import ConfigurationError
@@ -17,6 +19,12 @@ class _DummyProvider:
     def list_items(self, path: str):
         self.calls.append(path)
         return {"path": path}
+
+
+def test_drivers_package_exposes_current_driver_modules() -> None:
+    module_names = {module.name for module in pkgutil.iter_modules(drivers_package.__path__)}
+
+    assert {"alfresco", "edocat", "base"} <= module_names
 
 
 def test_get_provider_accepts_trailing_colon() -> None:

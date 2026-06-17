@@ -15,7 +15,7 @@ from dms_provider_bridge.app.routes.transfer import router as transfer_router
 def create_app() -> FastAPI:
     app = FastAPI(
         title="dms-provider-bridge",
-        version="0.6.11-beta",
+        version="0.6.12-beta",
         description="Local DMS provider bridge API. Config UI is available at /config.",
         docs_url=None,
     )

@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Beta-yellowgreen)](https://github.com/mergi72/dms-provider-bridge)
-[![Bridge Version](https://img.shields.io/badge/Bridge-v0.6.11--beta-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.6.11-beta)
+[![Bridge Version](https://img.shields.io/badge/Bridge-v0.6.12--beta-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.6.12-beta)
 [![Bridge Setup](https://img.shields.io/badge/Setup-v0.5.0--beta-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.5.0-beta)
 
 Current development branch: `develop`  
@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.6.11-beta`
-- Latest bridge-only release: `v0.6.11-beta`
+- Bridge repository latest changelog version: `0.6.12-beta`
+- Latest bridge-only release: `v0.6.12-beta`
 
 ## Configuration Model
 
@@ -46,6 +46,7 @@ Runtime naming compatibility:
 - Internally, those provider names are connection keys/mounts whenever connection config exists.
 - Driver modules such as `alfresco.py` and `edocat.py` remain the concrete DMS implementations behind those connections.
 - Runtime discovery treats those modules as driver factories; legacy provider-named helpers remain as compatibility wrappers.
+- `dms_provider_bridge.drivers` is a compatibility package that currently exposes the existing `providers` modules without moving files.
 
 Current UI rules:
 
