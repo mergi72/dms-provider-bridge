@@ -235,6 +235,87 @@ def _safe_file_name_from_key(key: str) -> str:
     return f"{normalized}.json"
 
 
+def _driver_keys() -> set[str]:
+    keys = set()
+    for path in _json_files("drivers"):
+        if _file_read_only("drivers", path.name):
+            continue
+        payload = _read_json_file(path)
+        keys.add(_payload_key(payload, path.stem))
+    return keys
+
+
+def _connection_mounts(exclude_file_name: str = "") -> dict[str, str]:
+    mounts = {}
+    for path in _json_files("connections"):
+        if path.name == exclude_file_name or _file_read_only("connections", path.name):
+            continue
+        payload = _read_json_file(path)
+        key = _payload_key(payload, path.stem)
+        section = _payload_section(payload, key)
+        mount = section.get("mount")
+        if isinstance(mount, str) and mount.strip():
+            mounts[mount.strip()] = path.name
+    return mounts
+
+
+def _validate_config_payload(
+    section: str,
+    payload: dict[str, Any],
+    target_file_name: str,
+    original_file_name: str = "",
+) -> list[str]:
+    errors = []
+    key = payload.get("key")
+    if not isinstance(key, str) or not key.strip():
+        errors.append("Root key 'key' is required.")
+        return errors
+    key = key.strip()
+    if key in _RESERVED_KEYS:
+        errors.append(f"Root key must be changed from template value: {key}.")
+    if not _SAFE_NAME.match(key):
+        errors.append("Root key may contain only letters, numbers, dot, underscore and dash.")
+
+    section_payload = payload.get(key)
+    if not isinstance(section_payload, dict):
+        errors.append(f"Root object '{key}' is required and must be a JSON object.")
+        return errors
+
+    if section == "drivers":
+        provider_abc = section_payload.get("provider_abc")
+        if provider_abc is not None and not isinstance(provider_abc, str):
+            errors.append("Driver field 'provider_abc' must be a string when present.")
+        for object_key in ("api", "endpoints", "capabilities", "limits"):
+            value = section_payload.get(object_key)
+            if value is not None and not isinstance(value, dict):
+                errors.append(f"Driver field '{object_key}' must be a JSON object when present.")
+
+    if section == "connections":
+        driver = section_payload.get("driver")
+        if not isinstance(driver, str) or not driver.strip():
+            errors.append("Connection field 'driver' is required.")
+        elif driver.strip() not in _driver_keys():
+            errors.append(f"Connection driver '{driver.strip()}' does not exist.")
+
+        mount = section_payload.get("mount")
+        if not isinstance(mount, str) or not mount.strip():
+            errors.append("Connection field 'mount' is required.")
+        else:
+            mount = mount.strip()
+            if not _SAFE_NAME.match(mount.removesuffix(":/")) or not mount.endswith(":/"):
+                errors.append("Connection field 'mount' must use format name:/ with a safe name.")
+            existing_mounts = _connection_mounts(exclude_file_name=original_file_name or target_file_name)
+            existing_file = existing_mounts.get(mount)
+            if existing_file:
+                errors.append(f"Connection mount '{mount}' is already used by {existing_file}.")
+
+        credentials = section_payload.get("credentials")
+        if credentials is not None and not isinstance(credentials, dict):
+            errors.append("Connection field 'credentials' must be a JSON object when present.")
+
+    return errors
+
+
 def _parse_json_payload(raw_json: str) -> dict[str, Any]:
     try:
         payload = json.loads(raw_json)
@@ -272,14 +353,14 @@ def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
 
 
 def _render_nav(active: str | None = None) -> str:
-    links = ['<a class="home" href="/config">Config</a>']
+    links = ['<a class="button button-muted home" href="/config">Config</a>']
     for section, title in _SECTION_TITLES.items():
         class_name = "active" if section == active else ""
-        links.append(f'<a class="{class_name}" href="/config/{section}">{html.escape(title)}</a>')
+        links.append(f'<a class="button button-muted {class_name}" href="/config/{section}">{html.escape(title)}</a>')
     utility = (
         '<span class="utility">'
-        '<a href="/config/reload">Reload</a>'
-        '<a href="/docs">Docs</a><a href="/health">Health</a>'
+        '<a class="button button-muted" href="/config/reload">Reload</a>'
+        '<a class="button button-muted" href="/docs">Docs</a><a class="button button-muted" href="/health">Health</a>'
         "</span>"
     )
     return "\n".join(links) + utility
@@ -294,33 +375,38 @@ def _render_layout(title: str, body: str, active: str | None = None) -> HTMLResp
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{html.escape(title)}</title>
   <style>
-    body {{ margin: 0; font-family: Segoe UI, Arial, sans-serif; background: #f7f8fa; color: #1f2933; }}
-    header {{ background: #1f2933; color: white; padding: 14px 20px; }}
-    main {{ max-width: 1180px; margin: 0 auto; padding: 16px 20px; }}
+    body {{ margin: 0; font-family: Segoe UI, Arial, sans-serif; background: #f6f8fb; color: #1f2933; }}
+    header {{ background: #1f2933; color: white; padding: 14px 20px; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.25); }}
+    main {{ max-width: 1240px; margin: 0 auto; padding: 18px 20px; }}
     nav {{ display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }}
-    nav a {{ color: #1f2933; text-decoration: none; padding: 7px 11px; border: 1px solid #c7ced8; background: white; border-radius: 3px; }}
-    nav a.active {{ background: #e7f0ff; border-color: #6b9de8; }}
     nav a.home {{ font-weight: 600; }}
     nav .utility {{ margin-left: auto; display: flex; gap: 6px; }}
-    nav .utility a {{ font-size: 13px; padding: 5px 9px; }}
+    nav .utility a {{ font-size: 13px; padding: 6px 10px; }}
     .file-list {{ display: flex; flex-direction: column; gap: 6px; }}
-    .file-list a {{ color: #1f2933; text-decoration: none; padding: 7px 9px; border: 1px solid #d7dde5; background: #fff; border-radius: 3px; }}
-    .file-list a.active {{ background: #e7f0ff; border-color: #6b9de8; }}
+    .file-list a {{ color: #1f2933; text-decoration: none; padding: 8px 10px; border: 1px solid #d7dde5; background: #fff; border-radius: 4px; }}
+    .file-list a.active {{ background: #e7f0ff; border-color: #6b9de8; box-shadow: inset 3px 0 0 #2d6cdf; }}
     .file-list a.new {{ background: #eefaf1; border-color: #9ad1aa; color: #137333; font-weight: 600; }}
     table {{ width: 100%; border-collapse: collapse; background: white; }}
     th, td {{ border-bottom: 1px solid #d7dde5; padding: 8px 10px; text-align: left; vertical-align: top; }}
     th {{ background: #eef2f7; }}
+    td.path-cell {{ max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #64748b; }}
     pre {{ margin: 0; padding: 12px; background: #111827; color: #e5e7eb; overflow: auto; }}
     textarea {{ width: 100%; min-height: 560px; box-sizing: border-box; font: 13px Consolas, monospace; border: 1px solid #9aa6b2; padding: 10px; background: #fcfcfd; }}
     textarea[readonly] {{ background: #f3f4f6; border-color: #c7ced8; color: #4b5563; }}
     form {{ margin: 0; }}
-    button {{ cursor: pointer; border: 1px solid #2d6cdf; background: #2d6cdf; color: white; padding: 7px 14px; border-radius: 3px; font-weight: 600; }}
+    button {{ font: inherit; }}
     button:disabled {{ cursor: default; border-color: #c7ced8; background: #eef2f7; color: #64748b; }}
-    .link-button {{ color: #1f2933; text-decoration: none; padding: 5px 9px; border: 1px solid #c7ced8; background: white; border-radius: 3px; font-size: 13px; font-weight: 400; }}
-    .actions {{ display: flex; gap: 8px; align-items: center; margin-top: 10px; }}
+    .button, button {{ display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; box-sizing: border-box; cursor: pointer; border-radius: 4px; padding: 7px 13px; font-weight: 600; text-decoration: none; }}
+    .button-primary, button {{ border: 1px solid #2d6cdf; background: #2d6cdf; color: white; }}
+    .button-secondary {{ border: 1px solid #8db5f4; background: #e7f0ff; color: #1a5fb4; }}
+    .button-success {{ border: 1px solid #9ad1aa; background: #eefaf1; color: #137333; }}
+    .button-muted {{ border: 1px solid #c7ced8; background: white; color: #1f2933; }}
+    .button.active, .button:hover {{ border-color: #6b9de8; background: #e7f0ff; color: #1a5fb4; }}
+    .link-button {{ color: #1a5fb4; text-decoration: none; padding: 6px 10px; border: 1px solid #8db5f4; background: #e7f0ff; border-radius: 4px; font-size: 13px; font-weight: 600; }}
+    .actions {{ display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }}
     .muted {{ color: #64748b; }}
-    .notice {{ margin: 0 0 10px; padding: 8px 10px; border-radius: 3px; border: 1px solid #9ad1aa; background: #e6f4ea; color: #137333; }}
-    .read-only-warning {{ margin: 0 0 10px; padding: 8px 10px; border-radius: 3px; border: 1px solid #f0c36d; background: #fff4e5; color: #9a5b00; font-weight: 600; }}
+    .notice {{ margin: 0 0 10px; padding: 8px 10px; border-radius: 4px; border: 1px solid #9ad1aa; background: #e6f4ea; color: #137333; }}
+    .read-only-warning {{ margin: 0 0 10px; padding: 8px 10px; border-radius: 4px; border: 1px solid #f0c36d; background: #fff4e5; color: #9a5b00; font-weight: 600; }}
     .help {{ margin: 0 0 12px; padding: 10px 12px; border-left: 4px solid #6b9de8; background: #eef5ff; color: #243b53; }}
     .meta {{ display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 10px; }}
     .meta span {{ background: #eef2f7; border: 1px solid #d7dde5; padding: 4px 7px; border-radius: 3px; }}
@@ -329,15 +415,26 @@ def _render_layout(title: str, body: str, active: str | None = None) -> HTMLResp
     .badge-template {{ background: #fff4e5; color: #9a5b00; border: 1px solid #f0c36d; }}
     .badge-preview {{ background: #e7f0ff; color: #1a5fb4; border: 1px solid #9fc3ff; }}
     .badge-editable {{ background: #e7f0ff; color: #1a5fb4; border: 1px solid #9fc3ff; }}
-    .grid {{ display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }}
-    .panel {{ background: white; border: 1px solid #d7dde5; border-radius: 4px; overflow: hidden; }}
+    .grid {{ display: grid; grid-template-columns: 280px 1fr; gap: 16px; align-items: start; }}
+    .panel {{ background: white; border: 1px solid #d7dde5; border-radius: 5px; overflow: hidden; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04); }}
     .panel h2 {{ font-size: 16px; margin: 0; padding: 10px 12px; border-bottom: 1px solid #d7dde5; background: #eef2f7; }}
-    .panel-content {{ padding: 12px; }}
+    .panel-content {{ padding: 14px; }}
+    .editor-header {{ display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }}
+    .editor-title {{ margin: 0; font-size: 16px; }}
+    .editor-subtitle {{ margin: 4px 0 0; }}
+    .file-path {{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
     .section-grid {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }}
-    .section-card {{ display: block; color: inherit; text-decoration: none; background: white; border: 1px solid #d7dde5; border-radius: 4px; overflow: hidden; }}
+    .section-card {{ display: block; color: inherit; text-decoration: none; background: white; border: 1px solid #d7dde5; border-radius: 5px; overflow: hidden; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04); }}
     .section-card h2 {{ font-size: 16px; margin: 0; padding: 10px 12px; border-bottom: 1px solid #d7dde5; background: #eef2f7; }}
     .section-card div {{ padding: 12px; }}
     .section-card:hover {{ border-color: #6b9de8; }}
+    @media (max-width: 900px) {{
+      main {{ padding: 12px; }}
+      nav .utility {{ margin-left: 0; }}
+      .grid, .section-grid {{ grid-template-columns: 1fr; }}
+      .editor-header {{ display: block; }}
+      td.path-cell, .file-path {{ white-space: normal; }}
+    }}
   </style>
 </head>
 <body>
@@ -392,7 +489,7 @@ def config_reload() -> HTMLResponse:
   <h2>Reload</h2>
   <div class="panel-content">
     <p class="notice">Configuration cache was reloaded. Next bridge request will use current JSON files.</p>
-    <p><a href="/config">Back to Config</a></p>
+    <p><a class="button button-muted" href="/config">Back to Config</a></p>
   </div>
 </section>
 """
@@ -405,9 +502,13 @@ def config_section(section: str) -> HTMLResponse:
     files = _json_files(section)
     new_link = ""
     if _section_can_create(section):
-        new_link = f'<p><a class="badge badge-read-only" href="/config/{html.escape(section)}/new">NEW {_SECTION_TITLES[section][:-1].upper()}</a></p>'
+        new_link = (
+            f'<p><a class="button button-success" href="/config/{html.escape(section)}/new">'
+            f"New {_SECTION_TITLES[section][:-1]}</a></p>"
+        )
     rows = []
     extra_headers = "".join(f"<th>{html.escape(header)}</th>" for header in _extra_table_headers(section))
+    column_count = 5 + len(_extra_table_headers(section))
     for path in files:
         payload = _read_json_file(path)
         key = _payload_key(payload, path.stem)
@@ -421,12 +522,12 @@ def config_section(section: str) -> HTMLResponse:
             f"<td>{html.escape(key)}</td>"
             f"<td>{html.escape(display_name)}</td>"
             f"{extra_cells}"
-            f"<td>{html.escape(str(path))}</td>"
+            f'<td class="path-cell" title="{html.escape(str(path))}">{html.escape(str(path))}</td>'
             f'<td><span class="badge {badge_class}">{html.escape(mode.upper())}</span></td>'
             "</tr>"
         )
     if not rows:
-        rows.append('<tr><td colspan="5" class="muted">No JSON files found.</td></tr>')
+        rows.append(f'<tr><td colspan="{column_count}" class="muted">No JSON files found.</td></tr>')
     body = f"""
 <section class="panel">
   <h2>{html.escape(_SECTION_TITLES[section])}</h2>
@@ -434,7 +535,7 @@ def config_section(section: str) -> HTMLResponse:
     <p>{html.escape(_SECTION_ROLES[section])}</p>
     <p class="help">{html.escape(_SECTION_HELP[section])}</p>
     {new_link}
-    <p class="muted">Directory: {html.escape(str(directory))}</p>
+    <p class="muted file-path" title="{html.escape(str(directory))}">Directory: {html.escape(str(directory))}</p>
     <table>
       <tr><th>File</th><th>Key</th><th>Name</th>{extra_headers}<th>Path</th><th>Mode</th></tr>
       {''.join(rows)}
@@ -511,7 +612,7 @@ def config_test(section: str, file_name: str) -> HTMLResponse:
   <div class="panel-content">
     <p class="notice">Connection runtime configuration was loaded successfully. No live DMS request was made.</p>
     <table>{body_rows}</table>
-    <p><a href="/config/{html.escape(section)}/{html.escape(file_name)}">Back to connection</a></p>
+    <p><a class="button button-muted" href="/config/{html.escape(section)}/{html.escape(file_name)}">Back to connection</a></p>
   </div>
 </section>
 """
@@ -521,7 +622,7 @@ def config_test(section: str, file_name: str) -> HTMLResponse:
   <h2>Test {html.escape(file_name)}</h2>
   <div class="panel-content">
     <p class="read-only-warning">Connection test failed: {html.escape(str(exc))}</p>
-    <p><a href="/config/{html.escape(section)}/{html.escape(file_name)}">Back to connection</a></p>
+    <p><a class="button button-muted" href="/config/{html.escape(section)}/{html.escape(file_name)}">Back to connection</a></p>
   </div>
 </section>
 """
@@ -542,6 +643,7 @@ def _render_editor(
     original_file_name: str = "",
     confirm_overwrite: bool = False,
     target_file_name: str = "",
+    validation_errors: list[str] | None = None,
 ) -> str:
     readonly_attr = "readonly" if _file_read_only(section, file_name) else ""
     disabled_attr = "disabled" if readonly_attr else ""
@@ -563,11 +665,24 @@ def _render_editor(
             f'<p class="read-only-warning">File {html.escape(target_file_name)} already exists. '
             "Confirm overwrite or cancel.</p>"
         )
+    validation = ""
+    if validation_errors:
+        items = "".join(f"<li>{html.escape(error)}</li>" for error in validation_errors)
+        validation = (
+            '<div class="read-only-warning">'
+            "<strong>Validation failed. No file was written.</strong>"
+            f"<ul>{items}</ul>"
+            "</div>"
+        )
     form_open = f'<form method="post" action="/config/{html.escape(section)}/save">'
     form_close = "</form>"
     test_link = ""
     if section == "connections" and not is_new and not _file_read_only(section, file_name):
-        test_link = f'<a class="link-button" href="/config/{html.escape(section)}/{html.escape(file_name)}/test">Test</a>'
+        test_link = (
+            f'<a class="button button-secondary" '
+            f'href="/config/{html.escape(section)}/{html.escape(file_name)}/test">Test</a>'
+        )
+    section_path = _section_dir(section) / file_name
     return f"""
 <div class="grid">
   <section class="panel">
@@ -582,23 +697,29 @@ def _render_editor(
       {notice}
       {read_only_warning}
       {confirm}
+      {validation}
+      <div class="editor-header">
+        <div>
+          <p class="editor-title"><strong>{html.escape(key)}</strong> {html.escape(display_name)}</p>
+          <p class="editor-subtitle muted file-path" title="{html.escape(str(section_path))}">{html.escape(str(section_path))}</p>
+        </div>
+        <span class="badge {badge_class}">{html.escape(mode.upper())}</span>
+      </div>
       <p class="meta">
         <span>Section: {html.escape(_SECTION_TITLES[section])}</span>
         <span>Role: {html.escape(_SECTION_ROLES[section])}</span>
-        <span>Mode: <span class="badge {badge_class}">{html.escape(mode.upper())}</span></span>
+        <span>Mode: {html.escape(mode)}</span>
       </p>
       <p class="help">{html.escape(_SECTION_HELP[section])}</p>
-      <p><strong>{html.escape(key)}</strong> {html.escape(display_name)}</p>
-      <p class="muted">{html.escape(str(_section_dir(section) / file_name))}</p>
       {form_open}
         <input type="hidden" name="file_name" value="{html.escape(original_value)}">
         <input type="hidden" name="overwrite" value="{html.escape(overwrite_value)}">
         <textarea name="payload" {readonly_attr}>{html.escape(rendered)}</textarea>
         <div class="actions">
-          <button type="submit" {disabled_attr}>{html.escape(submit_label)}</button>
-          <a href="/config/{html.escape(section)}">Cancel</a>
-          <a class="link-button" href="/config/reload">Reload</a>
+          <button class="button-primary" type="submit" {disabled_attr}>{html.escape(submit_label)}</button>
           {test_link}
+          <a class="button button-muted" href="/config/reload">Reload</a>
+          <a class="button button-muted" href="/config/{html.escape(section)}">Cancel</a>
           <span class="muted">Templates and Provider ABC are read-only.</span>
         </div>
       {form_close}
@@ -628,6 +749,20 @@ def config_save(
     _validate_config_file_name(target_file)
     if _file_read_only(section, target_file):
         raise HTTPException(status_code=403, detail=f"Config file is read-only: {target_file}")
+    validation_errors = _validate_config_payload(section, parsed, target_file, original_file)
+    if validation_errors:
+        rendered = json.dumps(parsed, ensure_ascii=False, indent=4)
+        body = _render_editor(
+            section=section,
+            file_name=target_file,
+            payload=parsed,
+            rendered=rendered,
+            message="No file was written yet.",
+            is_new=not original_file,
+            original_file_name=original_file,
+            validation_errors=validation_errors,
+        )
+        return _render_layout(f"Validation {target_file}", body, section)
     target_path = _section_dir(section) / target_file
     is_same_file_save = bool(original_file) and original_file == target_file
     if target_path.exists() and not is_same_file_save and overwrite.casefold() != "true":

@@ -191,6 +191,7 @@ def test_config_save_new_connection_creates_file(tmp_path: Path, monkeypatch: py
         "test_connection": {
             "display_name": "Test Connection",
             "driver": "alfresco",
+            "mount": "test_connection:/",
         },
     }
 
@@ -219,6 +220,7 @@ def test_config_save_reloads_provider_cache(tmp_path: Path, monkeypatch: pytest.
         "reload_connection": {
             "display_name": "Reload Connection",
             "driver": "alfresco",
+            "mount": "reload_connection:/",
         },
     }
 
@@ -246,6 +248,7 @@ def test_config_save_new_connection_requires_overwrite_confirmation(
         "existing": {
             "display_name": "New",
             "driver": "alfresco",
+            "mount": "existing:/",
         },
     }
 
@@ -275,6 +278,7 @@ def test_config_save_new_connection_overwrites_after_confirmation(
         "existing": {
             "display_name": "New",
             "driver": "alfresco",
+            "mount": "existing:/",
         },
     }
 
@@ -298,7 +302,7 @@ def test_config_save_existing_file_can_change_key_to_new_file(
     source.write_text('{"key": "old_name", "old_name": {"driver": "alfresco"}}', encoding="utf-8")
     monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(config_dir))
     client = TestClient(create_app())
-    payload = {"key": "new_name", "new_name": {"driver": "alfresco"}}
+    payload = {"key": "new_name", "new_name": {"driver": "alfresco", "mount": "new_name:/"}}
 
     response = client.post(
         "/config/connections/save",
@@ -308,6 +312,61 @@ def test_config_save_existing_file_can_change_key_to_new_file(
     assert response.status_code == 200
     assert (config_dir / "connections" / "new_name.json").exists()
     assert source.exists()
+
+
+def test_config_save_connection_rejects_unknown_driver(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repo_config = Path(__file__).resolve().parents[1] / "config"
+    config_dir = tmp_path / "config"
+    shutil.copytree(repo_config, config_dir)
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(config_dir))
+    client = TestClient(create_app())
+    payload = {"key": "bad_driver", "bad_driver": {"driver": "missing_driver", "mount": "bad_driver:/"}}
+
+    response = client.post(
+        "/config/connections/save",
+        data={"file_name": "", "payload": json.dumps(payload)},
+    )
+
+    assert response.status_code == 200
+    assert "Validation failed" in response.text
+    assert "Connection driver &#x27;missing_driver&#x27; does not exist." in response.text
+    assert not (config_dir / "connections" / "bad_driver.json").exists()
+
+
+def test_config_save_connection_requires_mount(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repo_config = Path(__file__).resolve().parents[1] / "config"
+    config_dir = tmp_path / "config"
+    shutil.copytree(repo_config, config_dir)
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(config_dir))
+    client = TestClient(create_app())
+    payload = {"key": "missing_mount", "missing_mount": {"driver": "alfresco"}}
+
+    response = client.post(
+        "/config/connections/save",
+        data={"file_name": "", "payload": json.dumps(payload)},
+    )
+
+    assert response.status_code == 200
+    assert "Connection field &#x27;mount&#x27; is required." in response.text
+    assert not (config_dir / "connections" / "missing_mount.json").exists()
+
+
+def test_config_save_connection_rejects_duplicate_mount(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repo_config = Path(__file__).resolve().parents[1] / "config"
+    config_dir = tmp_path / "config"
+    shutil.copytree(repo_config, config_dir)
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(config_dir))
+    client = TestClient(create_app())
+    payload = {"key": "duplicate_mount", "duplicate_mount": {"driver": "alfresco", "mount": "alfresco:/"}}
+
+    response = client.post(
+        "/config/connections/save",
+        data={"file_name": "", "payload": json.dumps(payload)},
+    )
+
+    assert response.status_code == 200
+    assert "Connection mount &#x27;alfresco:/&#x27; is already used by alfresco.json." in response.text
+    assert not (config_dir / "connections" / "duplicate_mount.json").exists()
 
 
 def test_config_save_rejects_template_overwrite() -> None:

@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Beta-yellowgreen)](https://github.com/mergi72/dms-provider-bridge)
-[![Bridge Version](https://img.shields.io/badge/Bridge-v0.6.7--beta-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.6.7-beta)
+[![Bridge Version](https://img.shields.io/badge/Bridge-v0.6.8--beta-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.6.8-beta)
 [![Bridge Setup](https://img.shields.io/badge/Setup-v0.5.0--beta-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.5.0-beta)
 
 Current development branch: `develop`  
@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.6.7-beta`
-- Latest bridge-only release: `v0.6.7-beta`
+- Bridge repository latest changelog version: `0.6.8-beta`
+- Latest bridge-only release: `v0.6.8-beta`
 
 ## Configuration Model
 
@@ -38,6 +38,7 @@ Current UI rules:
 - `provider.json` is shown as the Provider ABC contract.
 - `driver.json` and `connection.json` are templates and are shown as readonly.
 - Concrete driver and connection files can be created and saved from the UI.
+- Connection saves validate required driver and mount fields before writing JSON.
 - The template files are never overwritten by `Save`.
 
 ## Runtime Modes
