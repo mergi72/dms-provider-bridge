@@ -112,6 +112,10 @@ def _section_can_create(section: str) -> bool:
     return section in _TEMPLATE_FILES
 
 
+def _file_can_delete(section: str, file_name: str) -> bool:
+    return _section_can_create(section) and not _file_read_only(section, file_name)
+
+
 def _payload_key(payload: dict[str, Any], fallback: str) -> str:
     key = payload.get("key")
     return key.strip() if isinstance(key, str) and key.strip() else fallback
@@ -403,9 +407,12 @@ def _render_layout(title: str, body: str, active: str | None = None) -> HTMLResp
     .button-primary, button {{ border: 1px solid #2d6cdf; background: #2d6cdf; color: white; }}
     .button-secondary {{ border: 1px solid #8db5f4; background: #e7f0ff; color: #1a5fb4; }}
     .button-success {{ border: 1px solid #9ad1aa; background: #eefaf1; color: #137333; }}
+    .button-danger {{ border: 1px solid #e27b7b; background: #fff0f0; color: #b42318; }}
     .button-muted {{ border: 1px solid #c7ced8; background: white; color: #1f2933; }}
     .button.active, .button:hover {{ border-color: #6b9de8; background: #e7f0ff; color: #1a5fb4; }}
     .link-button {{ color: #1a5fb4; text-decoration: none; padding: 6px 10px; border: 1px solid #8db5f4; background: #e7f0ff; border-radius: 4px; font-size: 13px; font-weight: 600; }}
+    .link-button.button-danger {{ border-color: #e27b7b; background: #fff0f0; color: #b42318; }}
+    .table-action {{ display: inline-flex; min-height: 28px; align-items: center; padding: 4px 9px; }}
     .actions {{ display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }}
     .muted {{ color: #64748b; }}
     .notice {{ margin: 0 0 10px; padding: 8px 10px; border-radius: 4px; border: 1px solid #9ad1aa; background: #e6f4ea; color: #137333; }}
@@ -555,7 +562,8 @@ def config_section(section: str) -> HTMLResponse:
         )
     rows = []
     extra_headers = "".join(f"<th>{html.escape(header)}</th>" for header in _extra_table_headers(section))
-    column_count = 5 + len(_extra_table_headers(section))
+    actions_header = "<th>Actions</th>" if _section_can_create(section) else ""
+    column_count = 5 + len(_extra_table_headers(section)) + (1 if actions_header else 0)
     for path in files:
         payload = _read_json_file(path)
         key = _payload_key(payload, path.stem)
@@ -563,6 +571,15 @@ def config_section(section: str) -> HTMLResponse:
         mode = _file_mode(section, path.name)
         badge_class = _mode_badge_class(mode)
         extra_cells = "".join(f"<td>{cell}</td>" for cell in _extra_table_cells(section, payload, key))
+        actions = ""
+        if _section_can_create(section):
+            delete_link = ""
+            if _file_can_delete(section, path.name):
+                delete_link = (
+                    f'<a class="link-button table-action button-danger" href="/config/{html.escape(section)}/{html.escape(path.name)}/delete">'
+                    "Delete</a>"
+                )
+            actions = f"<td>{delete_link}</td>"
         rows.append(
             "<tr>"
             f'<td><a href="/config/{html.escape(section)}/{html.escape(path.name)}">{html.escape(path.name)}</a></td>'
@@ -571,6 +588,7 @@ def config_section(section: str) -> HTMLResponse:
             f"{extra_cells}"
             f'<td class="path-cell" title="{html.escape(str(path))}">{html.escape(str(path))}</td>'
             f'<td><span class="badge {badge_class}">{html.escape(mode.upper())}</span></td>'
+            f"{actions}"
             "</tr>"
         )
     if not rows:
@@ -584,7 +602,7 @@ def config_section(section: str) -> HTMLResponse:
     {new_link}
     <p class="muted file-path" title="{html.escape(str(directory))}">Directory: {html.escape(str(directory))}</p>
     <table>
-      <tr><th>File</th><th>Key</th><th>Name</th>{extra_headers}<th>Path</th><th>Mode</th></tr>
+      <tr><th>File</th><th>Key</th><th>Name</th>{extra_headers}<th>Path</th><th>Mode</th>{actions_header}</tr>
       {''.join(rows)}
     </table>
   </div>
@@ -751,6 +769,54 @@ def config_live_test(section: str, file_name: str, auth_json: str = Form(...), m
     return _render_layout(f"Live Test {file_name}", body, section)
 
 
+@router.get("/{section}/{file_name}/delete", response_class=HTMLResponse)
+def config_delete_confirm(section: str, file_name: str) -> HTMLResponse:
+    _validate_config_file_name(file_name)
+    if not _file_can_delete(section, file_name):
+        raise HTTPException(status_code=403, detail=f"Config file is read-only: {file_name}")
+    path = _config_file_path(section, file_name)
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail=f"Config file not found: {file_name}")
+    body = f"""
+<section class="panel">
+  <h2>Delete {html.escape(file_name)}</h2>
+  <div class="panel-content">
+    <p class="read-only-warning">Delete config file {html.escape(file_name)}?</p>
+    <p class="muted file-path" title="{html.escape(str(path))}">{html.escape(str(path))}</p>
+    <form method="post" action="/config/{html.escape(section)}/{html.escape(file_name)}/delete">
+      <div class="actions">
+        <button class="button-danger" type="submit">Delete</button>
+        <a class="button button-muted" href="/config/{html.escape(section)}/{html.escape(file_name)}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</section>
+"""
+    return _render_layout(f"Delete {file_name}", body, section)
+
+
+@router.post("/{section}/{file_name}/delete", response_class=HTMLResponse)
+def config_delete(section: str, file_name: str) -> HTMLResponse:
+    _validate_config_file_name(file_name)
+    if not _file_can_delete(section, file_name):
+        raise HTTPException(status_code=403, detail=f"Config file is read-only: {file_name}")
+    path = _section_dir(section) / file_name
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail=f"Config file not found: {file_name}")
+    path.unlink()
+    reload_provider_cache()
+    body = f"""
+<section class="panel">
+  <h2>Deleted</h2>
+  <div class="panel-content">
+    <p class="notice">Deleted {html.escape(file_name)}.</p>
+    <p><a class="button button-muted" href="/config/{html.escape(section)}">Back to {html.escape(_SECTION_TITLES[section])}</a></p>
+  </div>
+</section>
+"""
+    return _render_layout(f"Deleted {file_name}", body, section)
+
+
 def _string_value(value: Any) -> str:
     return value.strip() if isinstance(value, str) and value.strip() else ""
 
@@ -804,6 +870,12 @@ def _render_editor(
             f'<a class="button button-secondary" '
             f'href="/config/{html.escape(section)}/{html.escape(file_name)}/test">Test</a>'
         )
+    delete_link = ""
+    if not is_new and _file_can_delete(section, file_name):
+        delete_link = (
+            f'<a class="button button-danger" '
+            f'href="/config/{html.escape(section)}/{html.escape(file_name)}/delete">Delete</a>'
+        )
     section_path = _section_dir(section) / file_name
     return f"""
 <div class="grid">
@@ -840,6 +912,7 @@ def _render_editor(
         <div class="actions">
           <button class="button-primary" type="submit" {disabled_attr}>{html.escape(submit_label)}</button>
           {test_link}
+          {delete_link}
           <a class="button button-muted" href="/config/reload">Reload</a>
           <a class="button button-muted" href="/config/{html.escape(section)}">Cancel</a>
           <span class="muted">Templates and Provider ABC are read-only.</span>

@@ -104,8 +104,11 @@ def test_config_connections_table_shows_driver_and_mount() -> None:
     assert response.status_code == 200
     assert "<th>Driver</th>" in response.text
     assert "<th>Mount</th>" in response.text
+    assert "<th>Actions</th>" in response.text
     assert "alfresco:/" in response.text
     assert ">alfresco</td>" in response.text
+    assert "/config/connections/alfresco.json/delete" in response.text
+    assert "/config/connections/connection.json/delete" not in response.text
 
 
 def test_config_connection_editor_shows_test_link() -> None:
@@ -115,6 +118,7 @@ def test_config_connection_editor_shows_test_link() -> None:
 
     assert response.status_code == 200
     assert "/config/connections/alfresco.json/test" in response.text
+    assert "/config/connections/alfresco.json/delete" in response.text
 
 
 def test_config_drivers_table_shows_connections() -> None:
@@ -124,7 +128,10 @@ def test_config_drivers_table_shows_connections() -> None:
 
     assert response.status_code == 200
     assert "<th>Connections</th>" in response.text
+    assert "<th>Actions</th>" in response.text
     assert "alfresco" in response.text
+    assert "/config/drivers/alfresco.json/delete" in response.text
+    assert "/config/drivers/driver.json/delete" not in response.text
 
 
 def test_config_connection_test_loads_runtime_config() -> None:
@@ -208,6 +215,7 @@ def test_config_template_editor_is_read_only() -> None:
     assert "TEMPLATE READ ONLY" in response.text
     assert "readonly" in response.text
     assert "disabled" in response.text
+    assert "/config/drivers/driver.json/delete" not in response.text
 
 
 def test_config_templates_are_visible_when_machine_section_is_empty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -364,6 +372,59 @@ def test_config_save_existing_file_can_change_key_to_new_file(
     assert response.status_code == 200
     assert (config_dir / "connections" / "new_name.json").exists()
     assert source.exists()
+
+
+def test_config_delete_confirm_shows_editable_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repo_config = Path(__file__).resolve().parents[1] / "config"
+    config_dir = tmp_path / "config"
+    shutil.copytree(repo_config, config_dir)
+    target = config_dir / "connections" / "delete_me.json"
+    target.write_text('{"key": "delete_me", "delete_me": {"driver": "alfresco", "mount": "delete_me:/"}}', encoding="utf-8")
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(config_dir))
+    client = TestClient(create_app())
+
+    response = client.get("/config/connections/delete_me.json/delete")
+
+    assert response.status_code == 200
+    assert "Delete config file delete_me.json?" in response.text
+    assert '<form method="post" action="/config/connections/delete_me.json/delete">' in response.text
+
+
+def test_config_delete_removes_editable_file_and_reloads_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo_config = Path(__file__).resolve().parents[1] / "config"
+    config_dir = tmp_path / "config"
+    shutil.copytree(repo_config, config_dir)
+    target = config_dir / "connections" / "delete_me.json"
+    target.write_text('{"key": "delete_me", "delete_me": {"driver": "alfresco", "mount": "delete_me:/"}}', encoding="utf-8")
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(config_dir))
+    calls = []
+    monkeypatch.setattr(config_routes, "reload_provider_cache", lambda: calls.append("reload"))
+    client = TestClient(create_app())
+
+    response = client.post("/config/connections/delete_me.json/delete")
+
+    assert response.status_code == 200
+    assert "Deleted delete_me.json." in response.text
+    assert not target.exists()
+    assert calls == ["reload"]
+
+
+def test_config_delete_rejects_read_only_template() -> None:
+    client = TestClient(create_app())
+
+    response = client.post("/config/drivers/driver.json/delete")
+
+    assert response.status_code == 403
+
+
+def test_config_delete_rejects_provider_abc() -> None:
+    client = TestClient(create_app())
+
+    response = client.post("/config/providers/provider.json/delete")
+
+    assert response.status_code == 403
 
 
 def test_config_save_connection_rejects_unknown_driver(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
