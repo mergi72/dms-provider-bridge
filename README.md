@@ -31,7 +31,14 @@ The bridge configuration follows a simple VFS-style model:
 - `Driver` describes one DMS type, for example Alfresco, eDoCat, WebDAV or another backend.
 - `Connection` is the named mount exposed to clients and Total Commander, for example `alfresco:/` or `company-dms:/`.
 
-Config UI is available at [http://127.0.0.1:8765/config](http://127.0.0.1:8765/config).
+Bridge Configurator is available at [http://127.0.0.1:8765/config](http://127.0.0.1:8765/config).
+
+The bridge now has two clearly separated responsibilities:
+
+- Bridge runtime handles WFX/API operations such as list, upload, download, copy and move.
+- Bridge Configurator handles configuration authoring, validation, runtime audit and connection tests.
+
+The configurator currently runs inside the same local FastAPI process as the bridge, but it should be treated as an admin/configuration layer rather than as provider runtime logic.
 
 Current UI rules:
 
