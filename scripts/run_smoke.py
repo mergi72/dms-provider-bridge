@@ -27,25 +27,25 @@ def main() -> None:
     if health_body.get("status") != "ok":
         _fail("/health status is not ok")
 
-    providers = client.get("/bridge/wfx/providers")
-    if providers.status_code != 200:
-        _fail(f"/bridge/wfx/providers returned HTTP {providers.status_code}")
-    providers_body = providers.json()
-    if not providers_body.get("ok"):
-        _fail("/bridge/wfx/providers returned ok=false")
-    providers_data = providers_body.get("data") or {}
-    provider_names = providers_data.get("providers") or []
-    if not provider_names:
-        _fail("provider discovery returned no providers")
+    connections = client.get("/bridge/wfx/connections")
+    if connections.status_code != 200:
+        _fail(f"/bridge/wfx/connections returned HTTP {connections.status_code}")
+    connections_body = connections.json()
+    if not connections_body.get("ok"):
+        _fail("/bridge/wfx/connections returned ok=false")
+    connections_data = connections_body.get("data") or {}
+    connection_names = connections_data.get("connection_names") or []
+    if not connection_names:
+        _fail("connection discovery returned no connections")
 
     root_listing = client.post("/bridge/wfx/list", json={"path": "/"})
     if root_listing.status_code != 200:
-        _fail(f"/bridge/wfx/list provider root returned HTTP {root_listing.status_code}")
+        _fail(f"/bridge/wfx/list connection root returned HTTP {root_listing.status_code}")
     root_listing_body = root_listing.json()
     if not root_listing_body.get("ok"):
-        _fail(f"/bridge/wfx/list provider root returned ok=false: {root_listing_body.get('message')}")
+        _fail(f"/bridge/wfx/list connection root returned ok=false: {root_listing_body.get('message')}")
 
-    print("Bridge smoke passed: health/provider discovery contract is operational.")
+    print("Bridge smoke passed: health/connection discovery contract is operational.")
 
 
 if __name__ == "__main__":

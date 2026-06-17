@@ -83,30 +83,30 @@ function Wait-BridgeHealth {
     throw "Bridge health check did not pass within $TimeoutSeconds s: $Url"
 }
 
-function Test-BridgeProviders {
+function Test-BridgeConnections {
     param([string]$BaseUrl)
 
-    $providersUrl = "$BaseUrl/bridge/wfx/providers"
-    Write-Step "Provider check..."
+    $connectionsUrl = "$BaseUrl/bridge/wfx/connections"
+    Write-Step "Connection check..."
     try {
-        $response = Invoke-RestMethod -Method Get -Uri $providersUrl -TimeoutSec 10
+        $response = Invoke-RestMethod -Method Get -Uri $connectionsUrl -TimeoutSec 10
         if ($response.ok -ne $true) {
-            throw "Provider endpoint returned ok=$($response.ok)"
+            throw "Connection endpoint returned ok=$($response.ok)"
         }
 
-        $providers = @($response.data.providers)
-        if ($providers.Count -eq 0) {
-            throw "Provider endpoint returned no providers."
+        $connections = @($response.data.connection_names)
+        if ($connections.Count -eq 0) {
+            throw "Connection endpoint returned no connections."
         }
 
-        foreach ($provider in $providers) {
-            Write-Ok "$provider"
+        foreach ($connection in $connections) {
+            Write-Ok "$connection"
         }
-        Write-Info "Providers loaded: $($providers.Count)"
+        Write-Info "Connections loaded: $($connections.Count)"
         return $response
     }
     catch {
-        Write-InstallLog -Level "FAIL" -Message "GET $providersUrl"
+        Write-InstallLog -Level "FAIL" -Message "GET $connectionsUrl"
         throw
     }
 }
@@ -550,7 +550,7 @@ if ($RuntimeMode -eq "User") {
         Start-ScheduledTask -TaskName $TaskName
         Write-Ok "Scheduled task started: $TaskName"
         Wait-BridgeHealth -Url $HealthUrl -TimeoutSeconds $HealthTimeoutSeconds | Out-Null
-        Test-BridgeProviders -BaseUrl $bridgeBaseUrl | Out-Null
+        Test-BridgeConnections -BaseUrl $bridgeBaseUrl | Out-Null
     }
 
     Write-Info "Installation completed successfully."
@@ -600,7 +600,7 @@ Write-Step "Starting service..."
 Invoke-Nssm -Arguments @("start", $ServiceName)
 Write-Ok "Service start requested: $ServiceName"
 Wait-BridgeHealth -Url $HealthUrl -TimeoutSeconds $HealthTimeoutSeconds | Out-Null
-Test-BridgeProviders -BaseUrl $bridgeBaseUrl | Out-Null
+Test-BridgeConnections -BaseUrl $bridgeBaseUrl | Out-Null
 
 Write-Info "Installation completed successfully."
 Write-Info "Service: $ServiceName"
