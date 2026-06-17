@@ -45,6 +45,28 @@ def test_list_registered_connections_contains_known() -> None:
     assert connections == provider_service_module.list_registered_providers()
 
 
+def test_runtime_registry_snapshot_maps_wfx_providers_to_connections(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(provider_service_module, "_DRIVER_FACTORIES", {"alfresco": _DummyProvider, "edocat": _DummyProvider})
+    monkeypatch.setattr(provider_service_module, "list_connection_config_names", lambda: ["alfresco", "edocat"])
+    monkeypatch.setattr(provider_service_module, "connection_driver_name", lambda name: name)
+    monkeypatch.setattr(
+        provider_service_module,
+        "load_connection_metadata",
+        lambda name: {"name": name, "driver": name, "mount": f"{name}:/", "display_name": name, "description": None},
+    )
+
+    snapshot = provider_service_module.runtime_registry_snapshot()
+    connections = {item["name"]: item for item in snapshot["connections"]}
+
+    assert snapshot["provider_abc"] == "provider"
+    assert set(snapshot["wfx_providers"]) >= {"edocat", "alfresco"}
+    assert set(snapshot["available_drivers"]) >= {"edocat", "alfresco"}
+    assert connections["alfresco"]["driver"] == "alfresco"
+    assert connections["alfresco"]["mount"] == "alfresco:/"
+    assert snapshot["compatibility"]["wfx_provider_names_are_connections"] is True
+    provider_service_module.reload_provider_cache()
+
+
 def test_list_registered_providers_uses_configured_machine_providers(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(provider_service_module, "list_connection_config_names", lambda: [])
     monkeypatch.setattr(provider_service_module, "list_provider_config_names", lambda: ["alfresco", "unknown"])

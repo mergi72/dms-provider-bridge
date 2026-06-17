@@ -68,8 +68,12 @@ def test_bridge_providers() -> None:
     body = response.json()
     assert body["ok"] is True
     assert set(body["data"]["providers"]) >= {"edocat", "alfresco"}
+    assert set(body["data"]["available_drivers"]) >= {"edocat", "alfresco"}
+    assert {item["name"] for item in body["data"]["connections"]} >= {"edocat", "alfresco"}
     assert body["data"]["default_provider"] is None or body["data"]["default_provider"] in body["data"]["providers"]
     assert body["providers"] == body["data"]["providers"]
+    assert body["connections"] == body["data"]["connections"]
+    assert body["available_drivers"] == body["data"]["available_drivers"]
     assert body["default_provider"] == body["data"]["default_provider"]
 
 
@@ -125,6 +129,8 @@ def test_bridge_provider_audit_returns_connection_runtime_status() -> None:
     assert by_name["alfresco"]["runtime_driver"] == "alfresco"
     assert by_name["alfresco"]["runtime_mount"] == "alfresco:/"
     assert by_name["alfresco"]["issues"] == []
+    assert body["data"]["runtime_registry"]["compatibility"]["wfx_provider_names_are_connections"] is True
+    assert set(body["data"]["runtime_registry"]["wfx_providers"]) >= {"edocat", "alfresco"}
     assert body["metadata"]["operation"] == "providers_audit"
 
 

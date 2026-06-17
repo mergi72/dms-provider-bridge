@@ -530,15 +530,17 @@ def config_audit() -> HTMLResponse:
 
     status_class = "notice" if audit["ok"] else "read-only-warning"
     status_text = "Connection runtime audit passed." if audit["ok"] else "Connection runtime audit found issues."
-    registered = ", ".join(str(name) for name in audit["registered_providers"])
+    registry = audit.get("runtime_registry") if isinstance(audit, dict) else None
+    wfx_providers = registry.get("wfx_providers") if isinstance(registry, dict) else audit["registered_providers"]
+    registered = ", ".join(str(name) for name in wfx_providers)
     drivers = ", ".join(str(name) for name in audit["available_drivers"])
     body = f"""
 <section class="panel">
   <h2>Runtime Audit</h2>
   <div class="panel-content">
     <p class="{status_class}">{html.escape(status_text)}</p>
-    <p class="help">Checks that every connection JSON is visible as a WFX provider and resolves to the expected driver and mount.</p>
-    <p class="muted">Registered providers: {html.escape(registered)}</p>
+    <p class="help">Checks the ABC -> driver -> connection runtime registry. WFX provider names are connection/mount names for compatibility.</p>
+    <p class="muted">WFX providers / connections: {html.escape(registered)}</p>
     <p class="muted">Available drivers: {html.escape(drivers)}</p>
     <table>
       <tr><th>Connection</th><th>Driver</th><th>Mount</th><th>Runtime Driver</th><th>Runtime Mount</th><th>Status</th></tr>

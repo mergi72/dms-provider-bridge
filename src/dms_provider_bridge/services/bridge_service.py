@@ -18,6 +18,7 @@ from dms_provider_bridge.services.provider_service import (
     get_connection_runtime,
     get_default_connection_name,
     list_registered_connections,
+    runtime_registry_snapshot,
 )
 from dms_provider_bridge.services.bridge_transfer_ops import estimated_binary_size_from_base64, max_inline_upload_bytes, upload_with_preflight
 
@@ -336,11 +337,14 @@ def _log_and_return(
 
 def providers_path() -> WfxResponse:
     started_at = time.perf_counter()
-    providers = list_registered_connections()
+    registry = runtime_registry_snapshot()
+    providers = list(registry["wfx_providers"])
     default_provider = _default_provider_name_or_none()
     response = _success(
         data={
             "providers": providers,
+            "connections": registry["connections"],
+            "available_drivers": registry["available_drivers"],
             "default_provider": default_provider,
         },
         metadata={"operation": "providers"},

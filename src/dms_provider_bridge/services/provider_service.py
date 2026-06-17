@@ -5,6 +5,7 @@ import inspect
 import os
 import pkgutil
 from collections.abc import Callable
+from dataclasses import dataclass
 
 import dms_provider_bridge.drivers as drivers_package
 from dms_provider_bridge.core.config_loader import (
@@ -21,6 +22,30 @@ from dms_provider_bridge.providers.base import Provider
 
 _DRIVER_FACTORIES: dict[str, Callable[[], Provider]] | None = None
 _PROVIDER_CACHE: dict[str, Provider] = {}
+
+
+@dataclass(frozen=True)
+class RuntimeConnection:
+    """Configured mount exposed to WFX as a provider-compatible name."""
+
+    name: str
+    driver: str | None
+    mount: str | None
+    display_name: str | None
+    description: str | None
+    driver_available: bool
+    registered: bool
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "name": self.name,
+            "driver": self.driver,
+            "mount": self.mount,
+            "display_name": self.display_name,
+            "description": self.description,
+            "driver_available": self.driver_available,
+            "registered": self.registered,
+        }
 
 
 def _discover_driver_factories() -> dict[str, Callable[[], Provider]]:
@@ -146,6 +171,42 @@ def list_registered_connections() -> list[str]:
     return sorted(factories.keys())
 
 
+def runtime_registry_snapshot() -> dict[str, object]:
+    """Return the current ABC -> driver -> connection runtime view.
+
+    WFX still calls these names "providers" for compatibility, but the
+    exported names are configured connections/mounts when connection JSON
+    exists.
+    """
+    factories = _driver_factories()
+    registered = set(list_registered_connections())
+    connections: list[RuntimeConnection] = []
+    for name in list_connection_config_names():
+        metadata = load_connection_metadata(name)
+        driver_name = _normalize_driver_name(metadata.get("driver")) if isinstance(metadata, dict) else None
+        connections.append(
+            RuntimeConnection(
+                name=name,
+                driver=driver_name,
+                mount=metadata.get("mount") if isinstance(metadata, dict) else None,
+                display_name=metadata.get("display_name") if isinstance(metadata, dict) else None,
+                description=metadata.get("description") if isinstance(metadata, dict) else None,
+                driver_available=bool(driver_name and driver_name in factories),
+                registered=name in registered,
+            )
+        )
+    return {
+        "provider_abc": "provider",
+        "available_drivers": sorted(factories.keys()),
+        "connections": [connection.as_dict() for connection in connections],
+        "wfx_providers": sorted(registered),
+        "compatibility": {
+            "wfx_provider_names_are_connections": True,
+            "legacy_provider_endpoint": "/bridge/wfx/providers",
+        },
+    }
+
+
 def list_registered_providers() -> list[str]:
     """Compatibility wrapper for WFX provider endpoints.
 
@@ -157,7 +218,8 @@ def list_registered_providers() -> list[str]:
 def audit_connection_runtime() -> dict[str, object]:
     """Check that configured connections are visible as runtime WFX providers."""
     factories = _driver_factories()
-    registered = set(list_registered_connections())
+    snapshot = runtime_registry_snapshot()
+    registered = set(snapshot["wfx_providers"])
     rows: list[dict[str, object]] = []
     mount_owners: dict[str, str] = {}
 
@@ -226,6 +288,7 @@ def audit_connection_runtime() -> dict[str, object]:
         "connections": rows,
         "registered_providers": sorted(registered),
         "available_drivers": sorted(factories.keys()),
+        "runtime_registry": snapshot,
     }
 
 

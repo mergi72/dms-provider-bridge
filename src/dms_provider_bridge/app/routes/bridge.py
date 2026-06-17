@@ -291,6 +291,8 @@ def bridge_providers() -> dict:
     data = payload.get("data")
     if isinstance(data, dict):
         payload["providers"] = data.get("providers", [])
+        payload["connections"] = data.get("connections", [])
+        payload["available_drivers"] = data.get("available_drivers", [])
         payload["default_provider"] = data.get("default_provider")
     return payload
 
