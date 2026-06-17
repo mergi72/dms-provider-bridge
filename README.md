@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Beta-yellowgreen)](https://github.com/mergi72/dms-provider-bridge)
-[![Bridge Version](https://img.shields.io/badge/Bridge-v0.6.8--beta-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.6.8-beta)
+[![Bridge Version](https://img.shields.io/badge/Bridge-v0.6.9--beta-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.6.9-beta)
 [![Bridge Setup](https://img.shields.io/badge/Setup-v0.5.0--beta-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.5.0-beta)
 
 Current development branch: `develop`  
@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.6.8-beta`
-- Latest bridge-only release: `v0.6.8-beta`
+- Bridge repository latest changelog version: `0.6.9-beta`
+- Latest bridge-only release: `v0.6.9-beta`
 
 ## Configuration Model
 
@@ -40,6 +40,21 @@ Current UI rules:
 - Concrete driver and connection files can be created and saved from the UI.
 - Connection saves validate required driver and mount fields before writing JSON.
 - The template files are never overwritten by `Save`.
+
+Configuration checks:
+
+- `Test` on a connection first performs a runtime-only check. It loads the connection, resolves its driver and shows the effective mount, base URL, auth mode and list endpoint. This check does not call the remote DMS.
+- `Live List Root` is optional. It accepts the same auth JSON shape as Swagger requests, for example inline `username` and `password`, uses it for one request, and never writes it to config.
+- `Audit` checks that every connection JSON is visible as a WFX provider and that runtime driver/mount values match the connection definition.
+- Machine templates define the shape of config. User-specific or environment-specific values should be stored in local config files, not in the templates.
+
+The 0.6 configuration work is intentionally split by responsibility:
+
+```text
+Provider ABC  read-only common VFS contract
+Driver        concrete DMS/API implementation settings
+Connection    named mount exposed to clients as connection:/path
+```
 
 ## Runtime Modes
 

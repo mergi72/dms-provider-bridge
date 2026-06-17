@@ -9,6 +9,7 @@ from collections.abc import Callable
 import dms_provider_bridge.providers as providers_package
 from dms_provider_bridge.core.config_loader import (
     connection_driver_name,
+    load_connection_metadata,
     list_connection_config_names,
     list_provider_config_names,
     load_config,
@@ -108,6 +109,81 @@ def list_registered_providers() -> list[str]:
     if configured:
         return configured
     return sorted(factories.keys())
+
+
+def audit_connection_runtime() -> dict[str, object]:
+    """Check that configured connections are visible as runtime WFX providers."""
+    factories = _provider_factories()
+    registered = set(list_registered_providers())
+    rows: list[dict[str, object]] = []
+    mount_owners: dict[str, str] = {}
+
+    for name in list_connection_config_names():
+        metadata = load_connection_metadata(name)
+        driver_name = _normalize_provider_name(metadata.get("driver")) if isinstance(metadata, dict) else None
+        mount = metadata.get("mount") if isinstance(metadata, dict) else None
+        issues: list[str] = []
+
+        if not driver_name:
+            issues.append("missing_driver")
+        elif driver_name not in factories:
+            issues.append("driver_not_available")
+
+        if not isinstance(mount, str) or not mount.strip():
+            issues.append("missing_mount")
+        else:
+            mount = mount.strip()
+            if not mount.endswith(":/"):
+                issues.append("invalid_mount")
+            owner = mount_owners.get(mount)
+            if owner:
+                issues.append(f"duplicate_mount:{owner}")
+            else:
+                mount_owners[mount] = name
+
+        if name not in registered:
+            issues.append("not_registered")
+
+        runtime_name = None
+        runtime_driver = None
+        runtime_mount = None
+        if name in registered and driver_name in factories:
+            try:
+                provider = get_provider(name)
+                runtime_name = provider.name
+                config = getattr(provider, "config", {})
+                if isinstance(config, dict):
+                    runtime_driver = config.get("driver")
+                    runtime_mount = config.get("mount")
+                if runtime_name != name:
+                    issues.append("runtime_name_mismatch")
+                if isinstance(runtime_driver, str) and runtime_driver.strip().lower() != driver_name:
+                    issues.append("runtime_driver_mismatch")
+                if isinstance(runtime_mount, str) and isinstance(mount, str) and runtime_mount.strip() != mount:
+                    issues.append("runtime_mount_mismatch")
+            except Exception as exc:
+                issues.append(f"runtime_error:{exc}")
+
+        rows.append(
+            {
+                "name": name,
+                "driver": driver_name,
+                "mount": mount,
+                "registered": name in registered,
+                "runtime_name": runtime_name,
+                "runtime_driver": runtime_driver,
+                "runtime_mount": runtime_mount,
+                "ok": not issues,
+                "issues": issues,
+            }
+        )
+
+    return {
+        "ok": all(bool(row["ok"]) for row in rows),
+        "connections": rows,
+        "registered_providers": sorted(registered),
+        "available_drivers": sorted(factories.keys()),
+    }
 
 
 def get_default_provider_name() -> str:

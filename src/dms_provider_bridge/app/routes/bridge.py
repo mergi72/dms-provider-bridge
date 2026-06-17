@@ -16,6 +16,7 @@ from dms_provider_bridge.core.config_loader import load_config
 from dms_provider_bridge.core.logging import get_logger
 from dms_provider_bridge.models.bridge import BridgeAuthContext, WfxMoveRequest, WfxPathRequest, WfxShareUrlBrowseRequest, WfxShareUrlRequest, WfxShareUrlValidateRequest, WfxUploadRequest
 from dms_provider_bridge.services.bridge_service import copy_path, delete_path, download_path, list_path, mkdir_path, open_download_stream, provider_detail_path, providers_path, rename_path, stat_path, upload_path
+from dms_provider_bridge.services.provider_service import audit_connection_runtime
 from dms_provider_bridge.services.bridge_share_url import browse_share_url, resolve_share_url
 
 router = APIRouter()
@@ -292,6 +293,15 @@ def bridge_providers() -> dict:
         payload["providers"] = data.get("providers", [])
         payload["default_provider"] = data.get("default_provider")
     return payload
+
+
+@router.get("/providers/audit")
+def bridge_providers_audit() -> dict:
+    return {
+        "ok": True,
+        "data": audit_connection_runtime(),
+        "metadata": {"operation": "providers_audit"},
+    }
 
 
 @router.get("/providers/{provider_name}")

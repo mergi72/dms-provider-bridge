@@ -111,6 +111,23 @@ def test_bridge_provider_detail_returns_auth_and_capabilities() -> None:
     assert body["metadata"]["operation"] == "provider_detail"
 
 
+def test_bridge_provider_audit_returns_connection_runtime_status() -> None:
+    client = TestClient(create_app())
+    response = client.get("/bridge/wfx/providers/audit")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["data"]["ok"] is True
+    by_name = {item["name"]: item for item in body["data"]["connections"]}
+    assert by_name["alfresco"]["driver"] == "alfresco"
+    assert by_name["alfresco"]["mount"] == "alfresco:/"
+    assert by_name["alfresco"]["runtime_driver"] == "alfresco"
+    assert by_name["alfresco"]["runtime_mount"] == "alfresco:/"
+    assert by_name["alfresco"]["issues"] == []
+    assert body["metadata"]["operation"] == "providers_audit"
+
+
 def test_openapi_upload_versioning_schema_is_typed() -> None:
     client = TestClient(create_app())
 

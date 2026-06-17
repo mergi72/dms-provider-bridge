@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 import dms_provider_bridge.app.routes.config as config_routes
 from dms_provider_bridge.app.server import create_app
+from dms_provider_bridge.models.bridge import WfxResponse
 
 
 pytestmark = pytest.mark.integration
@@ -44,6 +45,18 @@ def test_config_reload_clears_provider_cache(monkeypatch: pytest.MonkeyPatch) ->
     assert response.status_code == 200
     assert calls == ["reload"]
     assert "Configuration cache was reloaded" in response.text
+
+
+def test_config_audit_shows_connection_runtime_status() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/config/audit")
+
+    assert response.status_code == 200
+    assert "Connection runtime audit passed" in response.text
+    assert "alfresco:/" in response.text
+    assert "edocat:/" in response.text
+    assert "Runtime Driver" in response.text
 
 
 def test_docs_openapi_links_config() -> None:
@@ -124,6 +137,45 @@ def test_config_connection_test_loads_runtime_config() -> None:
     assert "Connection OK" in response.text
     assert "alfresco:/" in response.text
     assert "tc-wfx/bridge" in response.text
+    assert "Live List Root" in response.text
+    assert "Auth JSON is used only for this request and is not saved." in response.text
+
+
+def test_config_connection_live_test_lists_root(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+
+    def _list_path(path, auth):
+        calls.append((path, auth.username))
+        return WfxResponse(ok=True, data={"items": [{"name": "Folder"}]})
+
+    monkeypatch.setattr(config_routes, "list_path", _list_path)
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/config/connections/alfresco.json/test/live",
+        data={
+            "mount": "alfresco:/",
+            "auth_json": json.dumps({"mode": "credentials", "username": "user", "password": "secret"}),
+        },
+    )
+
+    assert response.status_code == 200
+    assert "Live list root succeeded." in response.text
+    assert "Items" in response.text
+    assert ">1</td>" in response.text
+    assert calls == [("alfresco:/", "user")]
+
+
+def test_config_connection_live_test_reports_auth_json_error() -> None:
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/config/connections/alfresco.json/test/live",
+        data={"mount": "alfresco:/", "auth_json": "{}"},
+    )
+
+    assert response.status_code == 200
+    assert "Live list root failed." in response.text
 
 
 def test_config_test_rejects_non_connection_section() -> None:

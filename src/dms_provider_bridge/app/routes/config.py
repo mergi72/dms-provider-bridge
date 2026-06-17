@@ -12,7 +12,9 @@ from fastapi.responses import HTMLResponse
 
 from dms_provider_bridge.core.config_loader import driver_connection_names, load_config
 from dms_provider_bridge.core.paths import MACHINE_CONFIG_DIR, PROJECT_ROOT
-from dms_provider_bridge.services.provider_service import get_provider, reload_provider_cache
+from dms_provider_bridge.models.bridge import BridgeAuthContext
+from dms_provider_bridge.services.bridge_service import list_path
+from dms_provider_bridge.services.provider_service import audit_connection_runtime, get_provider, reload_provider_cache
 
 router = APIRouter()
 
@@ -360,6 +362,7 @@ def _render_nav(active: str | None = None) -> str:
     utility = (
         '<span class="utility">'
         '<a class="button button-muted" href="/config/reload">Reload</a>'
+        '<a class="button button-muted" href="/config/audit">Audit</a>'
         '<a class="button button-muted" href="/docs">Docs</a><a class="button button-muted" href="/health">Health</a>'
         "</span>"
     )
@@ -496,6 +499,50 @@ def config_reload() -> HTMLResponse:
     return _render_layout("Config Reload", body)
 
 
+@router.get("/audit", response_class=HTMLResponse)
+def config_audit() -> HTMLResponse:
+    reload_provider_cache()
+    audit = audit_connection_runtime()
+    rows = []
+    for row in audit["connections"]:
+        issues = row["issues"]
+        issue_text = ", ".join(str(issue) for issue in issues) if issues else "OK"
+        badge_class = "badge-read-only" if row["ok"] else "badge-template"
+        rows.append(
+            "<tr>"
+            f"<td>{html.escape(str(row['name']))}</td>"
+            f"<td>{html.escape(str(row.get('driver') or ''))}</td>"
+            f"<td>{html.escape(str(row.get('mount') or ''))}</td>"
+            f"<td>{html.escape(str(row.get('runtime_driver') or ''))}</td>"
+            f"<td>{html.escape(str(row.get('runtime_mount') or ''))}</td>"
+            f"<td><span class=\"badge {badge_class}\">{html.escape(issue_text)}</span></td>"
+            "</tr>"
+        )
+    if not rows:
+        rows.append('<tr><td colspan="6" class="muted">No connections found.</td></tr>')
+
+    status_class = "notice" if audit["ok"] else "read-only-warning"
+    status_text = "Connection runtime audit passed." if audit["ok"] else "Connection runtime audit found issues."
+    registered = ", ".join(str(name) for name in audit["registered_providers"])
+    drivers = ", ".join(str(name) for name in audit["available_drivers"])
+    body = f"""
+<section class="panel">
+  <h2>Runtime Audit</h2>
+  <div class="panel-content">
+    <p class="{status_class}">{html.escape(status_text)}</p>
+    <p class="help">Checks that every connection JSON is visible as a WFX provider and resolves to the expected driver and mount.</p>
+    <p class="muted">Registered providers: {html.escape(registered)}</p>
+    <p class="muted">Available drivers: {html.escape(drivers)}</p>
+    <table>
+      <tr><th>Connection</th><th>Driver</th><th>Mount</th><th>Runtime Driver</th><th>Runtime Mount</th><th>Status</th></tr>
+      {''.join(rows)}
+    </table>
+  </div>
+</section>
+"""
+    return _render_layout("Config Runtime Audit", body)
+
+
 @router.get("/{section}", response_class=HTMLResponse)
 def config_section(section: str) -> HTMLResponse:
     directory = _section_dir(section)
@@ -606,12 +653,32 @@ def config_test(section: str, file_name: str) -> HTMLResponse:
             f"<tr><th>{html.escape(label)}</th><td>{html.escape(value)}</td></tr>"
             for label, value in rows
         )
+        mount = _string_value(config.get("mount") if isinstance(config, dict) else None) or f"{key}:/"
+        auth_example = json.dumps(
+            {
+                "mode": "credentials",
+                "username": "",
+                "password": "",
+            },
+            ensure_ascii=False,
+            indent=4,
+        )
         body = f"""
 <section class="panel">
   <h2>Test {html.escape(file_name)}</h2>
   <div class="panel-content">
     <p class="notice">Connection runtime configuration was loaded successfully. No live DMS request was made.</p>
     <table>{body_rows}</table>
+    <h2>Live List Root</h2>
+    <p class="help">Optional live test. Auth JSON is used only for this request and is not saved.</p>
+    <form method="post" action="/config/{html.escape(section)}/{html.escape(file_name)}/test/live">
+      <input type="hidden" name="mount" value="{html.escape(mount)}">
+      <textarea name="auth_json" style="min-height: 150px;">{html.escape(auth_example)}</textarea>
+      <div class="actions">
+        <button class="button-primary" type="submit">Live List Root</button>
+        <span class="muted">Target: {html.escape(mount)}</span>
+      </div>
+    </form>
     <p><a class="button button-muted" href="/config/{html.escape(section)}/{html.escape(file_name)}">Back to connection</a></p>
   </div>
 </section>
@@ -627,6 +694,61 @@ def config_test(section: str, file_name: str) -> HTMLResponse:
 </section>
 """
     return _render_layout(f"Test {file_name}", body, section)
+
+
+@router.post("/{section}/{file_name}/test/live", response_class=HTMLResponse)
+def config_live_test(section: str, file_name: str, auth_json: str = Form(...), mount: str = Form(default="")) -> HTMLResponse:
+    if section != "connections":
+        raise HTTPException(status_code=400, detail="Only connections can be tested.")
+    _validate_config_file_name(file_name)
+    path = _config_file_path(section, file_name)
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail=f"Config file not found: {file_name}")
+    payload = _read_json_file(path)
+    key = _payload_key(payload, path.stem)
+    try:
+        auth_payload = _parse_json_payload(auth_json)
+        auth = BridgeAuthContext.model_validate(auth_payload)
+        target_mount = mount.strip() or f"{key}:/"
+        if not target_mount.endswith(":/"):
+            target_mount = f"{target_mount.rstrip('/')}/"
+        response = list_path(target_mount, auth)
+        data = response.data if isinstance(response.data, dict) else {}
+        items = data.get("items") if isinstance(data, dict) else None
+        item_count = len(items) if isinstance(items, list) else 0
+        status_class = "notice" if response.ok else "read-only-warning"
+        status_text = "Live list root succeeded." if response.ok else "Live list root failed."
+        rows = [
+            ("Status", status_text),
+            ("Mount", target_mount),
+            ("OK", str(response.ok)),
+            ("Error code", str(response.error_code)),
+            ("Message", response.message or ""),
+            ("Items", str(item_count)),
+        ]
+    except Exception as exc:
+        status_class = "read-only-warning"
+        rows = [
+            ("Status", "Live list root failed."),
+            ("Mount", mount.strip() or f"{key}:/"),
+            ("OK", "False"),
+            ("Error code", ""),
+            ("Message", str(exc)),
+            ("Items", "0"),
+        ]
+
+    body_rows = "".join(f"<tr><th>{html.escape(label)}</th><td>{html.escape(value)}</td></tr>" for label, value in rows)
+    body = f"""
+<section class="panel">
+  <h2>Live Test {html.escape(file_name)}</h2>
+  <div class="panel-content">
+    <p class="{status_class}">{html.escape(rows[0][1])}</p>
+    <table>{body_rows}</table>
+    <p><a class="button button-muted" href="/config/{html.escape(section)}/{html.escape(file_name)}/test">Back to test</a></p>
+  </div>
+</section>
+"""
+    return _render_layout(f"Live Test {file_name}", body, section)
 
 
 def _string_value(value: Any) -> str:
