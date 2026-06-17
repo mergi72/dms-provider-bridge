@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse
 
 from dms_provider_bridge.core.config_loader import driver_connection_names, load_config
 from dms_provider_bridge.core.paths import MACHINE_CONFIG_DIR, PROJECT_ROOT
-from dms_provider_bridge.services.provider_service import reload_provider_cache
+from dms_provider_bridge.services.provider_service import get_provider, reload_provider_cache
 
 router = APIRouter()
 
@@ -473,6 +473,65 @@ def config_file(section: str, file_name: str) -> HTMLResponse:
     return _render_layout(f"Config {file_name}", body, section)
 
 
+@router.get("/{section}/{file_name}/test", response_class=HTMLResponse)
+def config_test(section: str, file_name: str) -> HTMLResponse:
+    if section != "connections":
+        raise HTTPException(status_code=400, detail="Only connections can be tested.")
+    _validate_config_file_name(file_name)
+    path = _config_file_path(section, file_name)
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail=f"Config file not found: {file_name}")
+    payload = _read_json_file(path)
+    key = _payload_key(payload, path.stem)
+    try:
+        reload_provider_cache()
+        provider = get_provider(key)
+        config = getattr(provider, "config", {})
+        credentials = config.get("credentials") if isinstance(config, dict) else None
+        auth_mode = credentials.get("mode") if isinstance(credentials, dict) else None
+        auth_target = credentials.get("target") if isinstance(credentials, dict) else None
+        rows = [
+            ("Status", "Connection OK"),
+            ("Name", getattr(provider, "name", key)),
+            ("Driver", _string_value(config.get("driver") if isinstance(config, dict) else None)),
+            ("Mount", _string_value(config.get("mount") if isinstance(config, dict) else None)),
+            ("Display name", _string_value(config.get("display_name") if isinstance(config, dict) else None)),
+            ("Base URL", _string_value(config.get("base_url") if isinstance(config, dict) else None)),
+            ("Auth mode", _string_value(auth_mode)),
+            ("Auth target", _string_value(auth_target)),
+            ("List endpoint", _string_value(provider.bridge_endpoint_for("list"))),
+        ]
+        body_rows = "".join(
+            f"<tr><th>{html.escape(label)}</th><td>{html.escape(value)}</td></tr>"
+            for label, value in rows
+        )
+        body = f"""
+<section class="panel">
+  <h2>Test {html.escape(file_name)}</h2>
+  <div class="panel-content">
+    <p class="notice">Connection runtime configuration was loaded successfully. No live DMS request was made.</p>
+    <table>{body_rows}</table>
+    <p><a href="/config/{html.escape(section)}/{html.escape(file_name)}">Back to connection</a></p>
+  </div>
+</section>
+"""
+    except Exception as exc:
+        body = f"""
+<section class="panel">
+  <h2>Test {html.escape(file_name)}</h2>
+  <div class="panel-content">
+    <p class="read-only-warning">Connection test failed: {html.escape(str(exc))}</p>
+    <p><a href="/config/{html.escape(section)}/{html.escape(file_name)}">Back to connection</a></p>
+  </div>
+</section>
+"""
+    return _render_layout(f"Test {file_name}", body, section)
+
+
+def _string_value(value: Any) -> str:
+    return value.strip() if isinstance(value, str) and value.strip() else ""
+
+
 def _render_editor(
     section: str,
     file_name: str,
@@ -506,6 +565,9 @@ def _render_editor(
         )
     form_open = f'<form method="post" action="/config/{html.escape(section)}/save">'
     form_close = "</form>"
+    test_link = ""
+    if section == "connections" and not is_new and not _file_read_only(section, file_name):
+        test_link = f'<a class="link-button" href="/config/{html.escape(section)}/{html.escape(file_name)}/test">Test</a>'
     return f"""
 <div class="grid">
   <section class="panel">
@@ -536,6 +598,7 @@ def _render_editor(
           <button type="submit" {disabled_attr}>{html.escape(submit_label)}</button>
           <a href="/config/{html.escape(section)}">Cancel</a>
           <a class="link-button" href="/config/reload">Reload</a>
+          {test_link}
           <span class="muted">Templates and Provider ABC are read-only.</span>
         </div>
       {form_close}

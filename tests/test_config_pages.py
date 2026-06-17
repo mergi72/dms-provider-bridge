@@ -95,6 +95,15 @@ def test_config_connections_table_shows_driver_and_mount() -> None:
     assert ">alfresco</td>" in response.text
 
 
+def test_config_connection_editor_shows_test_link() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/config/connections/alfresco.json")
+
+    assert response.status_code == 200
+    assert "/config/connections/alfresco.json/test" in response.text
+
+
 def test_config_drivers_table_shows_connections() -> None:
     client = TestClient(create_app())
 
@@ -103,6 +112,26 @@ def test_config_drivers_table_shows_connections() -> None:
     assert response.status_code == 200
     assert "<th>Connections</th>" in response.text
     assert "alfresco" in response.text
+
+
+def test_config_connection_test_loads_runtime_config() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/config/connections/alfresco.json/test")
+
+    assert response.status_code == 200
+    assert "Connection runtime configuration was loaded successfully" in response.text
+    assert "Connection OK" in response.text
+    assert "alfresco:/" in response.text
+    assert "tc-wfx/bridge" in response.text
+
+
+def test_config_test_rejects_non_connection_section() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/config/drivers/alfresco.json/test")
+
+    assert response.status_code == 400
 
 
 def test_config_new_driver_page_uses_template() -> None:
