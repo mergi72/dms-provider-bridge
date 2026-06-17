@@ -178,7 +178,7 @@ def _connection_config_paths(machine_dir: Path, user_dir: Path | None, connectio
     return connection_base_path, connection_user_path
 
 
-def list_provider_config_names() -> list[str]:
+def list_driver_config_names() -> list[str]:
     machine_dir, _user_dir = _config_dirs()
     if not machine_dir.exists():
         return []
@@ -200,6 +200,11 @@ def list_provider_config_names() -> list[str]:
             else:
                 names.add(path.stem.lower())
     return sorted(names)
+
+
+def list_provider_config_names() -> list[str]:
+    """Backward-compatible alias for the driver registry name list."""
+    return list_driver_config_names()
 
 
 def list_connection_config_names() -> list[str]:
@@ -231,32 +236,37 @@ def load_config() -> dict[str, Any]:
     return config
 
 
-def load_provider_config(provider_name: str) -> dict[str, Any]:
+def load_driver_config(driver_name: str) -> dict[str, Any]:
     machine_dir, user_dir = _config_dirs()
 
-    base_path, user_path = _provider_config_paths(machine_dir, user_dir, provider_name)
+    base_path, user_path = _provider_config_paths(machine_dir, user_dir, driver_name)
     base_payload = _read_json(base_path)
 
     if base_payload is None:
-        _log_provider_config(provider_name, {}, base_path, user_path)
+        _log_provider_config(driver_name, {}, base_path, user_path)
         return {}
 
-    base_section = _extract_provider_section(base_payload, provider_name)
+    base_section = _extract_provider_section(base_payload, driver_name)
 
     if user_dir is None:
-        _log_provider_config(provider_name, base_section, base_path, user_path)
+        _log_provider_config(driver_name, base_section, base_path, user_path)
         return base_section
 
     user_payload = _read_json(user_path)
     if user_payload is None:
-        _log_provider_config(provider_name, base_section, base_path, user_path)
+        _log_provider_config(driver_name, base_section, base_path, user_path)
         return base_section
 
-    local_section = _extract_provider_section(user_payload, provider_name)
+    local_section = _extract_provider_section(user_payload, driver_name)
 
     merged = _merge_dicts(base_section, local_section)
-    _log_provider_config(provider_name, merged, base_path, user_path)
+    _log_provider_config(driver_name, merged, base_path, user_path)
     return merged
+
+
+def load_provider_config(provider_name: str) -> dict[str, Any]:
+    """Backward-compatible alias for loading driver configuration."""
+    return load_driver_config(provider_name)
 
 
 def load_connection_config(connection_name: str) -> dict[str, Any]:
@@ -282,7 +292,7 @@ def load_connection_config(connection_name: str) -> dict[str, Any]:
         _log_provider_config(connection_name, connection_section, base_path, user_path)
         return connection_section
 
-    driver_config = load_provider_config(driver_name.strip())
+    driver_config = load_driver_config(driver_name.strip())
     connection_overrides = _strip_empty_overrides(connection_section)
     merged = _merge_dicts(driver_config, connection_overrides)
     _log_provider_config(connection_name, merged, base_path, user_path)

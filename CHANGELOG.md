@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.6-beta - 2026-06-17
+
+- Aligned runtime internals with the ABC -> driver -> connection model.
+- Added `load_driver_config()` and `list_driver_config_names()` while keeping legacy provider-named aliases.
+- Renamed bridge runtime operation variables from provider name to connection name internally.
+- Renamed provider runtime cache internals to connection runtime cache while keeping reload compatibility.
+- Added tests for driver-named config loader entry points.
+- Release/version bump to `0.7.6-beta`.
+
 ## 0.7.5-beta - 2026-06-17
 
 - Added `POST /config/reload` for API-driven runtime config reloads.

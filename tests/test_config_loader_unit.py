@@ -124,10 +124,12 @@ def test_load_provider_config_reads_driver_directory_layout(
     monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
     monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_dir))
 
-    config = config_loader.load_provider_config("alfresco")
+    config = config_loader.load_driver_config("alfresco")
+    compat_config = config_loader.load_provider_config("alfresco")
 
     assert config["base_url"] == "https://local.alfresco.net"
     assert config["transfer"]["maxNodes"] == 100
+    assert compat_config == config
 
 
 def test_list_provider_config_names_reads_driver_directory_layout(
@@ -147,6 +149,7 @@ def test_list_provider_config_names_reads_driver_directory_layout(
     monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
     monkeypatch.delenv("DMS_PROVIDER_USER_CONFIG_DIR", raising=False)
 
+    assert config_loader.list_driver_config_names() == ["alfresco", "edocat"]
     assert config_loader.list_provider_config_names() == ["alfresco", "edocat"]
 
 

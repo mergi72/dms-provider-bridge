@@ -12,7 +12,7 @@ from dms_provider_bridge.core.config_loader import (
     connection_driver_name,
     load_connection_metadata,
     list_connection_config_names,
-    list_provider_config_names,
+    list_driver_config_names,
     load_config,
     load_connection_config,
 )
@@ -21,7 +21,10 @@ from dms_provider_bridge.providers.base import Provider
 
 
 _DRIVER_FACTORIES: dict[str, Callable[[], Provider]] | None = None
-_PROVIDER_CACHE: dict[str, Provider] = {}
+_CONNECTION_RUNTIME_CACHE: dict[str, Provider] = {}
+
+# Backward-compatible module attribute for tests and older integrations.
+list_provider_config_names = list_driver_config_names
 
 
 @dataclass(frozen=True)
@@ -112,20 +115,25 @@ def get_connection_runtime(connection_name: str | None = None) -> Provider:
     factory = _driver_factories().get(driver_name)
     if name not in registered or factory is None:
         raise ProviderNotFoundError(f"Connection '{name}' is not registered.")
-    provider = _PROVIDER_CACHE.get(name)
+    provider = _CONNECTION_RUNTIME_CACHE.get(name)
     if provider is None:
         config = load_connection_config(name) if connection_driver_name(name) else None
         try:
             provider = factory(name=name, config=config)
         except TypeError:
             provider = factory()
-        _PROVIDER_CACHE[name] = provider
+        _CONNECTION_RUNTIME_CACHE[name] = provider
     return provider
 
 
+def reload_connection_runtime_cache() -> None:
+    """Clear connection runtime instances so subsequent calls load fresh config."""
+    _CONNECTION_RUNTIME_CACHE.clear()
+
+
 def reload_provider_cache() -> None:
-    """Clear provider instances so subsequent calls load fresh config."""
-    _PROVIDER_CACHE.clear()
+    """Backward-compatible alias for older provider-named call sites."""
+    reload_connection_runtime_cache()
 
 
 def list_registered_connections() -> list[str]:

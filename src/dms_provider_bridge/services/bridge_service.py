@@ -87,10 +87,10 @@ def _split_parent_and_name(path: str) -> tuple[str, str]:
     return parent or "/", name
 
 
-def _item_version_metadata(prefix: str, provider_name: str, path: str, item: DmsItem | None) -> dict[str, object]:
+def _item_version_metadata(prefix: str, connection_name: str, path: str, item: DmsItem | None) -> dict[str, object]:
     return {
-        f"{prefix}_connection": provider_name,
-        f"{prefix}_provider": provider_name,
+        f"{prefix}_connection": connection_name,
+        f"{prefix}_provider": connection_name,
         f"{prefix}_path": path,
         f"{prefix}_id": item.id if item is not None else None,
         f"{prefix}_name": item.name if item is not None else None,
@@ -384,7 +384,7 @@ def connection_detail_path(connection_name: str) -> WfxResponse:
 
 def list_path(path: str, auth: BridgeAuthContext | None) -> WfxResponse:
     started_at = time.perf_counter()
-    provider_name: str | None = None
+    connection_name: str | None = None
     resolved_path = path
     try:
         if _is_connection_root_path(path):
@@ -400,26 +400,26 @@ def list_path(path: str, auth: BridgeAuthContext | None) -> WfxResponse:
             return _log_and_return("list", "bridge", "/", started_at, response)
         if auth is None:
             response = _failure(WfxErrorCode.ACCESS_DENIED, "Authentication is required for provider paths.")
-            return _log_and_return("list", provider_name, resolved_path, started_at, response, response.message)
+            return _log_and_return("list", connection_name, resolved_path, started_at, response, response.message)
         provider, parsed = _resolve(path)
-        provider_name = provider.name
+        connection_name = provider.name
         resolved_path = parsed.path
         validate_bridge_auth(auth)
         listing = provider.list_items(parsed.path, auth)
         response = _success(data=listing.model_dump(), metadata=_metadata(provider, "list"))
-        return _log_and_return("list", provider_name, resolved_path, started_at, response)
+        return _log_and_return("list", connection_name, resolved_path, started_at, response)
     except Exception as exc:
         response = _failure_from_exception(exc)
-        return _log_and_return("list", provider_name, resolved_path, started_at, response, str(exc))
+        return _log_and_return("list", connection_name, resolved_path, started_at, response, str(exc))
 
 
 def stat_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
     started_at = time.perf_counter()
-    provider_name: str | None = None
+    connection_name: str | None = None
     resolved_path = path
     try:
         provider, parsed = _resolve(path)
-        provider_name = provider.name
+        connection_name = provider.name
         resolved_path = parsed.path
         validate_bridge_auth(auth)
         item = provider.stat_item(parsed.path, auth)
@@ -430,49 +430,49 @@ def stat_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
                 if item is not None:
                     resolved_path = deduplicated_path
                     response = _success(data=item.model_dump(), metadata=_metadata(provider, "stat"))
-                    return _log_and_return("stat", provider_name, resolved_path, started_at, response)
+                    return _log_and_return("stat", connection_name, resolved_path, started_at, response)
 
             response = _failure(WfxErrorCode.NOT_FOUND, f"Path not found: {path}")
-            return _log_and_return("stat", provider_name, resolved_path, started_at, response, response.message)
+            return _log_and_return("stat", connection_name, resolved_path, started_at, response, response.message)
         response = _success(data=item.model_dump(), metadata=_metadata(provider, "stat"))
-        return _log_and_return("stat", provider_name, resolved_path, started_at, response)
+        return _log_and_return("stat", connection_name, resolved_path, started_at, response)
     except Exception as exc:
         response = _failure_from_exception(exc)
-        return _log_and_return("stat", provider_name, resolved_path, started_at, response, str(exc))
+        return _log_and_return("stat", connection_name, resolved_path, started_at, response, str(exc))
 
 
 def mkdir_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
     started_at = time.perf_counter()
-    provider_name: str | None = None
+    connection_name: str | None = None
     resolved_path = path
     try:
         provider, parsed = _resolve(path)
-        provider_name = provider.name
+        connection_name = provider.name
         resolved_path = parsed.path
         validate_bridge_auth(auth)
         result = provider.make_dir(parsed.path, auth)
         response = _success(data=result.model_dump(), metadata=_metadata(provider, "mkdir"))
-        return _log_and_return("mkdir", provider_name, resolved_path, started_at, response)
+        return _log_and_return("mkdir", connection_name, resolved_path, started_at, response)
     except Exception as exc:
         response = _failure_from_exception(exc)
-        return _log_and_return("mkdir", provider_name, resolved_path, started_at, response, str(exc))
+        return _log_and_return("mkdir", connection_name, resolved_path, started_at, response, str(exc))
 
 
 def delete_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
     started_at = time.perf_counter()
-    provider_name: str | None = None
+    connection_name: str | None = None
     resolved_path = path
     try:
         provider, parsed = _resolve(path)
-        provider_name = provider.name
+        connection_name = provider.name
         resolved_path = parsed.path
         validate_bridge_auth(auth)
         result = provider.delete_item(parsed.path, auth)
         response = _success(data=result.model_dump(), metadata=_metadata(provider, "delete"))
-        return _log_and_return("delete", provider_name, resolved_path, started_at, response)
+        return _log_and_return("delete", connection_name, resolved_path, started_at, response)
     except Exception as exc:
         response = _failure_from_exception(exc)
-        return _log_and_return("delete", provider_name, resolved_path, started_at, response, str(exc))
+        return _log_and_return("delete", connection_name, resolved_path, started_at, response, str(exc))
 
 
 def rename_path(
@@ -484,12 +484,12 @@ def rename_path(
     versioning: object = None,
 ) -> WfxResponse:
     started_at = time.perf_counter()
-    provider_name: str | None = None
+    connection_name: str | None = None
     operation_path = f"{source} -> {destination}"
     try:
         src_provider, src = _resolve(source)
         dst_provider, dst = _resolve(destination)
-        provider_name = src_provider.name
+        connection_name = src_provider.name
         operation_path = f"{src.path} -> {dst.path}"
         src_auth = _validated_auth(source_auth or auth)
         if src_provider.name != dst_provider.name:
@@ -497,7 +497,7 @@ def rename_path(
             target_folder, file_name = _split_parent_and_name(dst.path)
             if not file_name:
                 response = _failure(WfxErrorCode.BAD_PATH, "Cross-provider move requires a destination file name.")
-                return _log_and_return("rename", provider_name, operation_path, started_at, response, response.message)
+                return _log_and_return("rename", connection_name, operation_path, started_at, response, response.message)
             conflict_response = _cross_provider_existing_target_response(
                 "move",
                 src_provider,
@@ -509,18 +509,18 @@ def rename_path(
                 versioning,
             )
             if conflict_response is not None:
-                return _log_and_return("rename", provider_name, operation_path, started_at, conflict_response, conflict_response.message)
+                return _log_and_return("rename", connection_name, operation_path, started_at, conflict_response, conflict_response.message)
             download_result = src_provider.download_item(src.path, src_auth)
             if not download_result.success:
                 response = _failure(WfxErrorCode.INTERNAL_ERROR, _operation_failure_message("move download", download_result))
-                return _log_and_return("rename", provider_name, operation_path, started_at, response, response.message)
+                return _log_and_return("rename", connection_name, operation_path, started_at, response, response.message)
             if not download_result.content_base64:
                 response = _failure(WfxErrorCode.INTERNAL_ERROR, "Cross-provider move failed: source download returned no content.")
-                return _log_and_return("rename", provider_name, operation_path, started_at, response, response.message)
+                return _log_and_return("rename", connection_name, operation_path, started_at, response, response.message)
             upload_result = _upload_downloaded_content(dst_provider, target_folder, file_name, dst_auth, download_result.content_base64, _versioning_payload(versioning))
             if not upload_result.success:
                 response = _failure(WfxErrorCode.INTERNAL_ERROR, _operation_failure_message("move upload", upload_result))
-                return _log_and_return("rename", provider_name, operation_path, started_at, response, response.message)
+                return _log_and_return("rename", connection_name, operation_path, started_at, response, response.message)
             delete_result = src_provider.delete_item(src.path, src_auth)
             response = _success(
                 data=upload_result.model_dump(),
@@ -534,13 +534,13 @@ def rename_path(
                     "delete": delete_result.model_dump(),
                 },
             )
-            return _log_and_return("rename", provider_name, operation_path, started_at, response)
+            return _log_and_return("rename", connection_name, operation_path, started_at, response)
         result = src_provider.rename_item(src.path, dst.path, src_auth)
         response = _success(data=result.model_dump(), metadata=_metadata(src_provider, "rename"))
-        return _log_and_return("rename", provider_name, operation_path, started_at, response)
+        return _log_and_return("rename", connection_name, operation_path, started_at, response)
     except Exception as exc:
         response = _failure_from_exception(exc)
-        return _log_and_return("rename", provider_name, operation_path, started_at, response, str(exc))
+        return _log_and_return("rename", connection_name, operation_path, started_at, response, str(exc))
 
 
 def copy_path(
@@ -552,24 +552,24 @@ def copy_path(
     versioning: object = None,
 ) -> WfxResponse:
     started_at = time.perf_counter()
-    provider_name: str | None = None
+    connection_name: str | None = None
     operation_path = f"{source} -> {destination}"
     try:
         src_provider, src = _resolve(source)
         dst_provider, dst = _resolve(destination)
-        provider_name = f"{src_provider.name}->{dst_provider.name}"
+        connection_name = f"{src_provider.name}->{dst_provider.name}"
         operation_path = f"{src.path} -> {dst.path}"
         src_auth = _validated_auth(source_auth or auth)
         if src_provider.name == dst_provider.name:
             result = src_provider.copy_item(src.path, dst.path, src_auth)
             response = _success(data=result.model_dump(), metadata=_metadata(src_provider, "copy"))
-            return _log_and_return("copy", provider_name, operation_path, started_at, response)
+            return _log_and_return("copy", connection_name, operation_path, started_at, response)
 
         dst_auth = _validated_auth(destination_auth or auth)
         target_folder, file_name = _split_parent_and_name(dst.path)
         if not file_name:
             response = _failure(WfxErrorCode.BAD_PATH, "Cross-provider copy requires a destination file name.")
-            return _log_and_return("copy", provider_name, operation_path, started_at, response, response.message)
+            return _log_and_return("copy", connection_name, operation_path, started_at, response, response.message)
         conflict_response = _cross_provider_existing_target_response(
             "copy",
             src_provider,
@@ -581,18 +581,18 @@ def copy_path(
             versioning,
         )
         if conflict_response is not None:
-            return _log_and_return("copy", provider_name, operation_path, started_at, conflict_response, conflict_response.message)
+            return _log_and_return("copy", connection_name, operation_path, started_at, conflict_response, conflict_response.message)
         download_result = src_provider.download_item(src.path, src_auth)
         if not download_result.success:
             response = _failure(WfxErrorCode.INTERNAL_ERROR, _operation_failure_message("copy download", download_result))
-            return _log_and_return("copy", provider_name, operation_path, started_at, response, response.message)
+            return _log_and_return("copy", connection_name, operation_path, started_at, response, response.message)
         if not download_result.content_base64:
             response = _failure(WfxErrorCode.INTERNAL_ERROR, "Cross-provider copy failed: source download returned no content.")
-            return _log_and_return("copy", provider_name, operation_path, started_at, response, response.message)
+            return _log_and_return("copy", connection_name, operation_path, started_at, response, response.message)
         upload_result = _upload_downloaded_content(dst_provider, target_folder, file_name, dst_auth, download_result.content_base64, _versioning_payload(versioning))
         if not upload_result.success:
             response = _failure(WfxErrorCode.INTERNAL_ERROR, _operation_failure_message("copy upload", upload_result))
-            return _log_and_return("copy", provider_name, operation_path, started_at, response, response.message)
+            return _log_and_return("copy", connection_name, operation_path, started_at, response, response.message)
         response = _success(
             data=upload_result.model_dump(),
             metadata={
@@ -604,36 +604,36 @@ def copy_path(
                 "destination_provider": dst_provider.name,
             },
         )
-        return _log_and_return("copy", provider_name, operation_path, started_at, response)
+        return _log_and_return("copy", connection_name, operation_path, started_at, response)
     except Exception as exc:
         response = _failure_from_exception(exc)
-        return _log_and_return("copy", provider_name, operation_path, started_at, response, str(exc))
+        return _log_and_return("copy", connection_name, operation_path, started_at, response, str(exc))
 
 
 def download_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
     started_at = time.perf_counter()
-    provider_name: str | None = None
+    connection_name: str | None = None
     resolved_path = path
     try:
         provider, parsed = _resolve(path)
-        provider_name = provider.name
+        connection_name = provider.name
         resolved_path = parsed.path
         validate_bridge_auth(auth)
         result = provider.download_item(parsed.path, auth)
         response = _success(data=result.model_dump(), metadata=_metadata(provider, "download"))
-        return _log_and_return("download", provider_name, resolved_path, started_at, response)
+        return _log_and_return("download", connection_name, resolved_path, started_at, response)
     except Exception as exc:
         response = _failure_from_exception(exc)
-        return _log_and_return("download", provider_name, resolved_path, started_at, response, str(exc))
+        return _log_and_return("download", connection_name, resolved_path, started_at, response, str(exc))
 
 
 def open_download_stream(path: str, auth: BridgeAuthContext) -> WfxResponse | None:
     started_at = time.perf_counter()
-    provider_name: str | None = None
+    connection_name: str | None = None
     resolved_path = path
     try:
         provider, parsed = _resolve(path)
-        provider_name = provider.name
+        connection_name = provider.name
         resolved_path = parsed.path
         stream_item = getattr(provider, "stream_item", None)
         if not callable(stream_item):
@@ -641,30 +641,30 @@ def open_download_stream(path: str, auth: BridgeAuthContext) -> WfxResponse | No
         validate_bridge_auth(auth)
         result = stream_item(parsed.path, auth)
         response = _success(data=result, metadata=_metadata(provider, "download"))
-        return _log_and_return("download_raw_stream", provider_name, resolved_path, started_at, response)
+        return _log_and_return("download_raw_stream", connection_name, resolved_path, started_at, response)
     except Exception as exc:
         response = _failure_from_exception(exc)
-        return _log_and_return("download_raw_stream", provider_name, resolved_path, started_at, response, str(exc))
+        return _log_and_return("download_raw_stream", connection_name, resolved_path, started_at, response, str(exc))
 
 
 def upload_path(destination: str, file_name: str, auth: BridgeAuthContext, content_base64: str | None = None, source_path: str | None = None, overwrite: bool = False, versioning: dict | None = None) -> WfxResponse:
     started_at = time.perf_counter()
-    provider_name: str | None = None
+    connection_name: str | None = None
     resolved_path = destination
     try:
         provider, parsed = _resolve(destination)
-        provider_name = provider.name
+        connection_name = provider.name
         resolved_path = parsed.path
         validate_bridge_auth(auth)
         try:
             result = upload_with_preflight(provider, parsed.path, file_name, auth, content_base64=content_base64, source_path=source_path, overwrite=overwrite, versioning=_versioning_payload(versioning))
         except Exception as exc:
             response = _failure_from_exception(exc)
-            return _log_and_return("upload", provider_name, resolved_path, started_at, response, str(exc))
+            return _log_and_return("upload", connection_name, resolved_path, started_at, response, str(exc))
         response = _success(data=result.model_dump(), metadata=_metadata(provider, "upload"))
-        return _log_and_return("upload", provider_name, resolved_path, started_at, response)
+        return _log_and_return("upload", connection_name, resolved_path, started_at, response)
     except Exception as exc:
         response = _failure_from_exception(exc)
-        return _log_and_return("upload", provider_name, resolved_path, started_at, response, str(exc))
+        return _log_and_return("upload", connection_name, resolved_path, started_at, response, str(exc))
 
 
