@@ -302,3 +302,50 @@ def connection_driver_name(connection_name: str) -> str | None:
             section = _merge_dicts(section, _extract_provider_section(user_payload, connection_name))
     driver_name = section.get("driver")
     return driver_name.strip().lower() if isinstance(driver_name, str) and driver_name.strip() else None
+
+
+def load_connection_metadata(connection_name: str) -> dict[str, str | None]:
+    machine_dir, user_dir = _config_dirs()
+    base_path, user_path = _connection_config_paths(machine_dir, user_dir, connection_name)
+    payload = _read_json(base_path)
+    if payload is None:
+        return {
+            "name": connection_name,
+            "kind": "driver",
+            "driver": None,
+            "mount": None,
+            "display_name": None,
+            "description": None,
+        }
+    section = _extract_provider_section(payload, connection_name)
+    if user_dir is not None:
+        user_payload = _read_json(user_path)
+        if user_payload is not None:
+            section = _merge_dicts(section, _extract_provider_section(user_payload, connection_name))
+    return {
+        "name": connection_name,
+        "kind": "connection",
+        "driver": _string_or_none(section.get("driver")),
+        "mount": _string_or_none(section.get("mount")),
+        "display_name": _string_or_none(section.get("display_name")),
+        "description": _string_or_none(section.get("description")),
+    }
+
+
+def connection_metadata_by_name() -> dict[str, dict[str, str | None]]:
+    return {name: load_connection_metadata(name) for name in list_connection_config_names()}
+
+
+def driver_connection_names(driver_name: str) -> list[str]:
+    normalized = driver_name.strip().lower()
+    return sorted(
+        name
+        for name, metadata in connection_metadata_by_name().items()
+        if (metadata.get("driver") or "").strip().lower() == normalized
+    )
+
+
+def _string_or_none(value: Any) -> str | None:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None

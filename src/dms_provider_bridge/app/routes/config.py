@@ -10,7 +10,7 @@ from typing import Any
 from fastapi import APIRouter, Form, HTTPException
 from fastapi.responses import HTMLResponse
 
-from dms_provider_bridge.core.config_loader import load_config
+from dms_provider_bridge.core.config_loader import driver_connection_names, load_config
 from dms_provider_bridge.core.paths import MACHINE_CONFIG_DIR, PROJECT_ROOT
 from dms_provider_bridge.services.provider_service import reload_provider_cache
 
@@ -127,6 +127,36 @@ def _payload_display_name(payload: dict[str, Any], key: str) -> str:
         if isinstance(name, str) and name.strip():
             return name.strip()
     return ""
+
+
+def _payload_section(payload: dict[str, Any], key: str) -> dict[str, Any]:
+    section = payload.get(key)
+    return section if isinstance(section, dict) else {}
+
+
+def _extra_table_headers(section: str) -> list[str]:
+    if section == "connections":
+        return ["Driver", "Mount"]
+    if section == "drivers":
+        return ["Connections"]
+    return []
+
+
+def _extra_table_cells(section: str, payload: dict[str, Any], key: str) -> list[str]:
+    payload_section = _payload_section(payload, key)
+    if section == "connections":
+        return [
+            _string_cell(payload_section.get("driver")),
+            _string_cell(payload_section.get("mount")),
+        ]
+    if section == "drivers":
+        names = driver_connection_names(key)
+        return [html.escape(", ".join(names) if names else "")]
+    return []
+
+
+def _string_cell(value: Any) -> str:
+    return html.escape(value.strip()) if isinstance(value, str) and value.strip() else ""
 
 
 def _file_mode(section: str, file_name: str) -> str:
@@ -377,17 +407,20 @@ def config_section(section: str) -> HTMLResponse:
     if _section_can_create(section):
         new_link = f'<p><a class="badge badge-read-only" href="/config/{html.escape(section)}/new">NEW {_SECTION_TITLES[section][:-1].upper()}</a></p>'
     rows = []
+    extra_headers = "".join(f"<th>{html.escape(header)}</th>" for header in _extra_table_headers(section))
     for path in files:
         payload = _read_json_file(path)
         key = _payload_key(payload, path.stem)
         display_name = _payload_display_name(payload, key)
         mode = _file_mode(section, path.name)
         badge_class = _mode_badge_class(mode)
+        extra_cells = "".join(f"<td>{cell}</td>" for cell in _extra_table_cells(section, payload, key))
         rows.append(
             "<tr>"
             f'<td><a href="/config/{html.escape(section)}/{html.escape(path.name)}">{html.escape(path.name)}</a></td>'
             f"<td>{html.escape(key)}</td>"
             f"<td>{html.escape(display_name)}</td>"
+            f"{extra_cells}"
             f"<td>{html.escape(str(path))}</td>"
             f'<td><span class="badge {badge_class}">{html.escape(mode.upper())}</span></td>'
             "</tr>"
@@ -403,7 +436,7 @@ def config_section(section: str) -> HTMLResponse:
     {new_link}
     <p class="muted">Directory: {html.escape(str(directory))}</p>
     <table>
-      <tr><th>File</th><th>Key</th><th>Name</th><th>Path</th><th>Mode</th></tr>
+      <tr><th>File</th><th>Key</th><th>Name</th>{extra_headers}<th>Path</th><th>Mode</th></tr>
       {''.join(rows)}
     </table>
   </div>

@@ -6,6 +6,7 @@ import tempfile
 import time
 
 from dms_provider_bridge.adapters.commander_api import WfxErrorCode, build_wfx_path, parse_wfx_path
+from dms_provider_bridge.core.config_loader import load_connection_metadata
 from dms_provider_bridge.core.logging import get_logger
 from dms_provider_bridge.core.errors import ProviderNotFoundError
 from dms_provider_bridge.models.bridge import BridgeAuthContext, WfxResponse
@@ -347,9 +348,15 @@ def provider_detail_path(provider_name: str) -> WfxResponse:
     started_at = time.perf_counter()
     try:
         provider = get_provider(provider_name)
+        connection_metadata = load_connection_metadata(provider.name)
         response = _success(
             data={
                 "name": provider.name,
+                "kind": connection_metadata.get("kind") or "driver",
+                "driver": connection_metadata.get("driver") or provider.name,
+                "mount": connection_metadata.get("mount") or build_wfx_path(provider.name, "/"),
+                "display_name": connection_metadata.get("display_name"),
+                "description": connection_metadata.get("description"),
                 "enabled": provider.name in list_registered_providers(),
                 "auth": _provider_auth_requirements(provider),
                 "capabilities": _provider_capabilities(provider),

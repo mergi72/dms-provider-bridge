@@ -81,6 +81,10 @@ def test_bridge_provider_detail_returns_auth_and_capabilities() -> None:
     body = response.json()
     assert body["ok"] is True
     assert body["data"]["name"] == "alfresco"
+    assert body["data"]["kind"] == "connection"
+    assert body["data"]["driver"] == "alfresco"
+    assert body["data"]["mount"] == "alfresco:/"
+    assert body["data"]["display_name"] == "Alfresco"
     assert body["data"]["enabled"] is True
     assert body["data"]["auth"] == {
         "mode": "windows",

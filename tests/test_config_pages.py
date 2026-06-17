@@ -83,6 +83,28 @@ def test_config_driver_json_endpoint() -> None:
     assert payload["data"]["key"] == "driver_name"
 
 
+def test_config_connections_table_shows_driver_and_mount() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/config/connections")
+
+    assert response.status_code == 200
+    assert "<th>Driver</th>" in response.text
+    assert "<th>Mount</th>" in response.text
+    assert "alfresco:/" in response.text
+    assert ">alfresco</td>" in response.text
+
+
+def test_config_drivers_table_shows_connections() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/config/drivers")
+
+    assert response.status_code == 200
+    assert "<th>Connections</th>" in response.text
+    assert "alfresco" in response.text
+
+
 def test_config_new_driver_page_uses_template() -> None:
     client = TestClient(create_app())
 
