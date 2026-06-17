@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.4-beta - 2026-06-17
+
+- Added preferred `connection` keys to bridge response metadata while keeping legacy `provider` keys.
+- Added `source_connection`, `target_connection`, and `destination_connection` metadata for cross-connection operations and version conflicts.
+- Added `connection=...` to bridge operation log lines while keeping `provider=...` for existing log readers.
+- Documented compatibility aliases for `connection`/`provider` request and response fields.
+- Release/version bump to `0.7.4-beta`.
+
 ## 0.7.3-beta - 2026-06-17
 
 - Added `connection` request aliases for legacy `/listing`, `/edit`, and `/transfer` route payloads.

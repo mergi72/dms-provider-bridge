@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import logging
 from unittest.mock import Mock
 
 import pytest
@@ -42,6 +43,22 @@ def _credential_auth(credential_id: str) -> BridgeAuthContext:
     return BridgeAuthContext(mode="credentials", credential_id=credential_id)
 
 
+def test_list_path_logs_connection_and_legacy_provider_alias(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    provider = DummyProvider("edocat")
+    provider.list_items.return_value = ListingResult(provider="edocat", path="/folder", total=0, items=[])
+
+    monkeypatch.setattr(bridge_service_module, "validate_bridge_auth", lambda auth: None)
+    monkeypatch.setattr(bridge_service_module, "_resolve", lambda path: (provider, type("P", (), {"path": "/folder"})()))
+
+    with caplog.at_level(logging.INFO, logger="dms_provider_bridge.services.bridge_service"):
+        response = bridge_service_module.list_path("edocat:/folder", _auth())
+
+    assert response.ok is True
+    assert response.metadata["connection"] == "edocat"
+    assert response.metadata["provider"] == "edocat"
+    assert "bridge_operation operation=list connection=edocat provider=edocat path=/folder" in caplog.text
+
+
 def test_copy_path_same_provider_delegates_to_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     provider = DummyProvider("edocat")
     provider.copy_item.return_value = OperationResult(success=True, operation="copy", provider="edocat")
@@ -53,6 +70,8 @@ def test_copy_path_same_provider_delegates_to_provider(monkeypatch: pytest.Monke
 
     assert response.ok is True
     provider.copy_item.assert_called_once_with("/source.txt", "/target.txt", _auth())
+    assert response.metadata["connection"] == "edocat"
+    assert response.metadata["provider"] == "edocat"
 
 
 def test_copy_path_cross_provider_downloads_and_uploads(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -91,6 +110,10 @@ def test_copy_path_cross_provider_downloads_and_uploads(monkeypatch: pytest.Monk
         auth=_auth(),
     )
     assert response.metadata["transfer"] == "download-upload"
+    assert response.metadata["source_connection"] == "edocat"
+    assert response.metadata["destination_connection"] == "alfresco"
+    assert response.metadata["source_provider"] == "edocat"
+    assert response.metadata["destination_provider"] == "alfresco"
 
 
 def test_copy_path_cross_provider_passes_versioning_to_upload(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -166,9 +189,15 @@ def test_copy_path_cross_provider_existing_target_returns_version_conflict(monke
     assert response.metadata["reason"] == "target_exists"
     assert response.metadata["allowed_actions"] == ["upload_as_new_version", "cancel"]
     assert response.metadata["source_version"] == "1.2.0"
+    assert response.metadata["source_connection"] == "edocat"
+    assert response.metadata["source_provider"] == "edocat"
     assert response.metadata["source_version_type"] == "MINOR"
     assert response.metadata["target_version"] == "1.0.0"
+    assert response.metadata["target_connection"] == "alfresco"
+    assert response.metadata["target_provider"] == "alfresco"
     assert response.metadata["target_version_type"] == "MAJOR"
+    assert response.metadata["connection"] == "alfresco"
+    assert response.metadata["provider"] == "alfresco"
     assert response.metadata["current_version"] == "1.0.0"
     src_provider.download_item.assert_not_called()
     dst_provider.upload_item.assert_not_called()
@@ -292,6 +321,10 @@ def test_rename_path_cross_provider_downloads_uploads_and_deletes(monkeypatch: p
     )
     src_provider.delete_item.assert_called_once_with("/source.txt", _auth())
     assert response.metadata["transfer"] == "download-upload-delete"
+    assert response.metadata["source_connection"] == "alfresco"
+    assert response.metadata["destination_connection"] == "edocat"
+    assert response.metadata["source_provider"] == "alfresco"
+    assert response.metadata["destination_provider"] == "edocat"
 
 
 def test_rename_path_cross_provider_passes_versioning_to_upload(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -369,7 +402,10 @@ def test_rename_path_cross_provider_existing_target_returns_version_conflict_wit
     assert response.metadata["operation"] == "move"
     assert response.metadata["transfer"] == "download-upload-delete"
     assert response.metadata["source_version"] == "1.2.0"
+    assert response.metadata["source_connection"] == "edocat"
     assert response.metadata["target_version"] == "1.0.0"
+    assert response.metadata["target_connection"] == "alfresco"
+    assert response.metadata["connection"] == "alfresco"
     src_provider.download_item.assert_not_called()
     dst_provider.upload_item.assert_not_called()
     src_provider.delete_item.assert_not_called()

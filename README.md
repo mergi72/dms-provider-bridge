@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Beta-yellowgreen)](https://github.com/mergi72/dms-provider-bridge)
-[![Bridge Version](https://img.shields.io/badge/Bridge-v0.7.3--beta-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.7.3-beta)
+[![Bridge Version](https://img.shields.io/badge/Bridge-v0.7.4--beta-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.7.4-beta)
 [![Bridge Setup](https://img.shields.io/badge/Setup-v0.5.0--beta-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.5.0-beta)
 
 Current development branch: `develop`  
@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.7.3-beta`
-- Latest bridge-only release: `v0.7.3-beta`
+- Bridge repository latest changelog version: `0.7.4-beta`
+- Latest bridge-only release: `v0.7.4-beta`
 
 ## Configuration Model
 
@@ -47,6 +47,13 @@ Runtime naming:
 - Driver modules such as `alfresco.py` and `edocat.py` remain the concrete DMS implementations behind those connections.
 - Runtime discovery treats those modules as driver factories.
 - `dms_provider_bridge.drivers` is a compatibility package that currently exposes the existing `providers` modules without moving files.
+
+Compatibility aliases:
+
+- New request payloads should use `connection` or `connection_name` for the user-visible mount.
+- Existing request payloads that still send `provider` or `provider_name` remain accepted as legacy aliases for `connection`.
+- Responses and logs may include both `connection` and `provider` keys during the 0.7 beta series. `connection` is the preferred key; `provider` is kept for compatibility with existing tools and logs.
+- When both names are supplied, they must point to the same value. A mismatch is treated as a validation/configuration error.
 
 Current UI rules:
 

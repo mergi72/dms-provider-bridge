@@ -47,6 +47,7 @@ def _resolve(path: str):
 
 def _metadata(provider, operation: str) -> dict[str, str | None]:
     return {
+        "connection": provider.name,
         "provider": provider.name,
         "upstream_auth_scheme": provider.upstream_auth_scheme,
         "upstream_endpoint": provider.bridge_endpoint_for(operation),
@@ -88,6 +89,7 @@ def _split_parent_and_name(path: str) -> tuple[str, str]:
 
 def _item_version_metadata(prefix: str, provider_name: str, path: str, item: DmsItem | None) -> dict[str, object]:
     return {
+        f"{prefix}_connection": provider_name,
         f"{prefix}_provider": provider_name,
         f"{prefix}_path": path,
         f"{prefix}_id": item.id if item is not None else None,
@@ -124,6 +126,7 @@ def _cross_provider_target_conflict_response(
     metadata.update(_item_version_metadata("target", dst_provider.name, dst_path, dst_item))
     metadata.update(
         {
+            "connection": dst_provider.name,
             "provider": dst_provider.name,
             "path": dst_path,
             "name": dst_item.name,
@@ -314,20 +317,21 @@ def _provider_auth_requirements(provider) -> dict[str, object]:
 
 def _log_and_return(
     operation: str,
-    provider: str | None,
+    connection: str | None,
     path: str,
     started_at: float,
     response: WfxResponse,
     error: str | None = None,
 ) -> WfxResponse:
     duration_ms = int((time.perf_counter() - started_at) * 1000)
-    provider_value = provider or "-"
+    connection_value = connection or "-"
     error_value = error or response.message or ""
     level_method = _LOGGER.info if response.ok else _LOGGER.warning
     level_method(
-        "bridge_operation operation=%s provider=%s path=%s error=%s duration_ms=%d",
+        "bridge_operation operation=%s connection=%s provider=%s path=%s error=%s duration_ms=%d",
         operation,
-        provider_value,
+        connection_value,
+        connection_value,
         path,
         error_value,
         duration_ms,
@@ -523,6 +527,8 @@ def rename_path(
                 metadata={
                     "operation": "rename",
                     "transfer": "download-upload-delete",
+                    "source_connection": src_provider.name,
+                    "destination_connection": dst_provider.name,
                     "source_provider": src_provider.name,
                     "destination_provider": dst_provider.name,
                     "delete": delete_result.model_dump(),
@@ -592,6 +598,8 @@ def copy_path(
             metadata={
                 "operation": "copy",
                 "transfer": "download-upload",
+                "source_connection": src_provider.name,
+                "destination_connection": dst_provider.name,
                 "source_provider": src_provider.name,
                 "destination_provider": dst_provider.name,
             },
