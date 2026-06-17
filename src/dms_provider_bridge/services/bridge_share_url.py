@@ -5,7 +5,7 @@ from urllib.parse import unquote
 from dms_provider_bridge.adapters.commander_api import WfxErrorCode, build_wfx_path
 from dms_provider_bridge.models.bridge import BridgeAuthContext, WfxResponse
 from dms_provider_bridge.services.bridge_errors import map_exception
-from dms_provider_bridge.services.provider_service import get_provider
+from dms_provider_bridge.services.provider_service import get_connection_runtime
 
 
 def _success(data: object = None, message: str | None = None, metadata: dict | None = None) -> WfxResponse:
@@ -32,7 +32,7 @@ def _normalize_provider_path(path: str, empty_message: str) -> str | WfxResponse
 
 def resolve_share_url(share_url: str, provider: str) -> WfxResponse:
     try:
-        provider_instance = get_provider(provider)
+        provider_instance = get_connection_runtime(provider)
         if not provider_instance.supports_share_url():
             return _failure(WfxErrorCode.NOT_SUPPORTED, f"Provider does not support share URL resolution: {provider}")
 

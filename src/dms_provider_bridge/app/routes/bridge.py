@@ -15,7 +15,7 @@ from dms_provider_bridge.adapters.commander_api import WfxErrorCode
 from dms_provider_bridge.core.config_loader import load_config
 from dms_provider_bridge.core.logging import get_logger
 from dms_provider_bridge.models.bridge import BridgeAuthContext, WfxMoveRequest, WfxPathRequest, WfxShareUrlBrowseRequest, WfxShareUrlRequest, WfxShareUrlValidateRequest, WfxUploadRequest
-from dms_provider_bridge.services.bridge_service import copy_path, delete_path, download_path, list_path, mkdir_path, open_download_stream, provider_detail_path, providers_path, rename_path, stat_path, upload_path
+from dms_provider_bridge.services.bridge_service import connection_detail_path, connections_path, copy_path, delete_path, download_path, list_path, mkdir_path, open_download_stream, rename_path, stat_path, upload_path
 from dms_provider_bridge.services.provider_service import audit_connection_runtime
 from dms_provider_bridge.services.bridge_share_url import browse_share_url, resolve_share_url
 
@@ -285,30 +285,30 @@ async def bridge_upload_raw(
                 _LOGGER.warning("bridge_upload_raw cleanup_failed path=%s", temp_path)
 
 
-@router.get("/providers")
-def bridge_providers() -> dict:
-    payload = providers_path().model_dump()
+@router.get("/connections")
+def bridge_connections() -> dict:
+    payload = connections_path().model_dump()
     data = payload.get("data")
     if isinstance(data, dict):
-        payload["providers"] = data.get("providers", [])
         payload["connections"] = data.get("connections", [])
+        payload["connection_names"] = data.get("connection_names", [])
         payload["available_drivers"] = data.get("available_drivers", [])
-        payload["default_provider"] = data.get("default_provider")
+        payload["default_connection"] = data.get("default_connection")
     return payload
 
 
-@router.get("/providers/audit")
-def bridge_providers_audit() -> dict:
+@router.get("/connections/audit")
+def bridge_connections_audit() -> dict:
     return {
         "ok": True,
         "data": audit_connection_runtime(),
-        "metadata": {"operation": "providers_audit"},
+        "metadata": {"operation": "connections_audit"},
     }
 
 
-@router.get("/providers/{provider_name}")
-def bridge_provider_detail(provider_name: str) -> dict:
-    return provider_detail_path(provider_name).model_dump()
+@router.get("/connections/{connection_name}")
+def bridge_connection_detail(connection_name: str) -> dict:
+    return connection_detail_path(connection_name).model_dump()
 
 
 @share_url_router.post(

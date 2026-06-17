@@ -70,16 +70,6 @@ def _driver_factories() -> dict[str, Callable[[], Provider]]:
     return _DRIVER_FACTORIES
 
 
-def _discover_provider_factories() -> dict[str, Callable[[], Provider]]:
-    """Compatibility alias for the old provider-factory name."""
-    return _discover_driver_factories()
-
-
-def _provider_factories() -> dict[str, Callable[[], Provider]]:
-    """Compatibility alias for the old provider-factory registry."""
-    return _driver_factories()
-
-
 def _normalize_connection_name(connection_name: str | None) -> str | None:
     if connection_name is None:
         return None
@@ -93,34 +83,26 @@ def _normalize_driver_name(driver_name: str | None) -> str | None:
     return _normalize_connection_name(driver_name)
 
 
-def _normalize_provider_name(provider_name: str | None) -> str | None:
-    return _normalize_connection_name(provider_name)
-
-
 def _resolve_default_connection_name() -> str:
-    """Return default connection name from config or legacy provider env/config."""
+    """Return default connection name from config or environment."""
     registered = set(list_registered_connections())
     try:
         config = load_config()
-        from_config = _normalize_connection_name(config.get("provider", {}).get("default"))
+        connection_cfg = config.get("connection") if isinstance(config, dict) else None
+        from_config = _normalize_connection_name(connection_cfg.get("default") if isinstance(connection_cfg, dict) else None)
         if from_config and from_config in registered:
             return from_config
     except Exception:
         pass
-    from_env = _normalize_connection_name(os.getenv("DMS_PROVIDER_DEFAULT_PROVIDER"))
+    from_env = _normalize_connection_name(os.getenv("DMS_PROVIDER_DEFAULT_CONNECTION"))
     if from_env and from_env in registered:
         return from_env
     if registered:
         raise ConfigurationError(
-            "Default connection is not configured. Set provider.default in bridge.json "
-            "or DMS_PROVIDER_DEFAULT_PROVIDER."
+            "Default connection is not configured. Set connection.default in bridge.json "
+            "or DMS_PROVIDER_DEFAULT_CONNECTION."
         )
     raise ConfigurationError("No connections are registered.")
-
-
-def _resolve_default_provider_name() -> str:
-    """Compatibility alias for legacy provider-named callers."""
-    return _resolve_default_connection_name()
 
 
 def get_connection_runtime(connection_name: str | None = None) -> Provider:
@@ -139,18 +121,6 @@ def get_connection_runtime(connection_name: str | None = None) -> Provider:
             provider = factory()
         _PROVIDER_CACHE[name] = provider
     return provider
-
-
-def get_provider(provider_name: str | None = None) -> Provider:
-    """Compatibility wrapper for legacy provider-named callers.
-
-    Public WFX endpoints still expose "providers", but the runtime name now
-    represents a configured connection/mount.
-    """
-    try:
-        return get_connection_runtime(provider_name)
-    except ProviderNotFoundError as exc:
-        raise ProviderNotFoundError(str(exc).replace("Connection", "Provider", 1)) from exc
 
 
 def reload_provider_cache() -> None:
@@ -174,9 +144,8 @@ def list_registered_connections() -> list[str]:
 def runtime_registry_snapshot() -> dict[str, object]:
     """Return the current ABC -> driver -> connection runtime view.
 
-    WFX still calls these names "providers" for compatibility, but the
-    exported names are configured connections/mounts when connection JSON
-    exists.
+    Runtime names are configured connections/mounts. Drivers are only
+    implementation modules behind those connections.
     """
     factories = _driver_factories()
     registered = set(list_registered_connections())
@@ -199,27 +168,15 @@ def runtime_registry_snapshot() -> dict[str, object]:
         "provider_abc": "provider",
         "available_drivers": sorted(factories.keys()),
         "connections": [connection.as_dict() for connection in connections],
-        "wfx_providers": sorted(registered),
-        "compatibility": {
-            "wfx_provider_names_are_connections": True,
-            "legacy_provider_endpoint": "/bridge/wfx/providers",
-        },
+        "wfx_connections": sorted(registered),
     }
 
 
-def list_registered_providers() -> list[str]:
-    """Compatibility wrapper for WFX provider endpoints.
-
-    Returned names are connection/mount keys when connection config exists.
-    """
-    return list_registered_connections()
-
-
 def audit_connection_runtime() -> dict[str, object]:
-    """Check that configured connections are visible as runtime WFX providers."""
+    """Check that configured connections are visible as runtime WFX connections."""
     factories = _driver_factories()
     snapshot = runtime_registry_snapshot()
-    registered = set(snapshot["wfx_providers"])
+    registered = set(snapshot["wfx_connections"])
     rows: list[dict[str, object]] = []
     mount_owners: dict[str, str] = {}
 
@@ -286,14 +243,10 @@ def audit_connection_runtime() -> dict[str, object]:
     return {
         "ok": all(bool(row["ok"]) for row in rows),
         "connections": rows,
-        "registered_providers": sorted(registered),
+        "registered_connections": sorted(registered),
         "available_drivers": sorted(factories.keys()),
         "runtime_registry": snapshot,
     }
-
-
-def get_default_provider_name() -> str:
-    return _resolve_default_provider_name()
 
 
 def get_default_connection_name() -> str:

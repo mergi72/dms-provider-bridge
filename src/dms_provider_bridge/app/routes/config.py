@@ -14,7 +14,7 @@ from dms_provider_bridge.core.config_loader import driver_connection_names, load
 from dms_provider_bridge.core.paths import MACHINE_CONFIG_DIR, PROJECT_ROOT
 from dms_provider_bridge.models.bridge import BridgeAuthContext
 from dms_provider_bridge.services.bridge_service import list_path
-from dms_provider_bridge.services.provider_service import audit_connection_runtime, get_provider, reload_provider_cache
+from dms_provider_bridge.services.provider_service import audit_connection_runtime, get_connection_runtime, reload_provider_cache
 
 router = APIRouter()
 
@@ -531,16 +531,16 @@ def config_audit() -> HTMLResponse:
     status_class = "notice" if audit["ok"] else "read-only-warning"
     status_text = "Connection runtime audit passed." if audit["ok"] else "Connection runtime audit found issues."
     registry = audit.get("runtime_registry") if isinstance(audit, dict) else None
-    wfx_providers = registry.get("wfx_providers") if isinstance(registry, dict) else audit["registered_providers"]
-    registered = ", ".join(str(name) for name in wfx_providers)
+    wfx_connections = registry.get("wfx_connections") if isinstance(registry, dict) else audit["registered_connections"]
+    registered = ", ".join(str(name) for name in wfx_connections)
     drivers = ", ".join(str(name) for name in audit["available_drivers"])
     body = f"""
 <section class="panel">
   <h2>Runtime Audit</h2>
   <div class="panel-content">
     <p class="{status_class}">{html.escape(status_text)}</p>
-    <p class="help">Checks the ABC -> driver -> connection runtime registry. WFX provider names are connection/mount names for compatibility.</p>
-    <p class="muted">WFX providers / connections: {html.escape(registered)}</p>
+    <p class="help">Checks the ABC -> driver -> connection runtime registry. WFX exposes connection/mount names.</p>
+    <p class="muted">WFX connections: {html.escape(registered)}</p>
     <p class="muted">Available drivers: {html.escape(drivers)}</p>
     <table>
       <tr><th>Connection</th><th>Driver</th><th>Mount</th><th>Runtime Driver</th><th>Runtime Mount</th><th>Status</th></tr>
@@ -653,7 +653,7 @@ def config_test(section: str, file_name: str) -> HTMLResponse:
     key = _payload_key(payload, path.stem)
     try:
         reload_provider_cache()
-        provider = get_provider(key)
+        provider = get_connection_runtime(key)
         config = getattr(provider, "config", {})
         credentials = config.get("credentials") if isinstance(config, dict) else None
         auth_mode = credentials.get("mode") if isinstance(credentials, dict) else None

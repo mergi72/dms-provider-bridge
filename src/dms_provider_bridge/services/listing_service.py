@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dms_provider_bridge.adapters.commander_api import parse_wfx_path
 from dms_provider_bridge.models.listing import ListingResult
-from dms_provider_bridge.services.provider_service import get_provider
+from dms_provider_bridge.services.provider_service import get_connection_runtime
 
 
 def list_items(path: str, provider_name: str | None = None) -> ListingResult:
@@ -17,6 +17,6 @@ def list_items(path: str, provider_name: str | None = None) -> ListingResult:
         except ValueError:
             pass
 
-    provider = get_provider(resolved_provider_name)
+    provider = get_connection_runtime(resolved_provider_name)
     return provider.list_items(resolved_path)
 

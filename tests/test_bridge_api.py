@@ -60,26 +60,26 @@ def test_health() -> None:
     assert data["status"] == "ok"
 
 
-def test_bridge_providers() -> None:
+def test_bridge_connections() -> None:
     client = TestClient(create_app())
-    response = client.get("/bridge/wfx/providers")
+    response = client.get("/bridge/wfx/connections")
 
     assert response.status_code == 200
     body = response.json()
     assert body["ok"] is True
-    assert set(body["data"]["providers"]) >= {"edocat", "alfresco"}
     assert set(body["data"]["available_drivers"]) >= {"edocat", "alfresco"}
     assert {item["name"] for item in body["data"]["connections"]} >= {"edocat", "alfresco"}
-    assert body["data"]["default_provider"] is None or body["data"]["default_provider"] in body["data"]["providers"]
-    assert body["providers"] == body["data"]["providers"]
+    assert set(body["data"]["connection_names"]) >= {"edocat", "alfresco"}
+    assert body["data"]["default_connection"] is None or body["data"]["default_connection"] in body["data"]["connection_names"]
     assert body["connections"] == body["data"]["connections"]
+    assert body["connection_names"] == body["data"]["connection_names"]
     assert body["available_drivers"] == body["data"]["available_drivers"]
-    assert body["default_provider"] == body["data"]["default_provider"]
+    assert body["default_connection"] == body["data"]["default_connection"]
 
 
-def test_bridge_provider_detail_returns_auth_and_capabilities() -> None:
+def test_bridge_connection_detail_returns_auth_and_capabilities() -> None:
     client = TestClient(create_app())
-    response = client.get("/bridge/wfx/providers/alfresco")
+    response = client.get("/bridge/wfx/connections/alfresco")
 
     assert response.status_code == 200
     body = response.json()
@@ -112,12 +112,12 @@ def test_bridge_provider_detail_returns_auth_and_capabilities() -> None:
         "majorVersion": False,
         "comment_supported": True,
     }
-    assert body["metadata"]["operation"] == "provider_detail"
+    assert body["metadata"]["operation"] == "connection_detail"
 
 
-def test_bridge_provider_audit_returns_connection_runtime_status() -> None:
+def test_bridge_connection_audit_returns_connection_runtime_status() -> None:
     client = TestClient(create_app())
-    response = client.get("/bridge/wfx/providers/audit")
+    response = client.get("/bridge/wfx/connections/audit")
 
     assert response.status_code == 200
     body = response.json()
@@ -129,9 +129,8 @@ def test_bridge_provider_audit_returns_connection_runtime_status() -> None:
     assert by_name["alfresco"]["runtime_driver"] == "alfresco"
     assert by_name["alfresco"]["runtime_mount"] == "alfresco:/"
     assert by_name["alfresco"]["issues"] == []
-    assert body["data"]["runtime_registry"]["compatibility"]["wfx_provider_names_are_connections"] is True
-    assert set(body["data"]["runtime_registry"]["wfx_providers"]) >= {"edocat", "alfresco"}
-    assert body["metadata"]["operation"] == "providers_audit"
+    assert set(body["data"]["runtime_registry"]["wfx_connections"]) >= {"edocat", "alfresco"}
+    assert body["metadata"]["operation"] == "connections_audit"
 
 
 def test_openapi_upload_versioning_schema_is_typed() -> None:
@@ -151,9 +150,9 @@ def test_openapi_upload_versioning_schema_is_typed() -> None:
     assert versioning_schema["properties"]["majorVersion"]["default"] is False
 
 
-def test_bridge_provider_detail_unknown_provider() -> None:
+def test_bridge_connection_detail_unknown_connection() -> None:
     client = TestClient(create_app())
-    response = client.get("/bridge/wfx/providers/unknown")
+    response = client.get("/bridge/wfx/connections/unknown")
 
     assert response.status_code == 200
     body = response.json()
@@ -195,7 +194,7 @@ def test_bridge_stat_upstream_error_returns_upstream_status(monkeypatch: pytest.
     assert response.json()["ok"] is False
 
 
-def test_bridge_root_list_returns_provider_folders_without_auth() -> None:
+def test_bridge_root_list_returns_connection_folders_without_auth() -> None:
     client = TestClient(create_app())
     response = client.post("/bridge/wfx/list", json={"path": "/"})
 
@@ -204,13 +203,13 @@ def test_bridge_root_list_returns_provider_folders_without_auth() -> None:
     assert body["ok"] is True
     assert body["data"]["provider"] == "bridge"
     assert body["data"]["path"] == "/"
-    provider_names = {item["name"] for item in body["data"]["items"]}
-    assert provider_names >= {"edocat", "alfresco"}
+    connection_names = {item["name"] for item in body["data"]["items"]}
+    assert connection_names >= {"edocat", "alfresco"}
     assert all(item["is_folder"] is True for item in body["data"]["items"])
-    assert body["metadata"]["provider_root"] is True
+    assert body["metadata"]["connection_root"] is True
 
 
-def test_bridge_root_list_returns_providers_when_default_is_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_bridge_root_list_returns_connections_when_default_is_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(bridge_service, "get_default_connection_name", lambda: (_ for _ in ()).throw(RuntimeError("bad default")))
     client = TestClient(create_app())
 
@@ -220,7 +219,7 @@ def test_bridge_root_list_returns_providers_when_default_is_unavailable(monkeypa
     body = response.json()
     assert body["ok"] is True
     assert {item["name"] for item in body["data"]["items"]} >= {"edocat", "alfresco"}
-    assert body["metadata"]["default_provider"] is None
+    assert body["metadata"]["default_connection"] is None
 
 
 def test_resolve_share_url() -> None:

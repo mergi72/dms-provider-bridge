@@ -70,7 +70,7 @@ def _deduplicate_repeated_leaf(path: str) -> str | None:
     return "/" + "/".join(parts[:-1])
 
 
-def _is_provider_root_path(path: str | None) -> bool:
+def _is_connection_root_path(path: str | None) -> bool:
     normalized = (path or "").strip().replace("\\", "/")
     return normalized in {"", "/"}
 
@@ -239,26 +239,26 @@ def _validated_auth(auth: BridgeAuthContext) -> BridgeAuthContext:
     return auth_copy
 
 
-def _provider_root_listing() -> ListingResult:
-    providers = list_registered_connections()
+def _connection_root_listing() -> ListingResult:
+    connections = list_registered_connections()
     items = [
         DmsItem(
-            id=provider_name,
-            name=provider_name,
-            path=build_wfx_path(provider_name, "/"),
+            id=connection_name,
+            name=connection_name,
+            path=build_wfx_path(connection_name, "/"),
             is_folder=True,
-            mime_type="application/x-dms-provider",
+            mime_type="application/x-dms-connection",
         )
-        for provider_name in providers
+        for connection_name in connections
     ]
     return ListingResult(provider="bridge", path="/", total=len(items), items=items)
 
 
-def _default_provider_name_or_none() -> str | None:
+def _default_connection_name_or_none() -> str | None:
     try:
         return get_default_connection_name()
     except Exception as exc:
-        _LOGGER.warning("default_provider_unavailable error=%s", exc)
+        _LOGGER.warning("default_connection_unavailable error=%s", exc)
         return None
 
 
@@ -335,27 +335,27 @@ def _log_and_return(
     return response
 
 
-def providers_path() -> WfxResponse:
+def connections_path() -> WfxResponse:
     started_at = time.perf_counter()
     registry = runtime_registry_snapshot()
-    providers = list(registry["wfx_providers"])
-    default_provider = _default_provider_name_or_none()
+    connections = list(registry["wfx_connections"])
+    default_connection = _default_connection_name_or_none()
     response = _success(
         data={
-            "providers": providers,
             "connections": registry["connections"],
             "available_drivers": registry["available_drivers"],
-            "default_provider": default_provider,
+            "connection_names": connections,
+            "default_connection": default_connection,
         },
-        metadata={"operation": "providers"},
+        metadata={"operation": "connections"},
     )
-    return _log_and_return("providers", None, "/", started_at, response)
+    return _log_and_return("connections", None, "/", started_at, response)
 
 
-def provider_detail_path(provider_name: str) -> WfxResponse:
+def connection_detail_path(connection_name: str) -> WfxResponse:
     started_at = time.perf_counter()
     try:
-        provider = get_connection_runtime(provider_name)
+        provider = get_connection_runtime(connection_name)
         connection_metadata = load_connection_metadata(provider.name)
         response = _success(
             data={
@@ -370,12 +370,12 @@ def provider_detail_path(provider_name: str) -> WfxResponse:
                 "capabilities": _provider_capabilities(provider),
                 "versioning": _provider_versioning(provider),
             },
-            metadata={"operation": "provider_detail", "provider": provider.name},
+            metadata={"operation": "connection_detail", "connection": provider.name},
         )
-        return _log_and_return("provider_detail", provider.name, "/", started_at, response)
+        return _log_and_return("connection_detail", provider.name, "/", started_at, response)
     except ProviderNotFoundError as exc:
         response = _failure_from_exception(exc)
-        return _log_and_return("provider_detail", provider_name, "/", started_at, response, str(exc))
+        return _log_and_return("connection_detail", connection_name, "/", started_at, response, str(exc))
 
 
 def list_path(path: str, auth: BridgeAuthContext | None) -> WfxResponse:
@@ -383,14 +383,14 @@ def list_path(path: str, auth: BridgeAuthContext | None) -> WfxResponse:
     provider_name: str | None = None
     resolved_path = path
     try:
-        if _is_provider_root_path(path):
+        if _is_connection_root_path(path):
             response = _success(
-                data=_provider_root_listing().model_dump(),
+                data=_connection_root_listing().model_dump(),
                 metadata={
                     "operation": "list",
-                    "provider_root": True,
-                    "providers": list_registered_connections(),
-                    "default_provider": _default_provider_name_or_none(),
+                    "connection_root": True,
+                    "connections": list_registered_connections(),
+                    "default_connection": _default_connection_name_or_none(),
                 },
             )
             return _log_and_return("list", "bridge", "/", started_at, response)

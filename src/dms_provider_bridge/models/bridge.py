@@ -34,7 +34,7 @@ class BridgeAuthContext(BaseModel):
 class UploadVersioning(BaseModel):
     mode: Literal["version"] = Field(
         default="version",
-        description="DMS versioning mode for providers that require explicit version choice.",
+        description="DMS versioning mode for connections that require explicit version choice.",
     )
     majorVersion: bool = Field(
         default=False,
@@ -49,7 +49,7 @@ class UploadVersioning(BaseModel):
 class WfxPathRequest(BaseModel):
     path: str = Field(
         min_length=0,
-        description="Path in format provider:/path. Use / or an empty path to list available providers.",
+        description="Path in format connection:/path. Use / or an empty path to list available connections.",
     )
     auth: BridgeAuthContext | None = None
 
@@ -57,20 +57,20 @@ class WfxPathRequest(BaseModel):
 class WfxMoveRequest(BaseModel):
     source: str = Field(
         min_length=3,
-        description="Source path in format provider:/path.",
+        description="Source path in format connection:/path.",
     )
     destination: str = Field(
         min_length=3,
-        description="Destination path in format provider:/path. Use the same provider prefix for same-provider operations.",
+        description="Destination path in format connection:/path. Use the same connection prefix for same-connection operations.",
     )
     auth: BridgeAuthContext
     source_auth: BridgeAuthContext | None = Field(
         default=None,
-        description="Optional source-provider auth override for provider-to-provider copy/move operations. Falls back to auth.",
+        description="Optional source-connection auth override for connection-to-connection copy/move operations. Falls back to auth.",
     )
     destination_auth: BridgeAuthContext | None = Field(
         default=None,
-        description="Optional destination-provider auth override for provider-to-provider copy/move operations. Falls back to auth.",
+        description="Optional destination-connection auth override for connection-to-connection copy/move operations. Falls back to auth.",
     )
     versioning: UploadVersioning | None = None
 
@@ -78,7 +78,7 @@ class WfxMoveRequest(BaseModel):
 class WfxUploadRequest(BaseModel):
     destination: str = Field(
         min_length=3,
-        description="Destination folder or file path in format provider:/path.",
+        description="Destination folder or file path in format connection:/path.",
     )
     auth: BridgeAuthContext
     file_name: str = Field(min_length=1)

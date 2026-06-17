@@ -18,7 +18,7 @@ class DummyProvider:
 
 def test_rename_item_parses_wfx_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     provider = DummyProvider()
-    monkeypatch.setattr(edit_service_module, "get_provider", lambda provider_name=None: provider)
+    monkeypatch.setattr(edit_service_module, "get_connection_runtime", lambda connection_name=None: provider)
 
     edit_service_module.rename_item(
         "edocat:/folder/Upload",
@@ -31,9 +31,9 @@ def test_rename_item_parses_wfx_paths(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_rename_item_rejects_provider_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
     provider = DummyProvider()
-    monkeypatch.setattr(edit_service_module, "get_provider", lambda provider_name=None: provider)
+    monkeypatch.setattr(edit_service_module, "get_connection_runtime", lambda connection_name=None: provider)
 
-    with pytest.raises(ValueError, match="Provider mismatch"):
+    with pytest.raises(ValueError, match="Connection mismatch"):
         edit_service_module.rename_item(
             "edocat:/folder/Upload",
             "edocat:/folder/Upload_101",
@@ -43,7 +43,7 @@ def test_rename_item_rejects_provider_mismatch(monkeypatch: pytest.MonkeyPatch) 
 
 def test_delete_item_parses_wfx_path(monkeypatch: pytest.MonkeyPatch) -> None:
     provider = DummyProvider()
-    monkeypatch.setattr(edit_service_module, "get_provider", lambda provider_name=None: provider)
+    monkeypatch.setattr(edit_service_module, "get_connection_runtime", lambda connection_name=None: provider)
 
     edit_service_module.delete_item("edocat:/folder/Upload")
 

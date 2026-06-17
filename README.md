@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Beta-yellowgreen)](https://github.com/mergi72/dms-provider-bridge)
-[![Bridge Version](https://img.shields.io/badge/Bridge-v0.6.13--beta-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.6.13-beta)
+[![Bridge Version](https://img.shields.io/badge/Bridge-v0.7.0--beta-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.7.0-beta)
 [![Bridge Setup](https://img.shields.io/badge/Setup-v0.5.0--beta-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.5.0-beta)
 
 Current development branch: `develop`  
@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.6.13-beta`
-- Latest bridge-only release: `v0.6.13-beta`
+- Bridge repository latest changelog version: `0.7.0-beta`
+- Latest bridge-only release: `v0.7.0-beta`
 
 ## Configuration Model
 
@@ -40,12 +40,12 @@ The bridge now has two clearly separated responsibilities:
 
 The configurator currently runs inside the same local FastAPI process as the bridge, but it should be treated as an admin/configuration layer rather than as provider runtime logic.
 
-Runtime naming compatibility:
+Runtime naming:
 
-- WFX endpoints still expose `providers` for backward compatibility with the Total Commander plugin.
-- Internally, those provider names are connection keys/mounts whenever connection config exists.
+- WFX endpoints expose `connections`; old runtime `providers` naming is not used in the 0.7 beta API.
+- Runtime connection names are connection keys/mounts from connection config.
 - Driver modules such as `alfresco.py` and `edocat.py` remain the concrete DMS implementations behind those connections.
-- Runtime discovery treats those modules as driver factories; legacy provider-named helpers remain as compatibility wrappers.
+- Runtime discovery treats those modules as driver factories.
 - `dms_provider_bridge.drivers` is a compatibility package that currently exposes the existing `providers` modules without moving files.
 
 Current UI rules:
@@ -60,10 +60,10 @@ Configuration checks:
 
 - `Test` on a connection first performs a runtime-only check. It loads the connection, resolves its driver and shows the effective mount, base URL, auth mode and list endpoint. This check does not call the remote DMS.
 - `Live List Root` is optional. It accepts the same auth JSON shape as Swagger requests, for example inline `username` and `password`, uses it for one request, and never writes it to config.
-- `Audit` checks that every connection JSON is visible as a WFX provider and that runtime driver/mount values match the connection definition.
+- `Audit` checks that every connection JSON is visible as a WFX connection and that runtime driver/mount values match the connection definition.
 - Machine templates define the shape of config. User-specific or environment-specific values should be stored in local config files, not in the templates.
 
-The 0.6 configuration work is intentionally split by responsibility:
+The 0.7 configuration/runtime model is intentionally split by responsibility:
 
 ```text
 Provider ABC  read-only common VFS contract
@@ -88,16 +88,16 @@ Bridge can be run in two different Windows runtime models. Keep them separate:
 
 Current setup release `v0.5.0-beta` is the Service mode installer. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
 
-## Provider Operations
+## Connection Operations
 
-The bridge supports file operations inside one provider and between different providers:
+The bridge supports file operations inside one connection and between different connections:
 
-- Copy within the same provider uses the provider-native copy operation when available.
-- Copy between providers, for example `edocat:/...` to `alfresco:/...`, is handled as download plus upload.
-- Move between providers is handled as download, upload, then delete from the source provider.
-- Large provider-to-provider transfers use a temporary file fallback when the payload exceeds the inline upload limit.
+- Copy within the same connection uses the driver-native copy operation when available.
+- Copy between connections, for example `edocat:/...` to `alfresco:/...`, is handled as download plus upload.
+- Move between connections is handled as download, upload, then delete from the source connection.
+- Large connection-to-connection transfers use a temporary file fallback when the payload exceeds the inline upload limit.
 
-Provider-to-provider copy/move can use separate credentials for each side:
+Connection-to-connection copy/move can use separate credentials for each side:
 
 ```json
 {
@@ -279,14 +279,15 @@ Configuration is loaded from two fixed Windows scopes:
 The machine config is authoritative. For each config file, the bridge loads the machine JSON first, then merges the matching user `*.local.json` only if the machine JSON exists.
 
 - Bridge/system config: `bridge.json`
-- Provider config (`alfresco`, `sharepoint`, ...): `<provider>.json`
-- User overrides: `bridge.local.json`, `<provider>.local.json`
+- Driver config (`alfresco`, `sharepoint`, ...): `drivers/<driver>.json`
+- Connection config (`company-dms`, `alfresco`, ...): `connections/<connection>.json`
+- User overrides: `bridge.local.json`, `drivers/<driver>.local.json`, `connections/<connection>.local.json`
 
 User `*.local.json` values override existing machine keys and may add missing keys. If the machine JSON file is missing, the matching user `*.local.json` is ignored.
-The tracked `config/provider.local.json` file is a provider-neutral template for seeding user `<provider>.local.json` files under `%APPDATA%\DMS Provider\config`.
+The tracked template files under `config/providers`, `config/drivers` and `config/connections` define the machine-level contract and examples.
 
 For local development, set `DMS_PROVIDER_MACHINE_CONFIG_DIR` and optionally `DMS_PROVIDER_USER_CONFIG_DIR` to test config directories.
-The default provider comes from `provider.default` in `bridge.json`; `DMS_PROVIDER_DEFAULT_PROVIDER` can override it for local runs.
+The default connection comes from `connection.default` in `bridge.json`; `DMS_PROVIDER_DEFAULT_CONNECTION` can override it for local runs.
 Runtime temporary files are written to `%TEMP%\DMS Provider` by default; set `DMS_PROVIDER_TEMP_DIR` only when a different temp root is required.
 
 Debug logging is opt-in and uses the same `debug` object in `bridge.json` and provider config files:
@@ -321,12 +322,14 @@ Provider implementations should use `provider_debug_logger(provider_name, config
 
 Remote path format:
 
-- `<provider>:/folder/file.txt`
+- `<connection>:/folder/file.txt`
 - `alfresco:/folder/file.txt`
 
 Endpoints:
 
-- `GET /bridge/wfx/providers` (provider discovery for root listing in the WFX plugin)
+- `GET /bridge/wfx/connections` (connection discovery for root listing in the WFX plugin)
+- `GET /bridge/wfx/connections/{connection_name}`
+- `GET /bridge/wfx/connections/audit`
 
 - `POST /bridge/wfx/list`
 - `POST /bridge/wfx/stat`
@@ -345,7 +348,7 @@ Endpoints:
 
 Authentication (`auth`) is required for every call:
 
-The bridge uses one incoming authentication model for all providers. Provider specific upstream HTTP authentication is resolved inside the provider implementation.
+The bridge uses one incoming authentication model for all connections. Driver-specific upstream HTTP authentication is resolved inside the driver implementation.
 
 - `credentials`:
   `{ "auth": { "mode": "credentials", "credential_id": "dms-prod" } }`
