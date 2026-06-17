@@ -47,6 +47,34 @@ def test_config_reload_clears_provider_cache(monkeypatch: pytest.MonkeyPatch) ->
     assert "Configuration cache was reloaded" in response.text
 
 
+def test_config_reload_post_returns_audit_and_registry(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+    monkeypatch.setattr(config_routes, "reload_provider_cache", lambda: calls.append("reload"))
+    monkeypatch.setattr(
+        config_routes,
+        "audit_connection_runtime",
+        lambda: {
+            "ok": True,
+            "runtime_registry": {
+                "wfx_connections": ["alfresco"],
+                "available_drivers": ["alfresco"],
+            },
+        },
+    )
+    client = TestClient(create_app())
+
+    response = client.post("/config/reload")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert calls == ["reload"]
+    assert payload["ok"] is True
+    assert payload["message"] == "Configuration cache was reloaded."
+    assert payload["audit"]["ok"] is True
+    assert payload["registry"]["wfx_connections"] == ["alfresco"]
+    assert payload["registry"]["available_drivers"] == ["alfresco"]
+
+
 def test_config_audit_shows_connection_runtime_status() -> None:
     client = TestClient(create_app())
 

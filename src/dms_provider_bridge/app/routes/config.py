@@ -14,7 +14,12 @@ from dms_provider_bridge.core.config_loader import driver_connection_names, load
 from dms_provider_bridge.core.paths import MACHINE_CONFIG_DIR, PROJECT_ROOT
 from dms_provider_bridge.models.bridge import BridgeAuthContext
 from dms_provider_bridge.services.bridge_service import list_path
-from dms_provider_bridge.services.provider_service import audit_connection_runtime, get_connection_runtime, reload_provider_cache
+from dms_provider_bridge.services.provider_service import (
+    audit_connection_runtime,
+    get_connection_runtime,
+    reload_provider_cache,
+    runtime_registry_snapshot,
+)
 
 router = APIRouter()
 
@@ -179,6 +184,42 @@ def _mode_badge_class(mode: str) -> str:
     if mode.startswith("template"):
         return "badge-template"
     return "badge-editable"
+
+
+def _reload_runtime_snapshot() -> dict[str, Any]:
+    reload_provider_cache()
+    audit = audit_connection_runtime()
+    registry = audit.get("runtime_registry") if isinstance(audit, dict) else None
+    if not isinstance(registry, dict):
+        registry = runtime_registry_snapshot()
+    return {
+        "ok": bool(audit.get("ok")) if isinstance(audit, dict) else False,
+        "message": "Configuration cache was reloaded.",
+        "audit": audit,
+        "registry": registry,
+    }
+
+
+def _runtime_summary_html(snapshot: dict[str, Any]) -> str:
+    audit = snapshot.get("audit") if isinstance(snapshot, dict) else {}
+    registry = snapshot.get("registry") if isinstance(snapshot, dict) else {}
+    if not isinstance(audit, dict):
+        audit = {}
+    if not isinstance(registry, dict):
+        registry = {}
+    wfx_connections = registry.get("wfx_connections")
+    if not isinstance(wfx_connections, list):
+        wfx_connections = audit.get("registered_connections") if isinstance(audit.get("registered_connections"), list) else []
+    available_drivers = registry.get("available_drivers")
+    if not isinstance(available_drivers, list):
+        available_drivers = audit.get("available_drivers") if isinstance(audit.get("available_drivers"), list) else []
+    status_text = "Runtime audit passed." if snapshot.get("ok") else "Runtime audit found issues."
+    status_class = "notice" if snapshot.get("ok") else "read-only-warning"
+    return (
+        f'<p class="{status_class}">{html.escape(status_text)}</p>'
+        f'<p class="muted">WFX connections: {html.escape(", ".join(str(name) for name in wfx_connections))}</p>'
+        f'<p class="muted">Available drivers: {html.escape(", ".join(str(name) for name in available_drivers))}</p>'
+    )
 
 
 def _file_links(section: str, active_file: str) -> str:
@@ -493,17 +534,23 @@ def config_home() -> HTMLResponse:
 
 @router.get("/reload", response_class=HTMLResponse)
 def config_reload() -> HTMLResponse:
-    reload_provider_cache()
-    body = """
+    snapshot = _reload_runtime_snapshot()
+    body = f"""
 <section class="panel">
-  <h2>Reload</h2>
+  <h2>Reload Runtime</h2>
   <div class="panel-content">
     <p class="notice">Configuration cache was reloaded. Next bridge request will use current JSON files.</p>
+    {_runtime_summary_html(snapshot)}
     <p><a class="button button-muted" href="/config">Back to Config</a></p>
   </div>
 </section>
 """
     return _render_layout("Config Reload", body)
+
+
+@router.post("/reload")
+def config_reload_api() -> dict[str, Any]:
+    return _reload_runtime_snapshot()
 
 
 @router.get("/audit", response_class=HTMLResponse)
@@ -812,6 +859,7 @@ def config_delete(section: str, file_name: str) -> HTMLResponse:
   <h2>Deleted</h2>
   <div class="panel-content">
     <p class="notice">Deleted {html.escape(file_name)}.</p>
+    <p class="notice">Runtime cache was reloaded.</p>
     <p><a class="button button-muted" href="/config/{html.escape(section)}">Back to {html.escape(_SECTION_TITLES[section])}</a></p>
   </div>
 </section>
@@ -984,7 +1032,7 @@ def config_save(
         file_name=target_file,
         payload=parsed,
         rendered=rendered,
-        message=f"Saved {target_file}.",
+        message=f"Saved {target_file}. Runtime cache was reloaded.",
     )
     return _render_layout(f"Config {target_file}", body, section)
 

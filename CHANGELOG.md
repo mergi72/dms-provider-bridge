@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.5-beta - 2026-06-17
+
+- Added `POST /config/reload` for API-driven runtime config reloads.
+- Config reload now returns runtime audit and registry snapshot data.
+- Save and delete actions in the Bridge Configurator now explicitly report runtime cache reload.
+- Added tests for the config reload API response contract.
+- Release/version bump to `0.7.5-beta`.
+
 ## 0.7.4-beta - 2026-06-17
 
 - Added preferred `connection` keys to bridge response metadata while keeping legacy `provider` keys.
