@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.7-beta - 2026-06-17
+
+- Added connection-first service entry points for listing, edit, and transfer operations.
+- Kept legacy provider-named service functions as compatibility wrappers.
+- Normalized explicit connection names in service compatibility helpers.
+- Added unit tests for connection-first listing, rename, delete, and copy APIs.
+- Release/version bump to `0.7.7-beta`.
+
 ## 0.7.6-beta - 2026-06-17
 
 - Aligned runtime internals with the ABC -> driver -> connection model.

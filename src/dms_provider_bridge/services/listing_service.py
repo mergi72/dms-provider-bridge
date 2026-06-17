@@ -5,17 +5,26 @@ from dms_provider_bridge.models.listing import ListingResult
 from dms_provider_bridge.services.provider_service import get_connection_runtime
 
 
-def _effective_connection_name(provider_name: str | None = None, connection_name: str | None = None) -> str | None:
-    if provider_name and connection_name and provider_name.strip().lower().rstrip(":") != connection_name.strip().lower().rstrip(":"):
+def _normalize_connection_name(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip().lower().rstrip(":")
+    return normalized or None
+
+
+def _effective_connection_name(legacy_provider_name: str | None = None, connection_name: str | None = None) -> str | None:
+    legacy_name = _normalize_connection_name(legacy_provider_name)
+    new_name = _normalize_connection_name(connection_name)
+    if legacy_name and new_name and legacy_name != new_name:
         raise ValueError(
-            f"Connection mismatch: provider_name '{provider_name}' does not match connection_name '{connection_name}'."
+            f"Connection mismatch: provider_name '{legacy_provider_name}' does not match connection_name '{connection_name}'."
         )
-    return connection_name or provider_name
+    return new_name or legacy_name
 
 
-def list_items(path: str, provider_name: str | None = None, *, connection_name: str | None = None) -> ListingResult:
+def list_connection_items(path: str, connection_name: str | None = None) -> ListingResult:
     resolved_path = path
-    resolved_connection_name = _effective_connection_name(provider_name, connection_name)
+    resolved_connection_name = _normalize_connection_name(connection_name)
 
     if resolved_connection_name is None and ":" in path:
         try:
@@ -27,4 +36,8 @@ def list_items(path: str, provider_name: str | None = None, *, connection_name: 
 
     provider = get_connection_runtime(resolved_connection_name)
     return provider.list_items(resolved_path)
+
+
+def list_items(path: str, provider_name: str | None = None, *, connection_name: str | None = None) -> ListingResult:
+    return list_connection_items(path, _effective_connection_name(provider_name, connection_name))
 

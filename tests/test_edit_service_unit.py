@@ -67,3 +67,35 @@ def test_rename_item_accepts_connection_name_alias(monkeypatch: pytest.MonkeyPat
 
     provider.rename_item.assert_called_once_with("/folder/Upload", "/folder/Upload_101")
 
+
+def test_rename_connection_item_uses_connection_first_api(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = DummyProvider()
+
+    def fake_get_connection_runtime(connection_name=None):
+        assert connection_name == "edocat"
+        return provider
+
+    monkeypatch.setattr(edit_service_module, "get_connection_runtime", fake_get_connection_runtime)
+
+    edit_service_module.rename_connection_item(
+        "/folder/Upload",
+        "/folder/Upload_101",
+        connection_name="edocat",
+    )
+
+    provider.rename_item.assert_called_once_with("/folder/Upload", "/folder/Upload_101")
+
+
+def test_delete_connection_item_uses_connection_first_api(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = DummyProvider()
+
+    def fake_get_connection_runtime(connection_name=None):
+        assert connection_name == "edocat"
+        return provider
+
+    monkeypatch.setattr(edit_service_module, "get_connection_runtime", fake_get_connection_runtime)
+
+    edit_service_module.delete_connection_item("/folder/Upload", connection_name="edocat")
+
+    provider.delete_item.assert_called_once_with("/folder/Upload")
+
