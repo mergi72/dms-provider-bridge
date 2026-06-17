@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.8-beta - 2026-06-17
+
+- Added `--connection` to the CLI while keeping `--provider` as a legacy alias.
+- Added connection-named debug helpers while keeping provider-named debug helpers compatible.
+- Added `connection_path_override` for Share URL browse/validate requests while keeping `provider_path_override` as an alias.
+- Updated README examples to use connection-first Share URL and debug terminology.
+- Added tests for CLI aliases, connection debug logging, and Share URL path override aliases.
+- Release/version bump to `0.7.8-beta`.
+
 ## 0.7.7-beta - 2026-06-17
 
 - Added connection-first service entry points for listing, edit, and transfer operations.

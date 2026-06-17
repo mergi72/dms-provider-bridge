@@ -49,11 +49,28 @@ def configure_debug_file_logger(logger_name: str, config: dict[str, Any], filena
     return logger
 
 
-def provider_debug_logger(provider_name: str, config: dict[str, Any]) -> logging.Logger:
-    logger_name = f"dms_provider_bridge.providers.{provider_name}"
+def connection_debug_logger(connection_name: str, config: dict[str, Any]) -> logging.Logger:
+    logger_name = f"dms_provider_bridge.connections.{connection_name}"
     if not debug_enabled(config):
         return logging.getLogger(logger_name)
-    return configure_debug_file_logger(logger_name, config, f"{provider_name}-debug.log")
+    return configure_debug_file_logger(logger_name, config, f"{connection_name}-debug.log")
+
+
+def provider_debug_logger(provider_name: str, config: dict[str, Any]) -> logging.Logger:
+    """Backward-compatible alias for connection debug logging."""
+    return connection_debug_logger(provider_name, config)
+
+
+def log_connection_operation_start(
+    logger: logging.Logger,
+    connection_name: str,
+    operation: str,
+    path: str | None = None,
+    **fields: object,
+) -> float:
+    started = time.perf_counter()
+    _log_connection_operation(logger, "connection_operation_start", connection_name, operation, path, None, None, fields)
+    return started
 
 
 def log_provider_operation_start(
@@ -64,8 +81,20 @@ def log_provider_operation_start(
     **fields: object,
 ) -> float:
     started = time.perf_counter()
-    _log_provider_operation(logger, "provider_operation_start", provider_name, operation, path, None, None, fields)
+    _log_connection_operation(logger, "provider_operation_start", provider_name, operation, path, None, None, fields)
     return started
+
+
+def log_connection_operation_done(
+    logger: logging.Logger,
+    connection_name: str,
+    operation: str,
+    started: float,
+    path: str | None = None,
+    **fields: object,
+) -> None:
+    elapsed_ms = int((time.perf_counter() - started) * 1000)
+    _log_connection_operation(logger, "connection_operation_done", connection_name, operation, path, "ok", elapsed_ms, fields)
 
 
 def log_provider_operation_done(
@@ -77,7 +106,23 @@ def log_provider_operation_done(
     **fields: object,
 ) -> None:
     elapsed_ms = int((time.perf_counter() - started) * 1000)
-    _log_provider_operation(logger, "provider_operation_done", provider_name, operation, path, "ok", elapsed_ms, fields)
+    _log_connection_operation(logger, "provider_operation_done", provider_name, operation, path, "ok", elapsed_ms, fields)
+
+
+def log_connection_operation_failed(
+    logger: logging.Logger,
+    connection_name: str,
+    operation: str,
+    started: float,
+    path: str | None = None,
+    error: BaseException | str | None = None,
+    **fields: object,
+) -> None:
+    elapsed_ms = int((time.perf_counter() - started) * 1000)
+    if error is not None:
+        fields = dict(fields)
+        fields["error"] = str(error)
+    _log_connection_operation(logger, "connection_operation_failed", connection_name, operation, path, "failed", elapsed_ms, fields)
 
 
 def log_provider_operation_failed(
@@ -93,7 +138,24 @@ def log_provider_operation_failed(
     if error is not None:
         fields = dict(fields)
         fields["error"] = str(error)
-    _log_provider_operation(logger, "provider_operation_failed", provider_name, operation, path, "failed", elapsed_ms, fields)
+    _log_connection_operation(logger, "provider_operation_failed", provider_name, operation, path, "failed", elapsed_ms, fields)
+
+
+def debug_connection_operation(
+    logger: logging.Logger,
+    connection_name: str,
+    operation: str,
+    path: str | None,
+    func: Callable[[], Any],
+) -> Any:
+    started = log_connection_operation_start(logger, connection_name, operation, path)
+    try:
+        result = func()
+    except Exception as exc:
+        log_connection_operation_failed(logger, connection_name, operation, started, path, error=exc)
+        raise
+    log_connection_operation_done(logger, connection_name, operation, started, path)
+    return result
 
 
 def debug_operation(
@@ -113,10 +175,10 @@ def debug_operation(
     return result
 
 
-def _log_provider_operation(
+def _log_connection_operation(
     logger: logging.Logger,
     event: str,
-    provider_name: str,
+    connection_name: str,
     operation: str,
     path: str | None,
     status: str | None,
@@ -126,17 +188,20 @@ def _log_provider_operation(
     if not logger.isEnabledFor(logging.DEBUG):
         return
 
-    parts: list[str] = [
-        event,
-        f"provider={provider_name}",
-        f"operation={operation}",
-    ]
+    parts: list[str] = [event]
+    include_connection_alias_late = event.startswith("provider_operation_")
+    if include_connection_alias_late:
+        parts.extend([f"provider={connection_name}", f"operation={operation}"])
+    else:
+        parts.extend([f"connection={connection_name}", f"provider={connection_name}", f"operation={operation}"])
     if path is not None:
         parts.append(f"path={path}")
     if status is not None:
         parts.append(f"status={status}")
     if elapsed_ms is not None:
         parts.append(f"elapsed_ms={elapsed_ms}")
+    if include_connection_alias_late:
+        parts.append(f"connection={connection_name}")
     for key, value in fields.items():
         if value is not None:
             parts.append(f"{key}={value}")

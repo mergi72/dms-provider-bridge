@@ -327,6 +327,43 @@ def test_browse_share_url_dry_run() -> None:
     assert body["metadata"]["operation"] == "browse-share-url:dry-run:copy"
 
 
+def test_browse_share_url_accepts_connection_path_override() -> None:
+    client = TestClient(create_app())
+    payload = {
+        "share_url": _share_url(),
+        "connection": "alfresco",
+        "operation": "copy",
+        "execute": False,
+        "auth": _auth(),
+        "connection_path_override": _source_file_path(),
+        "destination_path_override": _target_file_path("sample-copy-connection-dry-run.txt"),
+    }
+    response = client.post("/bridge/wfx/browse-share-url", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["data"]["executed"] is False
+    assert body["data"]["source"]["path_source"] == "connection_path_override"
+
+
+def test_browse_share_url_rejects_path_override_mismatch() -> None:
+    client = TestClient(create_app())
+    payload = {
+        "share_url": _share_url(),
+        "connection": "alfresco",
+        "operation": "copy",
+        "execute": False,
+        "auth": _auth(),
+        "connection_path_override": _source_file_path(),
+        "provider_path_override": "/different/source.txt",
+        "destination_path_override": _target_file_path("sample-copy-mismatch.txt"),
+    }
+    response = client.post("/bridge/wfx/browse-share-url", json=payload)
+
+    assert response.status_code == 422
+
+
 def test_browse_share_url_move_dry_run() -> None:
     client = TestClient(create_app())
     payload = {

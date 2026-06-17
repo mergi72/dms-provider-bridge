@@ -80,3 +80,21 @@ def test_provider_operation_helpers_log_start_done_and_failed(caplog: pytest.Log
     assert "items=2" in logged
     assert "provider_operation_failed provider=test operation=download path=/B status=failed" in logged
     assert "error=boom" in logged
+
+
+def test_connection_operation_helpers_log_connection_and_provider_alias(caplog: pytest.LogCaptureFixture) -> None:
+    logger = logging.getLogger("dms_provider_bridge.connections.test")
+    logger.setLevel(logging.DEBUG)
+
+    with caplog.at_level(logging.DEBUG, logger=logger.name):
+        started = debug_module.log_connection_operation_start(logger, "test", "list", "/A")
+        debug_module.log_connection_operation_done(logger, "test", "list", started, "/A", items=2)
+        started = time.perf_counter()
+        debug_module.log_connection_operation_failed(logger, "test", "download", started, "/B", error="boom")
+
+    logged = "\n".join(record.getMessage() for record in caplog.records)
+    assert "connection_operation_start connection=test provider=test operation=list path=/A" in logged
+    assert "connection_operation_done connection=test provider=test operation=list path=/A status=ok" in logged
+    assert "items=2" in logged
+    assert "connection_operation_failed connection=test provider=test operation=download path=/B status=failed" in logged
+    assert "error=boom" in logged

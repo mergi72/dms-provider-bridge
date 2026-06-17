@@ -106,9 +106,13 @@ class WfxShareUrlBrowseRequest(BaseModel):
     connection: str | None = Field(default=None, min_length=1, description="Connection key that supports this Share URL format.")
     operation: Literal["list", "stat", "download", "copy", "move", "mkdir", "delete", "upload"] = "list"
     execute: bool = True
+    connection_path_override: str | None = Field(
+        default=None,
+        description="Optional connection path override in /path format.",
+    )
     provider_path_override: str | None = Field(
         default=None,
-        description="Optional provider path override in /path format.",
+        description="Legacy alias for connection_path_override.",
     )
     destination_share_url: str | None = Field(default=None, description="Optional destination Share URL for copy/move.")
     destination_path_override: str | None = Field(
@@ -123,7 +127,7 @@ class WfxShareUrlBrowseRequest(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def normalize_connection_alias(cls, data: object) -> object:
-        return _normalize_provider_connection_alias(data)
+        return _normalize_share_url_aliases(data)
 
 
 class WfxShareUrlValidateRequest(BaseModel):
@@ -131,9 +135,13 @@ class WfxShareUrlValidateRequest(BaseModel):
     provider: str | None = Field(default=None, min_length=1, description="Legacy alias for connection.")
     connection: str | None = Field(default=None, min_length=1, description="Connection key that supports this Share URL format.")
     operation: Literal["list", "stat", "download", "copy", "move", "mkdir", "delete", "upload"] = "list"
+    connection_path_override: str | None = Field(
+        default=None,
+        description="Optional connection path override in /path format.",
+    )
     provider_path_override: str | None = Field(
         default=None,
-        description="Optional provider path override in /path format.",
+        description="Legacy alias for connection_path_override.",
     )
     destination_share_url: str | None = Field(default=None, description="Optional destination Share URL for copy/move/upload.")
     destination_path_override: str | None = Field(
@@ -145,7 +153,7 @@ class WfxShareUrlValidateRequest(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def normalize_connection_alias(cls, data: object) -> object:
-        return _normalize_provider_connection_alias(data)
+        return _normalize_share_url_aliases(data)
 
 
 class WfxResponse(BaseModel):
@@ -168,4 +176,19 @@ def _normalize_provider_connection_alias(data: object) -> object:
         raise ValueError("Either connection or provider must be provided.")
     if not provider and connection:
         normalized["provider"] = connection
+    return normalized
+
+
+def _normalize_share_url_aliases(data: object) -> object:
+    normalized = _normalize_provider_connection_alias(data)
+    if not isinstance(normalized, dict):
+        return normalized
+    provider_override = normalized.get("provider_path_override")
+    connection_override = normalized.get("connection_path_override")
+    if provider_override and connection_override and str(provider_override).strip() != str(connection_override).strip():
+        raise ValueError("Connection mismatch: provider_path_override does not match connection_path_override.")
+    if not connection_override and provider_override:
+        normalized["connection_path_override"] = provider_override
+    if not provider_override and connection_override:
+        normalized["provider_path_override"] = connection_override
     return normalized

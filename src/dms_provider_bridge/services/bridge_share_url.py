@@ -21,7 +21,7 @@ def _failure_from_exception(exc: Exception) -> WfxResponse:
     return _failure(mapped.code, mapped.message, mapped.metadata)
 
 
-def _normalize_provider_path(path: str, empty_message: str) -> str | WfxResponse:
+def _normalize_connection_path(path: str, empty_message: str) -> str | WfxResponse:
     normalized = unquote(path).replace("\\", "/").strip()
     if not normalized:
         return _failure(WfxErrorCode.BAD_PATH, empty_message)
@@ -57,22 +57,27 @@ def browse_share_url(
     provider: str,
     operation: str = "list",
     execute: bool = True,
-    provider_path_override: str | None = None,
+    connection_path_override: str | None = None,
     destination_share_url: str | None = None,
     destination_path_override: str | None = None,
     file_name: str | None = None,
     content_base64: str | None = None,
     overwrite: bool = False,
     versioning: dict | None = None,
+    provider_path_override: str | None = None,
 ) -> WfxResponse:
     from dms_provider_bridge.services import bridge_service
+
+    if provider_path_override and connection_path_override and provider_path_override.strip() != connection_path_override.strip():
+        return _failure(WfxErrorCode.BAD_PATH, "provider_path_override does not match connection_path_override.")
+    source_path_override = connection_path_override or provider_path_override
 
     if not execute:
         validated = validate_browse_share_url(
             share_url,
             provider,
             operation,
-            provider_path_override,
+            source_path_override,
             destination_share_url,
             destination_path_override,
             file_name,
@@ -95,14 +100,14 @@ def browse_share_url(
     resolved_payload = dict(resolved.data)
     path = str(resolved_payload.get("path", ""))
     path_source = "share_url"
-    if provider_path_override:
-        normalized_override = _normalize_provider_path(provider_path_override, "provider_path_override is empty.")
+    if source_path_override:
+        normalized_override = _normalize_connection_path(source_path_override, "connection_path_override is empty.")
         if isinstance(normalized_override, WfxResponse):
             return normalized_override
         path = build_wfx_path(provider, normalized_override)
         resolved_payload["path"] = path
         resolved_payload["share_path"] = normalized_override
-        path_source = "provider_path_override"
+        path_source = "connection_path_override"
 
     if not path:
         return _failure(WfxErrorCode.BAD_PATH, "Resolved share URL does not contain a target path.")
@@ -126,7 +131,7 @@ def browse_share_url(
         response = bridge_service.delete_path(path, auth)
     elif operation in {"copy", "move"}:
         if destination_path_override:
-            normalized_destination = _normalize_provider_path(destination_path_override, "destination_path_override is empty.")
+            normalized_destination = _normalize_connection_path(destination_path_override, "destination_path_override is empty.")
             if isinstance(normalized_destination, WfxResponse):
                 return normalized_destination
             destination_path = build_wfx_path(provider, normalized_destination)
@@ -153,7 +158,7 @@ def browse_share_url(
         upload_destination_path = path
         upload_destination_source = path_source
         if destination_path_override:
-            normalized_destination = _normalize_provider_path(destination_path_override, "destination_path_override is empty.")
+            normalized_destination = _normalize_connection_path(destination_path_override, "destination_path_override is empty.")
             if isinstance(normalized_destination, WfxResponse):
                 return normalized_destination
             upload_destination_path = build_wfx_path(provider, normalized_destination)
@@ -205,11 +210,16 @@ def validate_browse_share_url(
     share_url: str,
     provider: str,
     operation: str = "list",
-    provider_path_override: str | None = None,
+    connection_path_override: str | None = None,
     destination_share_url: str | None = None,
     destination_path_override: str | None = None,
     file_name: str | None = None,
+    provider_path_override: str | None = None,
 ) -> WfxResponse:
+    if provider_path_override and connection_path_override and provider_path_override.strip() != connection_path_override.strip():
+        return _failure(WfxErrorCode.BAD_PATH, "provider_path_override does not match connection_path_override.")
+    source_path_override = connection_path_override or provider_path_override
+
     resolved = resolve_share_url(share_url, provider)
     if not resolved.ok:
         return resolved
@@ -220,12 +230,12 @@ def validate_browse_share_url(
     resolved_payload = dict(resolved.data)
     source_path = str(resolved_payload.get("path", ""))
     source_path_source = "share_url"
-    if provider_path_override:
-        normalized_override = _normalize_provider_path(provider_path_override, "provider_path_override is empty.")
+    if source_path_override:
+        normalized_override = _normalize_connection_path(source_path_override, "connection_path_override is empty.")
         if isinstance(normalized_override, WfxResponse):
             return normalized_override
         source_path = build_wfx_path(provider, normalized_override)
-        source_path_source = "provider_path_override"
+        source_path_source = "connection_path_override"
         resolved_payload["path"] = source_path
         resolved_payload["share_path"] = normalized_override
 
@@ -240,7 +250,7 @@ def validate_browse_share_url(
     destination_path_source = None
     if operation in {"copy", "move", "upload"}:
         if destination_path_override:
-            normalized_destination = _normalize_provider_path(destination_path_override, "destination_path_override is empty.")
+            normalized_destination = _normalize_connection_path(destination_path_override, "destination_path_override is empty.")
             if isinstance(normalized_destination, WfxResponse):
                 return normalized_destination
             destination_path = build_wfx_path(provider, normalized_destination)

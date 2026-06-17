@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Beta-yellowgreen)](https://github.com/mergi72/dms-provider-bridge)
-[![Bridge Version](https://img.shields.io/badge/Bridge-v0.7.7--beta-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.7.7-beta)
+[![Bridge Version](https://img.shields.io/badge/Bridge-v0.7.8--beta-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.7.8-beta)
 [![Bridge Setup](https://img.shields.io/badge/Setup-v0.5.0--beta-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.5.0-beta)
 
 Current development branch: `develop`  
@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.7.7-beta`
-- Latest bridge-only release: `v0.7.7-beta`
+- Bridge repository latest changelog version: `0.7.8-beta`
+- Latest bridge-only release: `v0.7.8-beta`
 
 ## Configuration Model
 
@@ -325,7 +325,7 @@ Provider config template for new providers:
 }
 ```
 
-Provider implementations should use `provider_debug_logger(provider_name, config)` and the `log_provider_operation_start/done/failed` helpers from `dms_provider_bridge.core.debug` for operation-level diagnostics. Config dumps are sanitized before logging sensitive keys such as passwords, tokens, secrets, and API keys.
+Driver/connection implementations should use `connection_debug_logger(connection_name, config)` and the `log_connection_operation_start/done/failed` helpers from `dms_provider_bridge.core.debug` for operation-level diagnostics. Legacy `provider_debug_logger()` and `log_provider_operation_*()` helpers remain available as aliases. Config dumps are sanitized before logging sensitive keys such as passwords, tokens, secrets, and API keys.
 
 Remote path format:
 
@@ -413,9 +413,9 @@ Alfresco Share URL to bridge path conversion:
 
 One-shot browse via Share URL:
 
-- `browse-share-url`: `{ "share_url": "https://.../documentlibrary#/Team%20Documents/Upload?page=1", "provider": "alfresco", "operation": "list|stat|download|copy|move|mkdir|delete|upload", "execute": true, "auth": { ... }, "provider_path_override": "/optional/manual/path", "destination_share_url": "https://...", "destination_path_override": "/target/path", "file_name": "upload.txt", "content_base64": "...", "overwrite": true }`
+- `browse-share-url`: `{ "share_url": "https://.../documentlibrary#/Team%20Documents/Upload?page=1", "connection": "alfresco", "operation": "list|stat|download|copy|move|mkdir|delete|upload", "execute": true, "auth": { ... }, "connection_path_override": "/optional/manual/path", "destination_share_url": "https://...", "destination_path_override": "/target/path", "file_name": "upload.txt", "content_base64": "...", "overwrite": true }`
 - `browse-share-url` is the canonical endpoint; for dry-run validation, use the same endpoint with `execute=false`.
-- Response includes `data.resolved` (URL resolution result), `data.path_source` (`share_url` or `provider_path_override`), and `data.result` (selected operation result).
+- Response includes `data.resolved` (URL resolution result), `data.path_source` (`share_url` or `connection_path_override`), and `data.result` (selected operation result). Legacy `provider` and `provider_path_override` request fields are still accepted as aliases.
 - For `copy|move`, `destination_path_override` or `destination_share_url` is additionally required; response contains `data.destination`.
 - For `upload`, `file_name` is required; target can be provided via `destination_path_override` or `destination_share_url`, otherwise the path resolved from `share_url` is used.
 - OpenAPI operationId: `bridgeResolveShareUrl`, `bridgeBrowseShareUrl` (canonical), deprecated alias: `bridgeBrowseShareUrlValidateDeprecated`.
