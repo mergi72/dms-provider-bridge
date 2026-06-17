@@ -9,7 +9,12 @@ from fastapi.testclient import TestClient
 
 from dms_provider_bridge.app.server import create_app
 from dms_provider_bridge.app.routes import bridge as bridge_routes
+from dms_provider_bridge.app.routes import edit as edit_routes
+from dms_provider_bridge.app.routes import listing as listing_routes
+from dms_provider_bridge.app.routes import transfer as transfer_routes
 from dms_provider_bridge.models.bridge import WfxResponse
+from dms_provider_bridge.models.listing import ListingResult
+from dms_provider_bridge.models.operation import OperationResult
 from dms_provider_bridge.services import bridge_service
 
 
@@ -231,6 +236,75 @@ def test_resolve_share_url() -> None:
     body = response.json()
     assert body["ok"] is True
     assert body["data"]["path"].startswith("alfresco:/")
+
+
+def test_resolve_share_url_accepts_connection_alias() -> None:
+    client = TestClient(create_app())
+    payload = {"share_url": _share_url(), "connection": "alfresco"}
+    response = client.post("/bridge/wfx/resolve-share-url", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["data"]["path"].startswith("alfresco:/")
+
+
+def test_resolve_share_url_rejects_connection_provider_mismatch() -> None:
+    client = TestClient(create_app())
+    payload = {"share_url": _share_url(), "provider": "alfresco", "connection": "edocat"}
+    response = client.post("/bridge/wfx/resolve-share-url", json=payload)
+
+    assert response.status_code == 422
+
+
+def test_listing_endpoint_accepts_connection_query(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_list_items(path: str, provider_name: str | None = None, *, connection_name: str | None = None):
+        assert path == "/contracts"
+        assert provider_name is None
+        assert connection_name == "alfresco"
+        return ListingResult(provider="alfresco", path=path, total=0, items=[])
+
+    monkeypatch.setattr(listing_routes, "list_items", fake_list_items)
+    client = TestClient(create_app())
+
+    response = client.get("/listing", params={"path": "/contracts", "connection": "alfresco"})
+
+    assert response.status_code == 200
+    assert response.json()["provider"] == "alfresco"
+
+
+def test_edit_endpoint_accepts_connection_body(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_rename_item(source: str, destination: str, provider_name: str | None = None, *, connection_name: str | None = None):
+        assert source == "/old"
+        assert destination == "/new"
+        assert provider_name is None
+        assert connection_name == "alfresco"
+        return OperationResult(success=True, operation="rename", provider="alfresco", source=source, destination=destination)
+
+    monkeypatch.setattr(edit_routes, "rename_item", fake_rename_item)
+    client = TestClient(create_app())
+
+    response = client.post("/edit/rename", json={"source": "/old", "destination": "/new", "connection": "alfresco"})
+
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+
+
+def test_transfer_endpoint_accepts_connection_body(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_copy_item(source: str, destination: str, provider_name: str | None = None, *, connection_name: str | None = None):
+        assert source == "/source"
+        assert destination == "/copy"
+        assert provider_name is None
+        assert connection_name == "alfresco"
+        return OperationResult(success=True, operation="copy", provider="alfresco", source=source, destination=destination)
+
+    monkeypatch.setattr(transfer_routes, "copy_item", fake_copy_item)
+    client = TestClient(create_app())
+
+    response = client.post("/transfer/copy", json={"source": "/source", "destination": "/copy", "connection": "alfresco"})
+
+    assert response.status_code == 200
+    assert response.json()["success"] is True
 
 
 def test_browse_share_url_dry_run() -> None:

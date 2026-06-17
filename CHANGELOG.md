@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.3-beta - 2026-06-17
+
+- Added `connection` request aliases for legacy `/listing`, `/edit`, and `/transfer` route payloads.
+- Added `connection` aliases for Share URL request models while keeping `provider` compatible.
+- Added validation for mismatched `provider` and `connection` values.
+- Added API tests for route and Share URL connection aliases.
+- Release/version bump to `0.7.3-beta`.
+
 ## 0.7.2-beta - 2026-06-17
 
 - Added `connection` as the primary parsed WFX path field while keeping `provider` as a backward-compatible alias.

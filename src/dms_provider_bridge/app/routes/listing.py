@@ -8,7 +8,7 @@ router = APIRouter()
 
 
 @router.get("")
-def listing(path: str = Query(default="/"), provider: str | None = None) -> dict:
-    result = list_items(path=path, provider_name=provider)
+def listing(path: str = Query(default="/"), provider: str | None = None, connection: str | None = None) -> dict:
+    result = list_items(path=path, provider_name=provider, connection_name=connection)
     return result.model_dump()
 

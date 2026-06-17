@@ -90,13 +90,20 @@ class WfxUploadRequest(BaseModel):
 
 class WfxShareUrlRequest(BaseModel):
     share_url: str = Field(min_length=10, description="Full provider share URL.")
-    provider: str = Field(min_length=1, description="Provider key that supports this Share URL format.")
+    provider: str | None = Field(default=None, min_length=1, description="Legacy alias for connection.")
+    connection: str | None = Field(default=None, min_length=1, description="Connection key that supports this Share URL format.")
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_connection_alias(cls, data: object) -> object:
+        return _normalize_provider_connection_alias(data)
 
 
 class WfxShareUrlBrowseRequest(BaseModel):
     share_url: str = Field(min_length=10, description="Full provider share URL.")
     auth: BridgeAuthContext
-    provider: str = Field(min_length=1, description="Provider key that supports this Share URL format.")
+    provider: str | None = Field(default=None, min_length=1, description="Legacy alias for connection.")
+    connection: str | None = Field(default=None, min_length=1, description="Connection key that supports this Share URL format.")
     operation: Literal["list", "stat", "download", "copy", "move", "mkdir", "delete", "upload"] = "list"
     execute: bool = True
     provider_path_override: str | None = Field(
@@ -113,10 +120,16 @@ class WfxShareUrlBrowseRequest(BaseModel):
     overwrite: bool = False
     versioning: UploadVersioning | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_connection_alias(cls, data: object) -> object:
+        return _normalize_provider_connection_alias(data)
+
 
 class WfxShareUrlValidateRequest(BaseModel):
     share_url: str = Field(min_length=10, description="Full provider share URL.")
-    provider: str = Field(min_length=1, description="Provider key that supports this Share URL format.")
+    provider: str | None = Field(default=None, min_length=1, description="Legacy alias for connection.")
+    connection: str | None = Field(default=None, min_length=1, description="Connection key that supports this Share URL format.")
     operation: Literal["list", "stat", "download", "copy", "move", "mkdir", "delete", "upload"] = "list"
     provider_path_override: str | None = Field(
         default=None,
@@ -129,6 +142,11 @@ class WfxShareUrlValidateRequest(BaseModel):
     )
     file_name: str | None = Field(default=None, description="File name for upload operation")
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_connection_alias(cls, data: object) -> object:
+        return _normalize_provider_connection_alias(data)
+
 
 class WfxResponse(BaseModel):
     ok: bool
@@ -136,3 +154,18 @@ class WfxResponse(BaseModel):
     message: str | None = None
     data: Any = None
     metadata: dict[str, Any] | None = None
+
+
+def _normalize_provider_connection_alias(data: object) -> object:
+    if not isinstance(data, dict):
+        return data
+    normalized = dict(data)
+    provider = normalized.get("provider")
+    connection = normalized.get("connection")
+    if provider and connection and str(provider).strip().lower().rstrip(":") != str(connection).strip().lower().rstrip(":"):
+        raise ValueError(f"Connection mismatch: provider '{provider}' does not match connection '{connection}'.")
+    if not provider and not connection:
+        raise ValueError("Either connection or provider must be provided.")
+    if not provider and connection:
+        normalized["provider"] = connection
+    return normalized
