@@ -36,10 +36,16 @@ $pyiRoot = Join-Path $repoRoot "artifacts\bridge-onefile"
 $workPath = Join-Path $pyiRoot "build"
 $specPath = Join-Path $pyiRoot "spec"
 $configStageDir = Join-Path $pyiRoot "config"
-$configWhitelist = @(
+$configTemplatePaths = @(
     "bridge.json",
-    "alfresco.json",
-    "edocat.json"
+    "providers\provider.json",
+    "providers\provider.local.json",
+    "drivers\driver.json",
+    "drivers\alfresco.json",
+    "drivers\edocat.json",
+    "connections\connection.json",
+    "connections\alfresco.json",
+    "connections\edocat.json"
 )
 
 if (-not (Test-Path $entryScript)) {
@@ -58,12 +64,14 @@ if (Test-Path $configStageDir) {
 }
 New-Item -ItemType Directory -Path $configStageDir -Force | Out-Null
 
-foreach ($configName in $configWhitelist) {
+foreach ($configName in $configTemplatePaths) {
     $configSource = Join-Path $configDir $configName
     if (-not (Test-Path $configSource)) {
         throw "Required config template missing: $configSource"
     }
-    Copy-Item -Path $configSource -Destination (Join-Path $configStageDir $configName) -Force
+    $configDestination = Join-Path $configStageDir $configName
+    New-Item -ItemType Directory -Path (Split-Path -Parent $configDestination) -Force | Out-Null
+    Copy-Item -Path $configSource -Destination $configDestination -Force
 }
 
 if (-not $SkipPyInstallerInstall) {

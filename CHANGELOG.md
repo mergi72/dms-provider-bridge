@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.10-beta - 2026-06-18
+
+- Updated bridge build and installer scripts to package the new `config/providers`, `config/drivers`, and `config/connections` layout.
+- Fixed installer payload seeding to use `config/providers/provider.local.json`.
+- Updated service install config copy logic to preserve nested config template paths.
+- Verified onefile bridge build staging with the new config tree.
+- Release/version bump to `0.7.10-beta`.
+
 ## 0.7.9-beta - 2026-06-18
 
 - Added a read-only `bridge.json` section to the Config UI.

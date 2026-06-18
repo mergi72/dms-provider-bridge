@@ -336,6 +336,7 @@ function Copy-ConfigFilesByName {
             continue
         }
 
+        New-Item -ItemType Directory -Path (Split-Path -Parent $targetPath) -Force | Out-Null
         Copy-Item -Path $sourcePath -Destination $targetPath -Force:$Overwrite
         Write-Ok $fileName
         $copied++
@@ -493,8 +494,14 @@ if (Test-Path $bridgeInternalSource) {
 
 $machineConfigNames = @(
     "bridge.json",
-    "alfresco.json",
-    "edocat.json"
+    "providers\provider.json",
+    "providers\provider.local.json",
+    "drivers\driver.json",
+    "drivers\alfresco.json",
+    "drivers\edocat.json",
+    "connections\connection.json",
+    "connections\alfresco.json",
+    "connections\edocat.json"
 )
 
 $userConfigNames = @(

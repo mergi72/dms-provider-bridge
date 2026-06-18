@@ -71,16 +71,22 @@ if ([string]::IsNullOrWhiteSpace($resolvedNssm)) {
 $payloadDir = Join-Path $repoRoot "artifacts\bridge-installer-payload"
 $configPayloadDir = Join-Path $payloadDir "config"
 $userConfigPayloadDir = Join-Path $payloadDir "user-config"
-$machineConfigWhitelist = @(
+$machineConfigTemplatePaths = @(
     "bridge.json",
-    "alfresco.json",
-    "edocat.json"
+    "providers\provider.json",
+    "providers\provider.local.json",
+    "drivers\driver.json",
+    "drivers\alfresco.json",
+    "drivers\edocat.json",
+    "connections\connection.json",
+    "connections\alfresco.json",
+    "connections\edocat.json"
 )
 $userProviderLocalConfigNames = @(
     "alfresco.local.json",
     "edocat.local.json"
 )
-$userProviderLocalTemplate = Join-Path $repoRoot "config\provider.local.json"
+$userProviderLocalTemplate = Join-Path $repoRoot "config\providers\provider.local.json"
 
 if (-not (Test-Path $userProviderLocalTemplate)) {
     throw "Required user provider local config template missing: $userProviderLocalTemplate"
@@ -105,12 +111,14 @@ Copy-Item -Path $resolvedNssm -Destination (Join-Path $payloadDir "nssm.exe") -F
 Copy-Item -Path (Join-Path $repoRoot "scripts\install-bridge-service.ps1") -Destination (Join-Path $payloadDir "install-bridge-service.ps1") -Force
 Copy-Item -Path (Join-Path $repoRoot "scripts\uninstall-bridge-service.ps1") -Destination (Join-Path $payloadDir "uninstall-bridge-service.ps1") -Force
 
-foreach ($configName in $machineConfigWhitelist) {
+foreach ($configName in $machineConfigTemplatePaths) {
     $configSource = Join-Path $repoRoot (Join-Path "config" $configName)
     if (-not (Test-Path $configSource)) {
         throw "Required machine config template missing: $configSource"
     }
-    Copy-Item -Path $configSource -Destination (Join-Path $configPayloadDir $configName) -Force
+    $configDestination = Join-Path $configPayloadDir $configName
+    New-Item -ItemType Directory -Path (Split-Path -Parent $configDestination) -Force | Out-Null
+    Copy-Item -Path $configSource -Destination $configDestination -Force
 }
 
 foreach ($configName in $userProviderLocalConfigNames) {

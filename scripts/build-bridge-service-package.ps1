@@ -83,16 +83,22 @@ $staging = Join-Path $OutputDir "staging"
 $configTarget = Join-Path $staging "config"
 $userConfigTarget = Join-Path $staging "user-config"
 $zipPath = Join-Path $OutputDir "DmsProviderBridgeService-$Version.zip"
-$configWhitelist = @(
+$configTemplatePaths = @(
     "bridge.json",
-    "alfresco.json",
-    "edocat.json"
+    "providers\provider.json",
+    "providers\provider.local.json",
+    "drivers\driver.json",
+    "drivers\alfresco.json",
+    "drivers\edocat.json",
+    "connections\connection.json",
+    "connections\alfresco.json",
+    "connections\edocat.json"
 )
 $userProviderLocalConfigNames = @(
     "alfresco.local.json",
     "edocat.local.json"
 )
-$userProviderLocalTemplate = Join-Path $repoRoot "config\provider.local.json"
+$userProviderLocalTemplate = Join-Path $repoRoot "config\providers\provider.local.json"
 
 if (-not (Test-Path $userProviderLocalTemplate)) {
     throw "Required user provider local config template missing: $userProviderLocalTemplate"
@@ -111,12 +117,14 @@ Copy-Item -Path $resolvedNssm -Destination (Join-Path $staging "nssm.exe") -Forc
 Copy-Item -Path (Join-Path $repoRoot "scripts\install-bridge-service.ps1") -Destination (Join-Path $staging "install-bridge-service.ps1") -Force
 Copy-Item -Path (Join-Path $repoRoot "scripts\uninstall-bridge-service.ps1") -Destination (Join-Path $staging "uninstall-bridge-service.ps1") -Force
 
-foreach ($configName in $configWhitelist) {
+foreach ($configName in $configTemplatePaths) {
     $configSource = Join-Path $repoRoot (Join-Path "config" $configName)
     if (-not (Test-Path $configSource)) {
         throw "Required config template missing: $configSource"
     }
-    Copy-Item -Path $configSource -Destination (Join-Path $configTarget $configName) -Force
+    $configDestination = Join-Path $configTarget $configName
+    New-Item -ItemType Directory -Path (Split-Path -Parent $configDestination) -Force | Out-Null
+    Copy-Item -Path $configSource -Destination $configDestination -Force
 }
 
 foreach ($configName in $userProviderLocalConfigNames) {
