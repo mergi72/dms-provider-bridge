@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "v0.4.22",
+    [string]$Version = "v0.7.12-beta",
     [string]$BridgeExePath = "dist\dms-provider-bridge.exe",
     [string]$NssmExePath,
     [string]$InnoCompilerPath,
@@ -71,6 +71,7 @@ if ([string]::IsNullOrWhiteSpace($resolvedNssm)) {
 $payloadDir = Join-Path $repoRoot "artifacts\bridge-installer-payload"
 $configPayloadDir = Join-Path $payloadDir "config"
 $userConfigPayloadDir = Join-Path $payloadDir "user-config"
+$userDriverConfigPayloadDir = Join-Path $userConfigPayloadDir "drivers"
 $machineConfigTemplatePaths = @(
     "bridge.json",
     "providers\provider.json",
@@ -82,14 +83,14 @@ $machineConfigTemplatePaths = @(
     "connections\alfresco.json",
     "connections\edocat.json"
 )
-$userProviderLocalConfigNames = @(
+$userDriverLocalConfigNames = @(
     "alfresco.local.json",
     "edocat.local.json"
 )
-$userProviderLocalTemplate = Join-Path $repoRoot "config\providers\provider.local.json"
+$userDriverLocalTemplate = Join-Path $repoRoot "config\providers\provider.local.json"
 
-if (-not (Test-Path $userProviderLocalTemplate)) {
-    throw "Required user provider local config template missing: $userProviderLocalTemplate"
+if (-not (Test-Path $userDriverLocalTemplate)) {
+    throw "Required user driver local config template missing: $userDriverLocalTemplate"
 }
 
 if (Test-Path $payloadDir) {
@@ -99,6 +100,7 @@ if (Test-Path $payloadDir) {
 New-Item -ItemType Directory -Path $payloadDir -Force | Out-Null
 New-Item -ItemType Directory -Path $configPayloadDir -Force | Out-Null
 New-Item -ItemType Directory -Path $userConfigPayloadDir -Force | Out-Null
+New-Item -ItemType Directory -Path $userDriverConfigPayloadDir -Force | Out-Null
 
 $bridgeExeParent = Split-Path -Parent $BridgeExePath
 $bridgeInternalDir = Join-Path $bridgeExeParent "_internal"
@@ -121,8 +123,8 @@ foreach ($configName in $machineConfigTemplatePaths) {
     Copy-Item -Path $configSource -Destination $configDestination -Force
 }
 
-foreach ($configName in $userProviderLocalConfigNames) {
-    Copy-Item -Path $userProviderLocalTemplate -Destination (Join-Path $userConfigPayloadDir $configName) -Force
+foreach ($configName in $userDriverLocalConfigNames) {
+    Copy-Item -Path $userDriverLocalTemplate -Destination (Join-Path $userDriverConfigPayloadDir $configName) -Force
 }
 
 Write-Host "Installer payload prepared: $payloadDir"

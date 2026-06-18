@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.12-beta - 2026-06-18
+
+- Updated the bridge-only Inno installer for the new `config/providers`, `config/drivers`, and `config/connections` layout.
+- Captured the installing user's AppData path before elevation and reused it in the admin phase.
+- Seeded user driver local override templates under `config/drivers/*.local.json`.
+- Built `DmsProviderBridgeSetup-v0.7.12-beta.exe`.
+- Release/version bump to `0.7.12-beta`.
+
 ## 0.7.11-beta - 2026-06-18
 
 - Removed legacy `/edit/*` and `/transfer/copy` routes from the public web API.

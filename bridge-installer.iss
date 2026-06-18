@@ -1,7 +1,7 @@
 [Setup]
 AppId={{CFD8BDCC-B59A-4CB3-93D7-530BB5283773}
 AppName=DMS Provider Bridge Setup
-AppVersion=0.5.0-beta
+AppVersion=0.7.12-beta
 AppPublisher=mergi72
 DefaultDirName={autopf}\DMS Provider
 DefaultGroupName=DMS Provider Bridge
@@ -10,7 +10,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=artifacts\installer
-OutputBaseFilename=DmsProviderBridgeSetup-v0.5.0-beta
+OutputBaseFilename=DmsProviderBridgeSetup-v0.7.12-beta
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -22,12 +22,26 @@ Source: "artifacts\bridge-installer-payload\nssm.exe"; DestDir: "{tmp}\dms-provi
 Source: "artifacts\bridge-installer-payload\install-bridge-service.ps1"; DestDir: "{tmp}\dms-provider-payload\app"; Flags: ignoreversion deleteafterinstall
 Source: "artifacts\bridge-installer-payload\uninstall-bridge-service.ps1"; DestDir: "{tmp}\dms-provider-payload\app"; Flags: ignoreversion deleteafterinstall
 Source: "artifacts\bridge-installer-payload\config\bridge.json"; DestDir: "{tmp}\dms-provider-payload\config"; Flags: ignoreversion deleteafterinstall
-Source: "artifacts\bridge-installer-payload\config\alfresco.json"; DestDir: "{tmp}\dms-provider-payload\config"; Flags: ignoreversion deleteafterinstall
-Source: "artifacts\bridge-installer-payload\config\edocat.json"; DestDir: "{tmp}\dms-provider-payload\config"; Flags: ignoreversion deleteafterinstall
-Source: "artifacts\bridge-installer-payload\user-config\alfresco.local.json"; DestDir: "{tmp}\dms-provider-payload\user-config"; Flags: ignoreversion deleteafterinstall
-Source: "artifacts\bridge-installer-payload\user-config\edocat.local.json"; DestDir: "{tmp}\dms-provider-payload\user-config"; Flags: ignoreversion deleteafterinstall
+Source: "artifacts\bridge-installer-payload\config\providers\*"; DestDir: "{tmp}\dms-provider-payload\config\providers"; Flags: ignoreversion recursesubdirs createallsubdirs deleteafterinstall
+Source: "artifacts\bridge-installer-payload\config\drivers\*"; DestDir: "{tmp}\dms-provider-payload\config\drivers"; Flags: ignoreversion recursesubdirs createallsubdirs deleteafterinstall
+Source: "artifacts\bridge-installer-payload\config\connections\*"; DestDir: "{tmp}\dms-provider-payload\config\connections"; Flags: ignoreversion recursesubdirs createallsubdirs deleteafterinstall
+Source: "artifacts\bridge-installer-payload\user-config\drivers\alfresco.local.json"; DestDir: "{tmp}\dms-provider-payload\user-config\drivers"; Flags: ignoreversion deleteafterinstall
+Source: "artifacts\bridge-installer-payload\user-config\drivers\edocat.local.json"; DestDir: "{tmp}\dms-provider-payload\user-config\drivers"; Flags: ignoreversion deleteafterinstall
 
 [Code]
+var
+  InstallerUserAppData: String;
+  InstallerUserRoot: String;
+  InstallerUserConfigRoot: String;
+
+function InitializeSetup(): Boolean;
+begin
+  InstallerUserAppData := ExpandConstant('{userappdata}');
+  InstallerUserRoot := InstallerUserAppData + '\DMS provider';
+  InstallerUserConfigRoot := InstallerUserRoot + '\config';
+  Result := True;
+end;
+
 procedure WriteLog(LogPath: String; Message: String);
 var
   Line: String;
@@ -68,21 +82,23 @@ var
   PayloadUserConfig: String;
   LogPath: String;
 begin
-  UserRoot := ExpandConstant('{userappdata}\DMS provider');
-  UserConfigRoot := UserRoot + '\config';
-  PayloadUserConfig := ExpandConstant('{tmp}\dms-provider-payload\user-config');
+  UserRoot := InstallerUserRoot;
+  UserConfigRoot := InstallerUserConfigRoot;
+  PayloadUserConfig := ExpandConstant('{tmp}\dms-provider-payload\user-config\drivers');
   LogPath := UserRoot + '\installer-structure.log';
 
   WizardForm.StatusLabel.Caption := 'Creating user config structure...';
   ForceDirectories(UserRoot);
   WriteLog(LogPath, '[INFO] User structure phase started');
-  WriteLog(LogPath, '[INFO] Effective user AppData: ' + ExpandConstant('{userappdata}'));
+  WriteLog(LogPath, '[INFO] Captured user AppData: ' + InstallerUserAppData);
+  WriteLog(LogPath, '[INFO] Captured user config root: ' + InstallerUserConfigRoot);
 
   EnsureDir(UserRoot, LogPath);
   EnsureDir(UserConfigRoot, LogPath);
+  EnsureDir(UserConfigRoot + '\drivers', LogPath);
 
-  CopyFileChecked(PayloadUserConfig + '\alfresco.local.json', UserConfigRoot + '\alfresco.local.json', LogPath, True);
-  CopyFileChecked(PayloadUserConfig + '\edocat.local.json', UserConfigRoot + '\edocat.local.json', LogPath, True);
+  CopyFileChecked(PayloadUserConfig + '\alfresco.local.json', UserConfigRoot + '\drivers\alfresco.local.json', LogPath, True);
+  CopyFileChecked(PayloadUserConfig + '\edocat.local.json', UserConfigRoot + '\drivers\edocat.local.json', LogPath, True);
 
   WriteLog(LogPath, '[STEP] Setting user environment: DMS_PROVIDER_USER_CONFIG_DIR=' + UserConfigRoot);
   if not RegWriteStringValue(HKEY_CURRENT_USER, 'Environment', 'DMS_PROVIDER_USER_CONFIG_DIR', UserConfigRoot) then begin
@@ -131,6 +147,7 @@ begin
     '}' + #13#10 +
     'function Copy-Checked([string]$Source, [string]$Target) {' + #13#10 +
     '    Write-InstallLog "[STEP] Copying file: $Source -> $Target"' + #13#10 +
+    '    New-Item -ItemType Directory -Path (Split-Path -Parent $Target) -Force | Out-Null' + #13#10 +
     '    Copy-Item -Path $Source -Destination $Target -Force' + #13#10 +
     '    if (-not (Test-Path $Target)) { throw "File was not copied: $Target" }' + #13#10 +
     '    Write-InstallLog "[ OK ] $Target"' + #13#10 +
@@ -239,6 +256,9 @@ begin
     '}' + #13#10 +
     'Ensure-Dir $appRoot' + #13#10 +
     'Ensure-Dir (Join-Path $appRoot "config")' + #13#10 +
+    'Ensure-Dir (Join-Path $appRoot "config\providers")' + #13#10 +
+    'Ensure-Dir (Join-Path $appRoot "config\drivers")' + #13#10 +
+    'Ensure-Dir (Join-Path $appRoot "config\connections")' + #13#10 +
     'Ensure-Dir (Join-Path $appRoot "logs")' + #13#10 +
     'Write-InstallLog "[INFO] Admin structure phase started"' + #13#10 +
     'Write-InstallLog "[INFO] Install path: $appRoot"' + #13#10 +
@@ -256,8 +276,14 @@ begin
     'Copy-Checked (Join-Path $payloadRoot "app\install-bridge-service.ps1") (Join-Path $appRoot "install-bridge-service.ps1")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "app\uninstall-bridge-service.ps1") (Join-Path $appRoot "uninstall-bridge-service.ps1")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "config\bridge.json") (Join-Path $appRoot "config\bridge.json")' + #13#10 +
-    'Copy-Checked (Join-Path $payloadRoot "config\alfresco.json") (Join-Path $appRoot "config\alfresco.json")' + #13#10 +
-    'Copy-Checked (Join-Path $payloadRoot "config\edocat.json") (Join-Path $appRoot "config\edocat.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\providers\provider.json") (Join-Path $appRoot "config\providers\provider.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\providers\provider.local.json") (Join-Path $appRoot "config\providers\provider.local.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\drivers\driver.json") (Join-Path $appRoot "config\drivers\driver.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\drivers\alfresco.json") (Join-Path $appRoot "config\drivers\alfresco.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\drivers\edocat.json") (Join-Path $appRoot "config\drivers\edocat.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\connections\connection.json") (Join-Path $appRoot "config\connections\connection.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\connections\alfresco.json") (Join-Path $appRoot "config\connections\alfresco.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\connections\edocat.json") (Join-Path $appRoot "config\connections\edocat.json")' + #13#10 +
     'Write-InstallLog "[STEP] Setting machine environment: DMS_PROVIDER_MACHINE_CONFIG_DIR=$appRoot\config"' + #13#10 +
     '[Environment]::SetEnvironmentVariable("DMS_PROVIDER_MACHINE_CONFIG_DIR", (Join-Path $appRoot "config"), "Machine")' + #13#10 +
     'Write-InstallLog "[ OK ] DMS_PROVIDER_MACHINE_CONFIG_DIR"' + #13#10 +
@@ -339,8 +365,8 @@ begin
   PayloadRoot := ExpandConstant('{tmp}\dms-provider-payload');
   DefaultAppRoot := ExpandConstant('{commonpf}\DMS Provider');
   ScriptPath := ExpandConstant('{tmp}\dms-provider-admin-structure.ps1');
-  UserLogPath := ExpandConstant('{userappdata}\DMS provider\installer-structure.log');
-  UserConfigRoot := ExpandConstant('{userappdata}\DMS provider\config');
+  UserLogPath := InstallerUserRoot + '\installer-structure.log';
+  UserConfigRoot := InstallerUserConfigRoot;
 
   WizardForm.StatusLabel.Caption := 'Requesting administrator rights for app structure...';
   WriteAdminStructureScript(ScriptPath, PayloadRoot, DefaultAppRoot, UserLogPath, UserConfigRoot);
