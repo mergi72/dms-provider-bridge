@@ -64,12 +64,20 @@ _NEW_KEYS = {
 }
 
 
+def _machine_config_dir() -> Path:
+    return Path(os.environ.get("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(MACHINE_CONFIG_DIR)))
+
+
+def _bridge_config_path() -> Path:
+    return _machine_config_dir() / "bridge.json"
+
+
 def _registry_paths() -> dict[str, Path]:
     config = load_config()
     paths = config.get("paths") if isinstance(config, dict) else None
     if not isinstance(paths, dict):
         paths = {}
-    machine_config_dir = Path(os.environ.get("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(MACHINE_CONFIG_DIR)))
+    machine_config_dir = _machine_config_dir()
     return {
         "providers": machine_config_dir / str(paths.get("providers") or "providers"),
         "drivers": machine_config_dir / str(paths.get("drivers") or "drivers"),
@@ -401,6 +409,8 @@ def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
 
 def _render_nav(active: str | None = None) -> str:
     links = ['<a class="button button-muted home" href="/config">Config</a>']
+    bridge_class = "active" if active == "bridge" else ""
+    links.append(f'<a class="button button-muted {bridge_class}" href="/config/bridge">Bridge</a>')
     for section, title in _SECTION_TITLES.items():
         class_name = "active" if section == active else ""
         links.append(f'<a class="button button-muted {class_name}" href="/config/{section}">{html.escape(title)}</a>')
@@ -458,6 +468,7 @@ def _render_layout(title: str, body: str, active: str | None = None) -> HTMLResp
     .muted {{ color: #64748b; }}
     .notice {{ margin: 0 0 10px; padding: 8px 10px; border-radius: 4px; border: 1px solid #9ad1aa; background: #e6f4ea; color: #137333; }}
     .read-only-warning {{ margin: 0 0 10px; padding: 8px 10px; border-radius: 4px; border: 1px solid #f0c36d; background: #fff4e5; color: #9a5b00; font-weight: 600; }}
+    .contract-warning {{ margin: 0 0 12px; padding: 10px 12px; border-radius: 4px; border: 1px solid #e27b7b; background: #fff0f0; color: #b42318; font-weight: 700; }}
     .help {{ margin: 0 0 12px; padding: 10px 12px; border-left: 4px solid #6b9de8; background: #eef5ff; color: #243b53; }}
     .meta {{ display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 10px; }}
     .meta span {{ background: #eef2f7; border: 1px solid #d7dde5; padding: 4px 7px; border-radius: 3px; }}
@@ -503,11 +514,19 @@ def _render_layout(title: str, body: str, active: str | None = None) -> HTMLResp
 def config_home() -> HTMLResponse:
     body = """
 <div class="section-grid">
+  <a class="section-card" href="/config/bridge">
+    <h2>Bridge</h2>
+    <div>
+      <p><span class="badge badge-read-only">READ ONLY</span></p>
+      <p class="contract-warning">Bridge config controls the local bridge service. It can be changed and configured, but only when you know exactly what you are doing.</p>
+      <p>Local service configuration for server, runtime paths and bridge behavior.</p>
+    </div>
+  </a>
   <a class="section-card" href="/config/providers">
     <h2>Provider ABC</h2>
     <div>
       <p><span class="badge badge-read-only">READ ONLY</span></p>
-      <p class="help">Provider ABC is the internal bridge contract. It can be changed and configured, but only when you know exactly what you are doing.</p>
+      <p class="contract-warning">Provider ABC is the internal bridge contract. It can be changed and configured, but only when you know exactly what you are doing.</p>
       <p>VFS/common contract used internally by the bridge.</p>
     </div>
   </a>
@@ -530,6 +549,79 @@ def config_home() -> HTMLResponse:
 </div>
 """
     return _render_layout("DMS Provider Bridge Config", body)
+
+
+@router.get("/bridge", response_class=HTMLResponse)
+def config_bridge() -> HTMLResponse:
+    path = _bridge_config_path()
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="Bridge config file not found: bridge.json")
+    body = f"""
+<section class="panel">
+  <h2>Bridge</h2>
+  <div class="panel-content">
+    <p>local bridge service configuration</p>
+    <p class="contract-warning">Bridge config controls the local bridge service. It can be changed and configured, but only when you know exactly what you are doing.</p>
+    <p class="muted file-path" title="{html.escape(str(path.parent))}">Directory: {html.escape(str(path.parent))}</p>
+    <table>
+      <tr><th>File</th><th>Key</th><th>Name</th><th>Path</th><th>Mode</th></tr>
+      <tr>
+        <td><a href="/config/bridge/bridge.json">bridge.json</a></td>
+        <td>bridge</td>
+        <td>DMS Provider Bridge</td>
+        <td class="path-cell" title="{html.escape(str(path))}">{html.escape(str(path))}</td>
+        <td><span class="badge badge-read-only">READ-ONLY CONFIG</span></td>
+      </tr>
+    </table>
+  </div>
+</section>
+"""
+    return _render_layout("Config Bridge", body, "bridge")
+
+
+@router.get("/bridge/bridge.json", response_class=HTMLResponse)
+def config_bridge_file() -> HTMLResponse:
+    path = _bridge_config_path()
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="Bridge config file not found: bridge.json")
+    payload = _read_json_file(path)
+    rendered = json.dumps(payload, ensure_ascii=False, indent=4)
+    body = f"""
+<div class="grid">
+  <section class="panel">
+    <h2>Bridge</h2>
+    <div class="panel-content file-list">
+      <a class="active" href="/config/bridge">bridge.json</a>
+    </div>
+  </section>
+  <section class="panel">
+    <h2>bridge.json</h2>
+    <div class="panel-content">
+      <div class="editor-header">
+        <div>
+          <p class="editor-title"><strong>bridge.json</strong> local bridge service</p>
+          <p class="editor-subtitle muted file-path" title="{html.escape(str(path))}">{html.escape(str(path))}</p>
+        </div>
+        <span class="badge badge-read-only">READ ONLY</span>
+      </div>
+      <p class="meta">
+        <span>Section: Bridge</span>
+        <span>Role: local bridge service configuration</span>
+        <span>Mode: read only</span>
+      </p>
+      <p class="contract-warning">Bridge config controls the local bridge service. It can be changed and configured, but only when you know exactly what you are doing.</p>
+      <textarea readonly>{html.escape(rendered)}</textarea>
+      <div class="actions">
+        <button class="button-primary" type="button" disabled>Save</button>
+        <a class="button button-muted" href="/config/reload">Reload</a>
+        <a class="button button-muted" href="/config/bridge">Cancel</a>
+        <span class="muted">Bridge config is read-only in Config UI.</span>
+      </div>
+    </div>
+  </section>
+</div>
+"""
+    return _render_layout("Bridge Config", body, "bridge")
 
 
 @router.get("/reload", response_class=HTMLResponse)
@@ -647,7 +739,7 @@ def config_section(section: str) -> HTMLResponse:
   <h2>{html.escape(_SECTION_TITLES[section])}</h2>
   <div class="panel-content">
     <p>{html.escape(_SECTION_ROLES[section])}</p>
-    <p class="help">{html.escape(_SECTION_HELP[section])}</p>
+    <p class="{'contract-warning' if section == 'providers' else 'help'}">{html.escape(_SECTION_HELP[section])}</p>
     {new_link}
     <p class="muted file-path" title="{html.escape(str(directory))}">Directory: {html.escape(str(directory))}</p>
     <table>
@@ -891,7 +983,7 @@ def _render_editor(
     display_name = _payload_display_name(payload, key)
     notice = f'<p class="notice">{html.escape(message)}</p>' if message else ""
     read_only_warning = ""
-    if readonly_attr:
+    if readonly_attr and section != "providers":
         read_only_warning = '<p class="read-only-warning">This file is read-only. Use New to create an editable copy.</p>'
     submit_label = "Create" if is_new else "Save"
     original_value = original_file_name or ("" if is_new else file_name)
@@ -954,7 +1046,7 @@ def _render_editor(
         <span>Role: {html.escape(_SECTION_ROLES[section])}</span>
         <span>Mode: {html.escape(mode)}</span>
       </p>
-      <p class="help">{html.escape(_SECTION_HELP[section])}</p>
+      <p class="{'contract-warning' if section == 'providers' else 'help'}">{html.escape(_SECTION_HELP[section])}</p>
       {form_open}
         <input type="hidden" name="file_name" value="{html.escape(original_value)}">
         <input type="hidden" name="overwrite" value="{html.escape(overwrite_value)}">

@@ -30,6 +30,7 @@ def test_config_home_links_sections() -> None:
     assert response.status_code == 200
     assert "/docs" in response.text
     assert "/config/reload" in response.text
+    assert "/config/bridge" in response.text
     assert "/config/providers" in response.text
     assert "/config/drivers" in response.text
     assert "/config/connections" in response.text
@@ -110,6 +111,26 @@ def test_config_providers_is_read_only() -> None:
     assert response.status_code == 200
     assert "readonly" in response.text
     assert "Provider ABC" in response.text
+
+
+def test_config_bridge_is_read_only() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/config/bridge")
+
+    assert response.status_code == 200
+    assert "bridge.json" in response.text
+    assert "/config/bridge/bridge.json" in response.text
+    assert "READ-ONLY CONFIG" in response.text
+    assert "Bridge config controls the local bridge service" in response.text
+    assert "when you know exactly what you are doing" in response.text
+
+    file_response = client.get("/config/bridge/bridge.json")
+
+    assert file_response.status_code == 200
+    assert "readonly" in file_response.text
+    assert "READ ONLY" in file_response.text
+    assert "Bridge config controls the local bridge service" in file_response.text
 
 
 def test_config_driver_json_endpoint() -> None:

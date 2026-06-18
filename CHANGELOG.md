@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.9-beta - 2026-06-18
+
+- Added a read-only `bridge.json` section to the Config UI.
+- Aligned Bridge and Provider ABC Config UI warnings for dangerous read-only contract/config files.
+- Added tests for the Bridge Config UI section and read-only detail view.
+- Release/version bump to `0.7.9-beta`.
+
 ## 0.7.8-beta - 2026-06-17
 
 - Added `--connection` to the CLI while keeping `--provider` as a legacy alias.
