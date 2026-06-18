@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.11-beta - 2026-06-18
+
+- Removed legacy `/edit/*` and `/transfer/copy` routes from the public web API.
+- Kept `GET /listing` available as a quick diagnostic listing endpoint.
+- Documented `POST /bridge/wfx/*` as the public client contract for file operations.
+- Added API tests to ensure legacy edit/transfer routes are not exposed.
+- Release/version bump to `0.7.11-beta`.
+
 ## 0.7.10-beta - 2026-06-18
 
 - Updated bridge build and installer scripts to package the new `config/providers`, `config/drivers`, and `config/connections` layout.

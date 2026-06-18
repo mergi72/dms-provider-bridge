@@ -9,12 +9,9 @@ from fastapi.testclient import TestClient
 
 from dms_provider_bridge.app.server import create_app
 from dms_provider_bridge.app.routes import bridge as bridge_routes
-from dms_provider_bridge.app.routes import edit as edit_routes
 from dms_provider_bridge.app.routes import listing as listing_routes
-from dms_provider_bridge.app.routes import transfer as transfer_routes
 from dms_provider_bridge.models.bridge import WfxResponse
 from dms_provider_bridge.models.listing import ListingResult
-from dms_provider_bridge.models.operation import OperationResult
 from dms_provider_bridge.services import bridge_service
 
 
@@ -273,38 +270,33 @@ def test_listing_endpoint_accepts_connection_query(monkeypatch: pytest.MonkeyPat
     assert response.json()["provider"] == "alfresco"
 
 
-def test_edit_endpoint_accepts_connection_body(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_rename_item(source: str, destination: str, provider_name: str | None = None, *, connection_name: str | None = None):
-        assert source == "/old"
-        assert destination == "/new"
-        assert provider_name is None
-        assert connection_name == "alfresco"
-        return OperationResult(success=True, operation="rename", provider="alfresco", source=source, destination=destination)
+def test_openapi_exposes_listing_but_not_legacy_edit_transfer_routes() -> None:
+    client = TestClient(create_app())
 
-    monkeypatch.setattr(edit_routes, "rename_item", fake_rename_item)
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    paths = response.json()["paths"]
+    assert "/listing" in paths
+    assert "/edit/rename" not in paths
+    assert "/edit/delete" not in paths
+    assert "/transfer/copy" not in paths
+
+
+def test_legacy_edit_endpoint_is_not_exposed() -> None:
     client = TestClient(create_app())
 
     response = client.post("/edit/rename", json={"source": "/old", "destination": "/new", "connection": "alfresco"})
 
-    assert response.status_code == 200
-    assert response.json()["success"] is True
+    assert response.status_code == 404
 
 
-def test_transfer_endpoint_accepts_connection_body(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_copy_item(source: str, destination: str, provider_name: str | None = None, *, connection_name: str | None = None):
-        assert source == "/source"
-        assert destination == "/copy"
-        assert provider_name is None
-        assert connection_name == "alfresco"
-        return OperationResult(success=True, operation="copy", provider="alfresco", source=source, destination=destination)
-
-    monkeypatch.setattr(transfer_routes, "copy_item", fake_copy_item)
+def test_legacy_transfer_endpoint_is_not_exposed() -> None:
     client = TestClient(create_app())
 
     response = client.post("/transfer/copy", json={"source": "/source", "destination": "/copy", "connection": "alfresco"})
 
-    assert response.status_code == 200
-    assert response.json()["success"] is True
+    assert response.status_code == 404
 
 
 def test_browse_share_url_dry_run() -> None:

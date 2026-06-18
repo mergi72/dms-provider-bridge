@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Beta-yellowgreen)](https://github.com/mergi72/dms-provider-bridge)
-[![Bridge Version](https://img.shields.io/badge/Bridge-v0.7.10--beta-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.7.10-beta)
+[![Bridge Version](https://img.shields.io/badge/Bridge-v0.7.11--beta-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.7.11-beta)
 [![Bridge Setup](https://img.shields.io/badge/Setup-v0.5.0--beta-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.5.0-beta)
 
 Current development branch: `develop`  
@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.7.10-beta`
-- Latest bridge-only release: `v0.7.10-beta`
+- Bridge repository latest changelog version: `0.7.11-beta`
+- Latest bridge-only release: `v0.7.11-beta`
 
 ## Configuration Model
 
@@ -333,6 +333,8 @@ Remote path format:
 - `alfresco:/folder/file.txt`
 
 Endpoints:
+
+The public client contract for file operations is `POST /bridge/wfx/*`. Legacy edit/transfer routes are not exposed in the web API; use `POST /bridge/wfx/delete`, `POST /bridge/wfx/move`, and `POST /bridge/wfx/copy` instead. `GET /listing` remains available as a quick diagnostic listing endpoint without the full WFX payload.
 
 - `GET /bridge/wfx/connections` (connection discovery for root listing in the WFX plugin)
 - `GET /bridge/wfx/connections/{connection_name}`
