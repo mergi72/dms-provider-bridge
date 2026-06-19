@@ -7,6 +7,7 @@ CreateAppDir=no
 DisableDirPage=yes
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
+Uninstallable=no
 OutputDir=artifacts\installer
 OutputBaseFilename=DmsProviderBridgeSetup-v0.7.13-beta
 Compression=lzma
