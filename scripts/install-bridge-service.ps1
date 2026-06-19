@@ -450,26 +450,25 @@ if ([string]::IsNullOrWhiteSpace($ConfigRoot)) {
 }
 
 $bridgeExeTargetPath = Join-Path $InstallRoot "dms-provider-bridge.exe"
-$machineConfigRoot = Join-Path $env:ProgramData "DMS Provider\config"
 $userConfigRoot = $ConfigRoot
-$bridgeLogs = Join-Path $InstallRoot "logs"
+$dataRoot = Split-Path -Parent $userConfigRoot
+$machineConfigRoot = $userConfigRoot
+$bridgeLogs = Join-Path $dataRoot "logs"
 $stdoutLog = Join-Path $bridgeLogs "bridge-stdout.log"
 $stderrLog = Join-Path $bridgeLogs "bridge-stderr.log"
 
 Write-Step "Creating application directories..."
 New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
 Write-Ok $InstallRoot
+
+Write-Step "Creating AppData logs..."
 New-Item -ItemType Directory -Path $bridgeLogs -Force | Out-Null
 Write-Ok $bridgeLogs
 
-Write-Step "Creating ProgramData config..."
-New-Item -ItemType Directory -Path $machineConfigRoot -Force | Out-Null
-Write-Ok $machineConfigRoot
-
 Write-Step "Creating AppData config..."
 Write-Info "AppData config owner: $userConfigOwner"
-New-Item -ItemType Directory -Path $userConfigRoot -Force | Out-Null
-Write-Ok $userConfigRoot
+New-Item -ItemType Directory -Path $machineConfigRoot -Force | Out-Null
+Write-Ok $machineConfigRoot
 
 Write-Step "Copying bridge executable..."
 Copy-Item -Path $BridgeExePath -Destination $bridgeExeTargetPath -Force
@@ -499,8 +498,8 @@ $machineConfigNames = @(
 )
 
 $userConfigNames = @(
-    "alfresco.local.json",
-    "edocat.local.json"
+    "drivers\alfresco.local.json",
+    "drivers\edocat.local.json"
 )
 
 Write-Step "Copying default configuration..."

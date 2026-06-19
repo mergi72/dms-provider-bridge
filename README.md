@@ -280,8 +280,8 @@ curl -sS http://127.0.0.1:8765/bridge/wfx/list \
 
 Configuration is loaded from two fixed Windows scopes:
 
-- Machine config: `%ProgramData%\DMS Provider\config`
-- User config: `%APPDATA%\DMS Provider\config`
+- Installed config: `%APPDATA%\DMS Provider\config`
+- Installed logs: `%APPDATA%\DMS Provider\logs`
 
 The machine config is authoritative. For each config file, the bridge loads the machine JSON first, then merges the matching user `*.local.json` only if the machine JSON exists.
 

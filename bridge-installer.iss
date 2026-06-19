@@ -33,12 +33,14 @@ var
   InstallerUserAppData: String;
   InstallerUserRoot: String;
   InstallerUserConfigRoot: String;
+  InstallerUserLogRoot: String;
 
 function InitializeSetup(): Boolean;
 begin
   InstallerUserAppData := ExpandConstant('{userappdata}');
   InstallerUserRoot := InstallerUserAppData + '\DMS provider';
   InstallerUserConfigRoot := InstallerUserRoot + '\config';
+  InstallerUserLogRoot := InstallerUserRoot + '\logs';
   Result := True;
 end;
 
@@ -117,6 +119,7 @@ begin
   EnsureDir(UserRoot, LogPath);
   EnsureDir(UserConfigRoot, LogPath);
   EnsureDir(UserConfigRoot + '\drivers', LogPath);
+  EnsureDir(InstallerUserLogRoot, LogPath);
 
   CopyFileChecked(PayloadUserConfig + '\alfresco.local.json', UserConfigRoot + '\drivers\alfresco.local.json', LogPath, True);
   CopyFileChecked(PayloadUserConfig + '\edocat.local.json', UserConfigRoot + '\drivers\edocat.local.json', LogPath, True);
@@ -136,7 +139,7 @@ begin
   Result := '"' + Value + '"';
 end;
 
-procedure WriteAdminStructureScript(ScriptPath: String; PayloadRoot: String; DefaultAppRoot: String; UserLogPath: String; UserConfigRoot: String);
+procedure WriteAdminStructureScript(ScriptPath: String; PayloadRoot: String; DefaultAppRoot: String; UserLogPath: String; UserConfigRoot: String; UserLogRoot: String);
 var
   Script: String;
 begin
@@ -144,9 +147,11 @@ begin
     '$ErrorActionPreference = "Stop"' + #13#10 +
     '$payloadRoot = ' + Quote(PayloadRoot) + #13#10 +
     '$appRoot = ' + Quote(DefaultAppRoot) + #13#10 +
+    '$configRoot = ' + Quote(UserConfigRoot) + #13#10 +
+    '$logsRoot = ' + Quote(UserLogRoot) + #13#10 +
     'if ([string]::IsNullOrWhiteSpace($appRoot)) { throw "Installation folder is empty." }' + #13#10 +
     '$appRoot = $appRoot.TrimEnd("\")' + #13#10 +
-    '$logDir = Join-Path $appRoot "logs"' + #13#10 +
+    '$logDir = $logsRoot' + #13#10 +
     'New-Item -ItemType Directory -Path $logDir -Force | Out-Null' + #13#10 +
     '$logPath = Join-Path $logDir "installer-structure-admin.log"' + #13#10 +
     'function Write-InstallLog([string]$Message) {' + #13#10 +
@@ -232,8 +237,9 @@ begin
     '        ''    sc.exe queryex $serviceName''' + #13#10 +
     '        ''    $nssm = Join-Path $appRoot "nssm.exe"''' + #13#10 +
     '        ''    if (Test-Path $nssm) { Write-Host ""; Write-Host "NSSM dump:"; & $nssm dump $serviceName }''' + #13#10 +
-    '        ''    $stdout = Join-Path $appRoot "logs\bridge-stdout.log"''' + #13#10 +
-    '        ''    $stderr = Join-Path $appRoot "logs\bridge-stderr.log"''' + #13#10 +
+    '        ''    $logsRoot = "LogsRootPlaceholder"''' + #13#10 +
+    '        ''    $stdout = Join-Path $logsRoot "bridge-stdout.log"''' + #13#10 +
+    '        ''    $stderr = Join-Path $logsRoot "bridge-stderr.log"''' + #13#10 +
     '        ''    if (Test-Path $stdout) { Write-Host ""; Write-Host "bridge-stdout.log tail:"; Get-Content $stdout -Tail 40 }''' + #13#10 +
     '        ''    if (Test-Path $stderr) { Write-Host ""; Write-Host "bridge-stderr.log tail:"; Get-Content $stderr -Tail 80 }''' + #13#10 +
     '        ''    Write-Host ""; Write-Host "Service Control Manager events:"''' + #13#10 +
@@ -249,6 +255,7 @@ begin
     '        ''Read-Host "Press Enter to close"''' + #13#10 +
     '    )' + #13#10 +
     '    $psContent = $psContent -replace "ActionPlaceholder", $Action' + #13#10 +
+    '    $psContent = @($psContent | ForEach-Object { $_.Replace("LogsRootPlaceholder", $logsRoot) })' + #13#10 +
     '    Set-Content -Path $psPath -Value $psContent -Encoding UTF8' + #13#10 +
     '    $cmdContent = @("@echo off", "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ""%~dp0$FileBase.ps1""")' + #13#10 +
     '    Set-Content -Path $cmdPath -Value $cmdContent -Encoding ASCII' + #13#10 +
@@ -269,11 +276,11 @@ begin
     '    Write-InstallLog "[ OK ] Service control shortcut: $shortcutPath"' + #13#10 +
     '}' + #13#10 +
     'Ensure-Dir $appRoot' + #13#10 +
-    'Ensure-Dir (Join-Path $appRoot "config")' + #13#10 +
-    'Ensure-Dir (Join-Path $appRoot "config\providers")' + #13#10 +
-    'Ensure-Dir (Join-Path $appRoot "config\drivers")' + #13#10 +
-    'Ensure-Dir (Join-Path $appRoot "config\connections")' + #13#10 +
-    'Ensure-Dir (Join-Path $appRoot "logs")' + #13#10 +
+    'Ensure-Dir $configRoot' + #13#10 +
+    'Ensure-Dir (Join-Path $configRoot "providers")' + #13#10 +
+    'Ensure-Dir (Join-Path $configRoot "drivers")' + #13#10 +
+    'Ensure-Dir (Join-Path $configRoot "connections")' + #13#10 +
+    'Ensure-Dir $logsRoot' + #13#10 +
     'Write-InstallLog "[INFO] Admin structure phase started"' + #13#10 +
     'Write-InstallLog "[INFO] Install path: $appRoot"' + #13#10 +
     'Write-InstallLog "[INFO] User phase log: ' + UserLogPath + '"' + #13#10 +
@@ -289,25 +296,25 @@ begin
     'Copy-Checked (Join-Path $payloadRoot "app\nssm.exe") (Join-Path $appRoot "nssm.exe")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "app\install-bridge-service.ps1") (Join-Path $appRoot "install-bridge-service.ps1")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "app\uninstall-bridge-service.ps1") (Join-Path $appRoot "uninstall-bridge-service.ps1")' + #13#10 +
-    'Copy-Checked (Join-Path $payloadRoot "config\bridge.json") (Join-Path $appRoot "config\bridge.json")' + #13#10 +
-    'Copy-Checked (Join-Path $payloadRoot "config\providers\provider.json") (Join-Path $appRoot "config\providers\provider.json")' + #13#10 +
-    'Copy-Checked (Join-Path $payloadRoot "config\providers\provider.local.json") (Join-Path $appRoot "config\providers\provider.local.json")' + #13#10 +
-    'Copy-Checked (Join-Path $payloadRoot "config\drivers\driver.json") (Join-Path $appRoot "config\drivers\driver.json")' + #13#10 +
-    'Copy-Checked (Join-Path $payloadRoot "config\drivers\alfresco.json") (Join-Path $appRoot "config\drivers\alfresco.json")' + #13#10 +
-    'Copy-Checked (Join-Path $payloadRoot "config\drivers\edocat.json") (Join-Path $appRoot "config\drivers\edocat.json")' + #13#10 +
-    'Copy-Checked (Join-Path $payloadRoot "config\connections\connection.json") (Join-Path $appRoot "config\connections\connection.json")' + #13#10 +
-    'Copy-Checked (Join-Path $payloadRoot "config\connections\alfresco.json") (Join-Path $appRoot "config\connections\alfresco.json")' + #13#10 +
-    'Copy-Checked (Join-Path $payloadRoot "config\connections\edocat.json") (Join-Path $appRoot "config\connections\edocat.json")' + #13#10 +
-    'Write-InstallLog "[STEP] Setting machine environment: DMS_PROVIDER_MACHINE_CONFIG_DIR=$appRoot\config"' + #13#10 +
-    '[Environment]::SetEnvironmentVariable("DMS_PROVIDER_MACHINE_CONFIG_DIR", (Join-Path $appRoot "config"), "Machine")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\bridge.json") (Join-Path $configRoot "bridge.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\providers\provider.json") (Join-Path $configRoot "providers\provider.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\providers\provider.local.json") (Join-Path $configRoot "providers\provider.local.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\drivers\driver.json") (Join-Path $configRoot "drivers\driver.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\drivers\alfresco.json") (Join-Path $configRoot "drivers\alfresco.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\drivers\edocat.json") (Join-Path $configRoot "drivers\edocat.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\connections\connection.json") (Join-Path $configRoot "connections\connection.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\connections\alfresco.json") (Join-Path $configRoot "connections\alfresco.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\connections\edocat.json") (Join-Path $configRoot "connections\edocat.json")' + #13#10 +
+    'Write-InstallLog "[STEP] Setting machine environment: DMS_PROVIDER_MACHINE_CONFIG_DIR=$configRoot"' + #13#10 +
+    '[Environment]::SetEnvironmentVariable("DMS_PROVIDER_MACHINE_CONFIG_DIR", $configRoot, "Machine")' + #13#10 +
     'Write-InstallLog "[ OK ] DMS_PROVIDER_MACHINE_CONFIG_DIR"' + #13#10 +
     '$serviceName = "DMSProviderBridge"' + #13#10 +
     '$serviceDisplayName = "DMS Provider Bridge"' + #13#10 +
     '$bridgeExe = Join-Path $appRoot "dms-provider-bridge.exe"' + #13#10 +
-    '$machineConfigRoot = Join-Path $appRoot "config"' + #13#10 +
-    '$userConfigRoot = ' + Quote(UserConfigRoot) + #13#10 +
-    '$stdoutLog = Join-Path $appRoot "logs\bridge-stdout.log"' + #13#10 +
-    '$stderrLog = Join-Path $appRoot "logs\bridge-stderr.log"' + #13#10 +
+    '$machineConfigRoot = $configRoot' + #13#10 +
+    '$userConfigRoot = $configRoot' + #13#10 +
+    '$stdoutLog = Join-Path $logsRoot "bridge-stdout.log"' + #13#10 +
+    '$stderrLog = Join-Path $logsRoot "bridge-stderr.log"' + #13#10 +
     'Write-InstallLog "[STEP] Registering Windows service"' + #13#10 +
     'Write-InstallLog "[INFO] Service name: $serviceName"' + #13#10 +
     'Write-InstallLog "[INFO] Display name: $serviceDisplayName"' + #13#10 +
@@ -322,7 +329,7 @@ begin
     'Invoke-Nssm @("set", $serviceName, "DisplayName", $serviceDisplayName)' + #13#10 +
     'Invoke-Nssm @("set", $serviceName, "AppStdout", $stdoutLog)' + #13#10 +
     'Invoke-Nssm @("set", $serviceName, "AppStderr", $stderrLog)' + #13#10 +
-    'Invoke-Nssm @("set", $serviceName, "AppEnvironmentExtra", "DMS_PROVIDER_MACHINE_CONFIG_DIR=$machineConfigRoot", "DMS_PROVIDER_USER_CONFIG_DIR=$userConfigRoot", "DMS_PROVIDER_LOG_DIR=$appRoot\logs")' + #13#10 +
+    'Invoke-Nssm @("set", $serviceName, "AppEnvironmentExtra", "DMS_PROVIDER_MACHINE_CONFIG_DIR=$machineConfigRoot", "DMS_PROVIDER_USER_CONFIG_DIR=$userConfigRoot", "DMS_PROVIDER_LOG_DIR=$logsRoot")' + #13#10 +
     'Invoke-Nssm @("set", $serviceName, "ObjectName", "LocalSystem")' + #13#10 +
     'Invoke-Nssm @("set", $serviceName, "Start", "SERVICE_AUTO_START")' + #13#10 +
     '$registeredService = Get-Service -Name $serviceName -ErrorAction SilentlyContinue' + #13#10 +
@@ -376,16 +383,18 @@ var
   UserLogPath: String;
   AdminLogPath: String;
   UserConfigRoot: String;
+  UserLogRoot: String;
 begin
   PayloadRoot := ExpandConstant('{tmp}\dms-provider-payload');
   DefaultAppRoot := ExpandConstant('{app}');
   ScriptPath := ExpandConstant('{tmp}\dms-provider-admin-structure.ps1');
   UserLogPath := InstallerUserRoot + '\installer-structure.log';
-  AdminLogPath := DefaultAppRoot + '\logs\installer-structure-admin.log';
+  AdminLogPath := InstallerUserLogRoot + '\installer-structure-admin.log';
   UserConfigRoot := InstallerUserConfigRoot;
+  UserLogRoot := InstallerUserLogRoot;
 
   WizardForm.StatusLabel.Caption := 'Requesting administrator rights for app structure...';
-  WriteAdminStructureScript(ScriptPath, PayloadRoot, DefaultAppRoot, UserLogPath, UserConfigRoot);
+  WriteAdminStructureScript(ScriptPath, PayloadRoot, DefaultAppRoot, UserLogPath, UserConfigRoot, UserLogRoot);
 
   Params := '-STA -NoProfile -ExecutionPolicy Bypass -File ' + Quote(ScriptPath);
   if not ShellExec('runas', ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Params, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then begin
