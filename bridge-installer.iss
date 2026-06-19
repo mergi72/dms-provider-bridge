@@ -3,11 +3,11 @@ AppId={{CFD8BDCC-B59A-4CB3-93D7-530BB5283773}
 AppName=DMS Provider Bridge Setup
 AppVersion=0.7.13-beta
 AppPublisher=mergi72
-DefaultDirName={autopf}\DMS Provider
+DefaultDirName={commonpf}\DMS Provider
 DefaultGroupName=DMS Provider Bridge
 DisableDirPage=no
 DisableProgramGroupPage=yes
-PrivilegesRequired=admin
+PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=artifacts\installer
 OutputBaseFilename=DmsProviderBridgeSetup-v0.7.13-beta
@@ -124,12 +124,26 @@ begin
   CopyFileChecked(PayloadUserConfig + '\alfresco.local.json', UserConfigRoot + '\drivers\alfresco.local.json', LogPath, True);
   CopyFileChecked(PayloadUserConfig + '\edocat.local.json', UserConfigRoot + '\drivers\edocat.local.json', LogPath, True);
 
+  WriteLog(LogPath, '[STEP] Setting user environment: DMS_PROVIDER_MACHINE_CONFIG_DIR=' + UserConfigRoot);
+  if not RegWriteStringValue(HKEY_CURRENT_USER, 'Environment', 'DMS_PROVIDER_MACHINE_CONFIG_DIR', UserConfigRoot) then begin
+    WriteLog(LogPath, '[FAIL] User environment was not written: DMS_PROVIDER_MACHINE_CONFIG_DIR');
+    RaiseException('User environment was not written: DMS_PROVIDER_MACHINE_CONFIG_DIR');
+  end;
+  WriteLog(LogPath, '[ OK ] DMS_PROVIDER_MACHINE_CONFIG_DIR');
+
   WriteLog(LogPath, '[STEP] Setting user environment: DMS_PROVIDER_USER_CONFIG_DIR=' + UserConfigRoot);
   if not RegWriteStringValue(HKEY_CURRENT_USER, 'Environment', 'DMS_PROVIDER_USER_CONFIG_DIR', UserConfigRoot) then begin
     WriteLog(LogPath, '[FAIL] User environment was not written: DMS_PROVIDER_USER_CONFIG_DIR');
     RaiseException('User environment was not written: DMS_PROVIDER_USER_CONFIG_DIR');
   end;
   WriteLog(LogPath, '[ OK ] DMS_PROVIDER_USER_CONFIG_DIR');
+
+  WriteLog(LogPath, '[STEP] Setting user environment: DMS_PROVIDER_LOG_DIR=' + InstallerUserLogRoot);
+  if not RegWriteStringValue(HKEY_CURRENT_USER, 'Environment', 'DMS_PROVIDER_LOG_DIR', InstallerUserLogRoot) then begin
+    WriteLog(LogPath, '[FAIL] User environment was not written: DMS_PROVIDER_LOG_DIR');
+    RaiseException('User environment was not written: DMS_PROVIDER_LOG_DIR');
+  end;
+  WriteLog(LogPath, '[ OK ] DMS_PROVIDER_LOG_DIR');
 
   WriteLog(LogPath, '[INFO] User structure phase completed successfully');
 end;
@@ -305,9 +319,6 @@ begin
     'Copy-Checked (Join-Path $payloadRoot "config\connections\connection.json") (Join-Path $configRoot "connections\connection.json")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "config\connections\alfresco.json") (Join-Path $configRoot "connections\alfresco.json")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "config\connections\edocat.json") (Join-Path $configRoot "connections\edocat.json")' + #13#10 +
-    'Write-InstallLog "[STEP] Setting machine environment: DMS_PROVIDER_MACHINE_CONFIG_DIR=$configRoot"' + #13#10 +
-    '[Environment]::SetEnvironmentVariable("DMS_PROVIDER_MACHINE_CONFIG_DIR", $configRoot, "Machine")' + #13#10 +
-    'Write-InstallLog "[ OK ] DMS_PROVIDER_MACHINE_CONFIG_DIR"' + #13#10 +
     '$serviceName = "DMSProviderBridge"' + #13#10 +
     '$serviceDisplayName = "DMS Provider Bridge"' + #13#10 +
     '$bridgeExe = Join-Path $appRoot "dms-provider-bridge.exe"' + #13#10 +
