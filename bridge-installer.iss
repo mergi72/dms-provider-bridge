@@ -11,7 +11,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=artifacts\installer
-OutputBaseFilename=DmsProviderBridgeSetup-v0.7.13-beta
+OutputBaseFilename=DmsProviderBridgeSetupCore-v0.7.13-beta
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -38,7 +38,7 @@ var
 
 function InitializeSetup(): Boolean;
 begin
-  InstallerUserAppData := ExpandConstant('{userappdata}');
+  InstallerUserAppData := ExpandConstant('{param:USERAPPDATA|{userappdata}}');
   InstallerUserRoot := InstallerUserAppData + '\DMS provider';
   InstallerUserConfigRoot := InstallerUserRoot + '\config';
   InstallerUserLogRoot := InstallerUserRoot + '\logs';

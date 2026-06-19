@@ -139,16 +139,32 @@ if ([string]::IsNullOrWhiteSpace($iscc)) {
     throw "Inno Setup compiler (ISCC.exe) not found. Install Inno Setup 6 or provide -InnoCompilerPath."
 }
 
-$issPath = Join-Path $repoRoot "bridge-installer.iss"
-if (-not (Test-Path $issPath)) {
-    throw "Installer script not found: $issPath"
+$coreIssPath = Join-Path $repoRoot "bridge-installer.iss"
+if (-not (Test-Path $coreIssPath)) {
+    throw "Installer script not found: $coreIssPath"
+}
+
+$bootstrapperIssPath = Join-Path $repoRoot "bridge-bootstrapper.iss"
+if (-not (Test-Path $bootstrapperIssPath)) {
+    throw "Installer bootstrapper script not found: $bootstrapperIssPath"
 }
 
 Push-Location $repoRoot
 try {
-    & $iscc $issPath
+    & $iscc $coreIssPath
     if ($LASTEXITCODE -ne 0) {
-        throw "ISCC build failed with exit code $LASTEXITCODE"
+        throw "ISCC core setup build failed with exit code $LASTEXITCODE"
+    }
+
+    & $iscc $bootstrapperIssPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "ISCC bootstrapper setup build failed with exit code $LASTEXITCODE"
+    }
+
+    $coreInstallerPath = Join-Path $repoRoot "artifacts\installer\DmsProviderBridgeSetupCore-$Version.exe"
+    if (Test-Path $coreInstallerPath) {
+        Remove-Item -Path $coreInstallerPath -Force
+        Write-Host "Removed internal core setup artifact: $coreInstallerPath"
     }
 }
 finally {
