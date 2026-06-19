@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.14-beta - 2026-06-19
+
+- Added README guidance for first working local driver configs.
+- Documented `%APPDATA%\DMS Provider\config\alfresco.local.json` and `edocat.local.json` setup.
+- Clarified driver local config versus connection mounts and Credential Broker target identifiers.
+- Release/version bump to `0.7.14-beta`.
+
 ## 0.7.13-beta - 2026-06-19
 
 - Replaced the custom admin PowerShell folder picker with the standard Inno install directory page.

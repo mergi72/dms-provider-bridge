@@ -1,8 +1,8 @@
-# dms-provider-bridge
+﻿# dms-provider-bridge
 
 [![CI](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Beta-yellowgreen)](https://github.com/mergi72/dms-provider-bridge)
-[![Bridge Version](https://img.shields.io/badge/Bridge-v0.7.13--beta-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.7.13-beta)
+[![Bridge Version](https://img.shields.io/badge/Bridge-v0.7.14--beta-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.7.14-beta)
 [![Bridge Setup](https://img.shields.io/badge/Setup-v0.5.0--beta-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.5.0-beta)
 
 Current development branch: `develop`  
@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.7.13-beta`
-- Latest bridge-only release: `v0.7.13-beta`
+- Bridge repository latest changelog version: `0.7.14-beta`
+- Latest bridge-only release: `v0.7.14-beta`
 
 ## Configuration Model
 
@@ -150,9 +150,9 @@ Verify bridge:
 
 The Swagger UI is the fastest way to:
 
-- test provider connectivity
+- test connection connectivity
 - test credentials
-- browse providers
+- browse connections
 - validate request payloads before integrating clients
 
 Standalone executable quick run:
@@ -169,7 +169,7 @@ Use these endpoints first when diagnosing install/config/auth problems:
 - OpenAPI: [http://127.0.0.1:8765/openapi.json](http://127.0.0.1:8765/openapi.json)
 - Health: [http://127.0.0.1:8765/health](http://127.0.0.1:8765/health)
 
-Most recent bridge issues were diagnosable directly through Swagger UI without adding debug code, including credential resolution, LocalSystem visibility, root path handling, and provider config problems.
+Most recent bridge issues were diagnosable directly through Swagger UI without adding debug code, including credential resolution, LocalSystem visibility, root path handling, and driver/connection config problems.
 
 ## VS Code (Windows)
 
@@ -288,16 +288,82 @@ The machine config is authoritative. For each config file, the bridge loads the 
 - Bridge/system config: `bridge.json`
 - Driver config (`alfresco`, `sharepoint`, ...): `drivers/<driver>.json`
 - Connection config (`company-dms`, `alfresco`, ...): `connections/<connection>.json`
-- User overrides: `bridge.local.json`, `drivers/<driver>.local.json`, `connections/<connection>.local.json`
+- User overrides: `bridge.local.json`, `<driver>.local.json`, `drivers/<driver>.local.json`, `connections/<connection>.local.json`
 
 User `*.local.json` values override existing machine keys and may add missing keys. If the machine JSON file is missing, the matching user `*.local.json` is ignored.
 The tracked template files under `config/providers`, `config/drivers` and `config/connections` define the machine-level contract and examples.
+
+## First Working Driver Config
+
+After installation, the bridge needs local driver values for the user's real DMS server. The installer cannot know these values.
+
+For the simplest setup, put driver local files directly into:
+
+```text
+%APPDATA%\DMS Provider\config
+```
+
+Typical files:
+
+```text
+%APPDATA%\DMS Provider\config\alfresco.local.json
+%APPDATA%\DMS Provider\config\edocat.local.json
+```
+
+Use the same top-level `key` and section name as the driver:
+
+```json
+{
+  "key": "alfresco",
+  "alfresco": {
+    "base_url": "https://your-server.example.com/alfresco",
+    "timeouts": {
+      "requestSeconds": 60,
+      "downloadSeconds": 300,
+      "uploadSeconds": 7200
+    }
+  }
+}
+```
+
+For eDoCat:
+
+```json
+{
+  "key": "edocat",
+  "edocat": {
+    "base_url": "https://your-server.example.com",
+    "credentials": {
+      "targetBase": "company/eDoCat_Helper",
+      "target": "user@example.com/eDoCat_Helper"
+    }
+  }
+}
+```
+
+Rules:
+
+- Do not edit `provider.json` unless you are changing the internal Provider ABC contract.
+- Do not overwrite `driver.json` or `connection.json` templates.
+- Driver local config contains technical DMS settings such as `base_url`, timeouts and driver-specific defaults.
+- Connection config contains the mount shown to clients, for example `alfresco:/` or `company-dms:/`.
+- Credentials are not stored in these files. The TC plugin and Credential Broker handle saved credentials; Swagger can use inline `username` and `password` only for one test request.
+- eDoCat `credentials.targetBase` and `credentials.target` are Credential Broker target identifiers, not stored passwords.
+
+After changing a local driver config:
+
+1. Open [http://127.0.0.1:8765/config](http://127.0.0.1:8765/config).
+2. Click `Reload`.
+3. Open `Connections`.
+4. Use `Test` for a configuration-only check.
+5. Use `Live List Root` with temporary credentials to verify the remote DMS.
+6. Open Total Commander and browse `\\DMS\<connection>`.
 
 For local development, set `DMS_PROVIDER_MACHINE_CONFIG_DIR` and optionally `DMS_PROVIDER_USER_CONFIG_DIR` to test config directories.
 The default connection comes from `connection.default` in `bridge.json`; `DMS_PROVIDER_DEFAULT_CONNECTION` can override it for local runs.
 Runtime temporary files are written to `%TEMP%\DMS Provider` by default; set `DMS_PROVIDER_TEMP_DIR` only when a different temp root is required.
 
-Debug logging is opt-in and uses the same `debug` object in `bridge.json` and provider config files:
+Debug logging is opt-in and uses the same `debug` object in `bridge.json` and driver/connection config files:
 
 ```json
 {
@@ -309,9 +375,9 @@ Debug logging is opt-in and uses the same `debug` object in `bridge.json` and pr
 ```
 
 When enabled in `bridge.json`, the bridge writes debug output to `bridge-debug.log` and runtime output to `bridge.log`.
-When enabled in a provider config, provider debug output goes to `<provider>-debug.log`, for example `alfresco-debug.log`.
+When enabled in a driver or connection config, debug output goes to `<connection>-debug.log` or `<driver>-debug.log`, for example `alfresco-debug.log`.
 
-Provider config template for new providers:
+Driver local config template:
 
 ```json
 {

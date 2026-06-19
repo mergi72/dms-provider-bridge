@@ -1,15 +1,15 @@
-{
+﻿{
     "projectInfo": {
         "name": "DMS Driver / Filesystem Driver",
         "author": "DMS Provider Bridge contributors",
         "email": "",
-        "version": "0.7.13-beta",
+        "version": "0.7.14-beta",
         "description": "Generic Driver contract template, equivalent to a filesystem driver definition.",
         "license": ""
     },
 
     "config.json": {
-        "version": "0.7.13-beta",
+        "version": "0.7.14-beta",
         "lastModified": "",
         "_comment": "Driver / filesystem driver contract template. Concrete DMS implementation values belong here."
     },

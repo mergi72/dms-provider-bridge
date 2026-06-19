@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from fastapi import FastAPI
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -13,7 +13,7 @@ from dms_provider_bridge.app.routes.listing import router as listing_router
 def create_app() -> FastAPI:
     app = FastAPI(
         title="dms-provider-bridge",
-        version="0.7.13-beta",
+        version="0.7.14-beta",
         description="Local DMS provider bridge API. Config UI is available at /config.",
         docs_url=None,
     )
