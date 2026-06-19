@@ -5,6 +5,7 @@ AppVersion=0.7.13-beta
 AppPublisher=mergi72
 DefaultDirName={commonpf}\DMS Provider
 DefaultGroupName=DMS Provider Bridge
+CreateAppDir=no
 DisableDirPage=no
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
