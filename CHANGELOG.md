@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.13-beta - 2026-06-19
+
+- Replaced the custom admin PowerShell folder picker with the standard Inno install directory page.
+- Imported the admin PowerShell installation log back into the main installer log.
+- Kept bridge user config strictly under Roaming AppData; missing Roaming resolution now fails instead of falling back to ProgramData.
+- Built `DmsProviderBridgeSetup-v0.7.13-beta.exe`.
+- Release/version bump to `0.7.13-beta`.
+
 ## 0.7.12-beta - 2026-06-18
 
 - Updated the bridge-only Inno installer for the new `config/providers`, `config/drivers`, and `config/connections` layout.

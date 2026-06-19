@@ -1,16 +1,16 @@
 [Setup]
 AppId={{CFD8BDCC-B59A-4CB3-93D7-530BB5283773}
 AppName=DMS Provider Bridge Setup
-AppVersion=0.7.12-beta
+AppVersion=0.7.13-beta
 AppPublisher=mergi72
 DefaultDirName={autopf}\DMS Provider
 DefaultGroupName=DMS Provider Bridge
-DisableDirPage=yes
+DisableDirPage=no
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=artifacts\installer
-OutputBaseFilename=DmsProviderBridgeSetup-v0.7.12-beta
+OutputBaseFilename=DmsProviderBridgeSetup-v0.7.13-beta
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -75,6 +75,27 @@ begin
   WriteLog(LogPath, '[ OK ] ' + TargetPath);
 end;
 
+procedure ImportLogFile(LogPath: String; SourceName: String);
+var
+  Lines: TArrayOfString;
+  I: Integer;
+begin
+  if not FileExists(LogPath) then begin
+    Log('[WARN] ' + SourceName + ' log file not found: ' + LogPath);
+    exit;
+  end;
+
+  if not LoadStringsFromFile(LogPath, Lines) then begin
+    Log('[WARN] ' + SourceName + ' log file could not be read: ' + LogPath);
+    exit;
+  end;
+
+  Log('[INFO] Importing ' + SourceName + ' log: ' + LogPath);
+  for I := 0 to GetArrayLength(Lines) - 1 do begin
+    Log('[' + SourceName + '] ' + Lines[I]);
+  end;
+end;
+
 procedure RunUserStructurePhase();
 var
   UserRoot: String;
@@ -122,16 +143,9 @@ begin
   Script :=
     '$ErrorActionPreference = "Stop"' + #13#10 +
     '$payloadRoot = ' + Quote(PayloadRoot) + #13#10 +
-    '$defaultAppRoot = ' + Quote(DefaultAppRoot) + #13#10 +
-    'Add-Type -AssemblyName System.Windows.Forms' + #13#10 +
-    '$dialog = New-Object System.Windows.Forms.FolderBrowserDialog' + #13#10 +
-    '$dialog.Description = "Select parent folder for DMS Provider"' + #13#10 +
-    '$dialog.SelectedPath = [System.IO.Path]::GetDirectoryName($defaultAppRoot)' + #13#10 +
-    '$dialog.ShowNewFolderButton = $true' + #13#10 +
-    '$dialogResult = $dialog.ShowDialog()' + #13#10 +
-    'if ($dialogResult -ne [System.Windows.Forms.DialogResult]::OK -or [string]::IsNullOrWhiteSpace($dialog.SelectedPath)) { throw "Installation folder selection was cancelled." }' + #13#10 +
-    '$selectedPath = $dialog.SelectedPath.TrimEnd("\")' + #13#10 +
-    'if ([System.IO.Path]::GetFileName($selectedPath) -ieq "DMS Provider") { $appRoot = $selectedPath } else { $appRoot = Join-Path $selectedPath "DMS Provider" }' + #13#10 +
+    '$appRoot = ' + Quote(DefaultAppRoot) + #13#10 +
+    'if ([string]::IsNullOrWhiteSpace($appRoot)) { throw "Installation folder is empty." }' + #13#10 +
+    '$appRoot = $appRoot.TrimEnd("\")' + #13#10 +
     '$logDir = Join-Path $appRoot "logs"' + #13#10 +
     'New-Item -ItemType Directory -Path $logDir -Force | Out-Null' + #13#10 +
     '$logPath = Join-Path $logDir "installer-structure-admin.log"' + #13#10 +
@@ -360,21 +374,24 @@ var
   ScriptPath: String;
   Params: String;
   UserLogPath: String;
+  AdminLogPath: String;
   UserConfigRoot: String;
 begin
   PayloadRoot := ExpandConstant('{tmp}\dms-provider-payload');
-  DefaultAppRoot := ExpandConstant('{commonpf}\DMS Provider');
+  DefaultAppRoot := ExpandConstant('{app}');
   ScriptPath := ExpandConstant('{tmp}\dms-provider-admin-structure.ps1');
   UserLogPath := InstallerUserRoot + '\installer-structure.log';
+  AdminLogPath := DefaultAppRoot + '\logs\installer-structure-admin.log';
   UserConfigRoot := InstallerUserConfigRoot;
 
   WizardForm.StatusLabel.Caption := 'Requesting administrator rights for app structure...';
   WriteAdminStructureScript(ScriptPath, PayloadRoot, DefaultAppRoot, UserLogPath, UserConfigRoot);
 
   Params := '-STA -NoProfile -ExecutionPolicy Bypass -File ' + Quote(ScriptPath);
-  if not ShellExec('runas', ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Params, '', SW_SHOW, ewWaitUntilTerminated, ResultCode) then begin
+  if not ShellExec('runas', ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Params, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then begin
     RaiseException('Admin structure phase was not started.');
   end;
+  ImportLogFile(AdminLogPath, 'admin');
   if ResultCode <> 0 then begin
     RaiseException('Admin structure phase failed with exit code: ' + IntToStr(ResultCode));
   end;

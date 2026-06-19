@@ -444,14 +444,8 @@ if ([string]::IsNullOrWhiteSpace($ConfigRoot)) {
     if (-not [string]::IsNullOrWhiteSpace($userRoamingAppData)) {
         $ConfigRoot = Join-Path $userRoamingAppData "DMS Provider\config"
     }
-    elseif ($RuntimeMode -eq "User") {
-        if ([string]::IsNullOrWhiteSpace($userRoamingAppData)) {
-            throw "RuntimeMode=User could not resolve roaming AppData for '$userConfigOwner'. Provide -ConfigRoot explicitly."
-        }
-    }
     else {
-        Write-Warn "Could not resolve user AppData for '$userConfigOwner'. Falling back to ProgramData user config root."
-        $ConfigRoot = Join-Path $env:ProgramData "DMS Provider\config"
+        throw "Could not resolve roaming AppData for '$userConfigOwner'. User config must be stored under Roaming AppData; provide -ConfigRoot explicitly."
     }
 }
 
