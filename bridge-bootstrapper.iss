@@ -8,6 +8,7 @@ DisableDirPage=yes
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 Uninstallable=no
+DisableFinishedPage=yes
 OutputDir=artifacts\installer
 OutputBaseFilename=DmsProviderBridgeSetup-v0.7.13-beta
 Compression=lzma
@@ -31,7 +32,7 @@ var
 begin
   if CurStep = ssPostInstall then begin
     CoreSetupPath := ExpandConstant('{tmp}\DmsProviderBridgeSetupCore-v0.7.13-beta.exe');
-    Params := '/SILENT /SUPPRESSMSGBOXES /NORESTART /USERAPPDATA=' + Quote(ExpandConstant('{userappdata}'));
+    Params := '/SUPPRESSMSGBOXES /NORESTART /USERAPPDATA=' + Quote(ExpandConstant('{userappdata}'));
 
     WizardForm.StatusLabel.Caption := 'Starting elevated DMS Provider Bridge setup...';
     if not Exec(CoreSetupPath, Params, '', SW_SHOW, ewWaitUntilTerminated, ResultCode) then begin
