@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import mimetypes
 from datetime import datetime
 from email.utils import parsedate_to_datetime
 from urllib import request
@@ -139,9 +140,31 @@ class WebdavProvider(Provider):
                 return response.read(), int(response.status), dict(response.headers)
         except HTTPError as exc:
             content = exc.read()
-            raise ProviderOperationError(f"WebDAV {method} failed for {url}: HTTP {exc.code}; {content[:200]!r}") from exc
+            raise ProviderOperationError(
+                f"WebDAV {method} failed for {url}: HTTP {exc.code}; {content[:200]!r}",
+                status_code=int(exc.code),
+            ) from exc
 
-    def _propfind(self, path: str, auth: BridgeAuthContext | None, depth: str) -> list[ElementTree.Element]:
+    def _request_no_content(
+        self,
+        method: str,
+        url: str,
+        auth: BridgeAuthContext | None,
+        *,
+        headers: dict[str, str] | None = None,
+        body: bytes | None = None,
+    ) -> tuple[int, dict[str, str]]:
+        _content, status, response_headers = self._request_bytes(method, url, auth, headers=headers, body=body)
+        return status, response_headers
+
+    def _propfind(
+        self,
+        path: str,
+        auth: BridgeAuthContext | None,
+        depth: str,
+        *,
+        directory: bool = False,
+    ) -> list[ElementTree.Element]:
         body = b"""<?xml version="1.0" encoding="utf-8"?>
 <d:propfind xmlns:d="DAV:">
   <d:prop>
@@ -155,7 +178,7 @@ class WebdavProvider(Provider):
   </d:prop>
 </d:propfind>
 """
-        url = self._path_url(path, directory=True)
+        url = self._path_url(path, directory=directory)
         content, _status, _headers = self._request_bytes(
             "PROPFIND",
             url,
@@ -230,29 +253,68 @@ class WebdavProvider(Provider):
     def list_items(self, path: str, auth: BridgeAuthContext | None = None) -> ListingResult:
         normalized = path or "/"
         current = self._href_to_path(self._path_url(normalized, directory=True))
-        items = [self._response_to_item(response) for response in self._propfind(normalized, auth, "1")]
+        items = [self._response_to_item(response) for response in self._propfind(normalized, auth, "1", directory=True)]
         children = [item for item in items if item.path.rstrip("/") != current.rstrip("/")]
         children.sort(key=lambda item: (not item.is_folder, item.name.casefold()))
         return ListingResult(provider=self.name, path=normalized, total=len(children), items=children)
 
     def stat_item(self, path: str, auth: BridgeAuthContext | None = None) -> DmsItem | None:
-        items = [self._response_to_item(response) for response in self._propfind(path or "/", auth, "0")]
+        try:
+            items = [self._response_to_item(response) for response in self._propfind(path or "/", auth, "0")]
+        except ProviderOperationError as exc:
+            if getattr(exc, "status_code", None) == 404:
+                return None
+            raise
         return items[0] if items else None
 
     def copy_item(self, source: str, destination: str, auth: BridgeAuthContext | None = None) -> OperationResult:
-        raise self._not_implemented("copy")
+        source_url = self._path_url(source)
+        destination_url = self._path_url(destination)
+        self._request_no_content(
+            "COPY",
+            source_url,
+            auth,
+            headers={
+                "Destination": destination_url,
+                "Overwrite": "F",
+            },
+        )
+        return OperationResult(success=True, operation="copy", provider=self.name, source=source, destination=destination)
 
     def rename_item(self, source: str, destination: str, auth: BridgeAuthContext | None = None) -> OperationResult:
-        raise self._not_implemented("move")
+        source_url = self._path_url(source)
+        destination_url = self._path_url(destination)
+        self._request_no_content(
+            "MOVE",
+            source_url,
+            auth,
+            headers={
+                "Destination": destination_url,
+                "Overwrite": "F",
+            },
+        )
+        return OperationResult(success=True, operation="move", provider=self.name, source=source, destination=destination)
 
     def delete_item(self, target: str, auth: BridgeAuthContext | None = None) -> OperationResult:
-        raise self._not_implemented("delete")
+        self._request_no_content("DELETE", self._path_url(target), auth)
+        return OperationResult(success=True, operation="delete", provider=self.name, source=target)
 
     def make_dir(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:
-        raise self._not_implemented("mkdir")
+        self._request_no_content("MKCOL", self._path_url(path, directory=True), auth)
+        return OperationResult(success=True, operation="mkdir", provider=self.name, destination=path)
 
     def download_item(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:
-        raise self._not_implemented("download")
+        content, _status, headers = self._request_bytes("GET", self._path_url(path), auth)
+        content_type = headers.get("Content-Type") or headers.get("content-type")
+        return OperationResult(
+            success=True,
+            operation="download",
+            provider=self.name,
+            source=path,
+            content_base64=base64.b64encode(content).decode("ascii"),
+            mime_type=content_type,
+            size=len(content),
+        )
 
     def upload_item(
         self,
@@ -264,4 +326,33 @@ class WebdavProvider(Provider):
         auth: BridgeAuthContext | None = None,
         versioning: dict | None = None,
     ) -> OperationResult:
-        raise self._not_implemented("upload")
+        _ = versioning
+        if source_path:
+            with open(source_path, "rb") as handle:
+                payload = handle.read()
+        elif content_base64:
+            payload = base64.b64decode(content_base64)
+        else:
+            payload = b""
+
+        target_folder = destination.rstrip("/")
+        target_path = f"{target_folder}/{file_name}" if target_folder else f"/{file_name}"
+        content_type = mimetypes.guess_type(file_name)[0] or "application/octet-stream"
+        self._request_no_content(
+            "PUT",
+            self._path_url(target_path),
+            auth,
+            headers={
+                "Content-Type": content_type,
+                "Overwrite": "T" if overwrite else "F",
+            },
+            body=payload,
+        )
+        return OperationResult(
+            success=True,
+            operation="upload",
+            provider=self.name,
+            destination=target_path,
+            size=len(payload),
+            mime_type=content_type,
+        )

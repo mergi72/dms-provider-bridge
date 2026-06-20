@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.error import HTTPError
 
 import pytest
 
@@ -109,3 +110,99 @@ def test_webdav_bearer_scheme_uses_password_as_token(monkeypatch: pytest.MonkeyP
 
     assert provider.upstream_auth_scheme == "bearer"
     assert captured["headers"]["Authorization"] == "Bearer access-token"
+
+
+def test_webdav_upload_uses_put(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_urlopen(req: object, timeout: int) -> FakeResponse:
+        _ = timeout
+        captured["method"] = getattr(req, "method")
+        captured["url"] = getattr(req, "full_url")
+        captured["headers"] = dict(getattr(req, "headers"))
+        captured["body"] = getattr(req, "data")
+        return FakeResponse(b"")
+
+    monkeypatch.setattr(webdav_provider_module.request, "urlopen", fake_urlopen)
+    provider = WebdavProvider(name="webdav1", config={"base_url": "http://127.0.0.1:8080"})
+
+    result = provider.upload_item(
+        "/",
+        "hello.txt",
+        content_base64="aGVsbG8=",
+        auth=BridgeAuthContext(mode="credentials", username="meri", password="test"),
+    )
+
+    assert result.success is True
+    assert result.destination == "/hello.txt"
+    assert captured["method"] == "PUT"
+    assert captured["url"] == "http://127.0.0.1:8080/hello.txt"
+    assert captured["body"] == b"hello"
+    assert captured["headers"]["Content-type"] == "text/plain"
+    assert captured["headers"]["Overwrite"] == "F"
+
+
+def test_webdav_download_uses_get_and_returns_base64(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_urlopen(req: object, timeout: int) -> FakeResponse:
+        _ = timeout
+        captured["method"] = getattr(req, "method")
+        captured["url"] = getattr(req, "full_url")
+        response = FakeResponse(b"hello")
+        response.headers = {"Content-Type": "text/plain"}
+        return response
+
+    monkeypatch.setattr(webdav_provider_module.request, "urlopen", fake_urlopen)
+    provider = WebdavProvider(name="webdav1", config={"base_url": "http://127.0.0.1:8080"})
+
+    result = provider.download_item("/hello.txt", BridgeAuthContext(mode="credentials", username="meri", password="test"))
+
+    assert result.success is True
+    assert result.content_base64 == "aGVsbG8="
+    assert result.size == 5
+    assert result.mime_type == "text/plain"
+    assert captured["method"] == "GET"
+    assert captured["url"] == "http://127.0.0.1:8080/hello.txt"
+
+
+def test_webdav_make_dir_and_delete_use_webdav_methods(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: list[tuple[str, str]] = []
+
+    def fake_urlopen(req: object, timeout: int) -> FakeResponse:
+        _ = timeout
+        captured.append((getattr(req, "method"), getattr(req, "full_url")))
+        return FakeResponse(b"")
+
+    monkeypatch.setattr(webdav_provider_module.request, "urlopen", fake_urlopen)
+    provider = WebdavProvider(name="webdav1", config={"base_url": "http://127.0.0.1:8080"})
+    auth = BridgeAuthContext(mode="credentials", username="meri", password="test")
+
+    mkdir = provider.make_dir("/folder", auth)
+    delete = provider.delete_item("/folder", auth)
+
+    assert mkdir.success is True
+    assert delete.success is True
+    assert captured == [
+        ("MKCOL", "http://127.0.0.1:8080/folder/"),
+        ("DELETE", "http://127.0.0.1:8080/folder"),
+    ]
+
+
+def test_webdav_stat_missing_file_returns_none_without_directory_slash(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_urlopen(req: object, timeout: int) -> FakeResponse:
+        _ = timeout
+        captured["method"] = getattr(req, "method")
+        captured["url"] = getattr(req, "full_url")
+        raise HTTPError(captured["url"], 404, "Not Found", {}, None)
+
+    monkeypatch.setattr(webdav_provider_module.request, "urlopen", fake_urlopen)
+    provider = WebdavProvider(name="webdav1", config={"base_url": "http://127.0.0.1:8080"})
+
+    result = provider.stat_item("/rename_.pdf", BridgeAuthContext(mode="credentials", username="meri", password="test"))
+
+    assert result is None
+    assert captured["method"] == "PROPFIND"
+    assert captured["url"] == "http://127.0.0.1:8080/rename_.pdf"
