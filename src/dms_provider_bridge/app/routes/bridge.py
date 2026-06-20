@@ -110,12 +110,28 @@ def bridge_delete(payload: WfxPathRequest) -> JSONResponse:
 
 @router.post("/move")
 def bridge_move(payload: WfxMoveRequest) -> JSONResponse:
-    return _wfx_json(rename_path(payload.source, payload.destination, payload.auth, source_auth=payload.source_auth, destination_auth=payload.destination_auth, versioning=payload.versioning))
+    return _wfx_json(rename_path(
+        payload.source,
+        payload.destination,
+        payload.auth,
+        source_auth=payload.source_auth,
+        destination_auth=payload.destination_auth,
+        versioning=payload.versioning,
+        overwrite=payload.overwrite,
+    ))
 
 
 @router.post("/copy")
 def bridge_copy(payload: WfxMoveRequest) -> JSONResponse:
-    return _wfx_json(copy_path(payload.source, payload.destination, payload.auth, source_auth=payload.source_auth, destination_auth=payload.destination_auth, versioning=payload.versioning))
+    return _wfx_json(copy_path(
+        payload.source,
+        payload.destination,
+        payload.auth,
+        source_auth=payload.source_auth,
+        destination_auth=payload.destination_auth,
+        versioning=payload.versioning,
+        overwrite=payload.overwrite,
+    ))
 
 
 @router.post("/download")

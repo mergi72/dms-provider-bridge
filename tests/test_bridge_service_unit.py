@@ -34,6 +34,9 @@ class DummyProvider:
     def bridge_endpoint_for(self, operation: str) -> str | None:
         return f"https://example.test/{self.name}/{operation}"
 
+    def versioning_capabilities(self) -> dict[str, object]:
+        return {"supported": self.name == "alfresco"}
+
 
 def _auth() -> BridgeAuthContext:
     return BridgeAuthContext(mode="credentials", username="user", password="pass")
@@ -201,6 +204,76 @@ def test_copy_path_cross_provider_existing_target_returns_version_conflict(monke
     assert response.metadata["current_version"] == "1.0.0"
     src_provider.download_item.assert_not_called()
     dst_provider.upload_item.assert_not_called()
+
+
+def test_copy_path_cross_provider_existing_non_version_target_returns_overwrite_conflict(monkeypatch: pytest.MonkeyPatch) -> None:
+    src_provider = DummyProvider("alfresco")
+    dst_provider = DummyProvider("webdav")
+    src_provider.stat_item.return_value = DmsItem(
+        id="src-1",
+        name="source.txt",
+        path="/source.txt",
+        size=10,
+        version_label="1.2.0",
+        version_type="MINOR",
+    )
+    dst_provider.stat_item.return_value = DmsItem(
+        id="dst-1",
+        name="target.txt",
+        path="/target.txt",
+        size=8,
+    )
+
+    monkeypatch.setattr(bridge_service_module, "validate_bridge_auth", lambda auth: None)
+    monkeypatch.setattr(
+        bridge_service_module,
+        "_resolve",
+        lambda path: (src_provider, type("P", (), {"path": "/source.txt"})())
+        if path == "alfresco:/source.txt"
+        else (dst_provider, type("P", (), {"path": "/target.txt"})()),
+    )
+
+    response = bridge_service_module.copy_path("alfresco:/source.txt", "webdav:/target.txt", _auth())
+
+    assert response.ok is False
+    assert response.error_code == bridge_service_module.WfxErrorCode.ACCESS_DENIED
+    assert response.metadata["action"] == "overwrite_required"
+    assert response.metadata["reason"] == "target_exists"
+    assert response.metadata["allowed_actions"] == ["overwrite", "cancel"]
+    assert response.metadata["versioning"] == {"supported": False}
+    assert response.metadata["source_connection"] == "alfresco"
+    assert response.metadata["target_connection"] == "webdav"
+    assert response.metadata["connection"] == "webdav"
+    src_provider.download_item.assert_not_called()
+    dst_provider.upload_item.assert_not_called()
+
+
+def test_copy_path_cross_provider_existing_non_version_target_overwrite_uploads(monkeypatch: pytest.MonkeyPatch) -> None:
+    src_provider = DummyProvider("alfresco")
+    dst_provider = DummyProvider("webdav")
+    dst_provider.stat_item.return_value = DmsItem(id="dst-1", name="target.txt", path="/target.txt", size=8)
+    src_provider.download_item.return_value = OperationResult(
+        success=True,
+        operation="download",
+        provider="alfresco",
+        content_base64="dGVzdA==",
+        size=4,
+    )
+    dst_provider.upload_item.return_value = OperationResult(success=True, operation="upload", provider="webdav")
+
+    monkeypatch.setattr(bridge_service_module, "validate_bridge_auth", lambda auth: None)
+    monkeypatch.setattr(
+        bridge_service_module,
+        "_resolve",
+        lambda path: (src_provider, type("P", (), {"path": "/source.txt"})())
+        if path == "alfresco:/source.txt"
+        else (dst_provider, type("P", (), {"path": "/target.txt"})()),
+    )
+
+    response = bridge_service_module.copy_path("alfresco:/source.txt", "webdav:/target.txt", _auth(), overwrite=True)
+
+    assert response.ok is True
+    assert dst_provider.upload_item.call_args.kwargs["overwrite"] is True
 
 
 def test_copy_path_cross_provider_uses_separate_source_and_destination_auth_instances(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -409,6 +482,36 @@ def test_rename_path_cross_provider_existing_target_returns_version_conflict_wit
     src_provider.download_item.assert_not_called()
     dst_provider.upload_item.assert_not_called()
     src_provider.delete_item.assert_not_called()
+
+
+def test_rename_path_cross_provider_existing_non_version_target_overwrite_uploads_and_deletes(monkeypatch: pytest.MonkeyPatch) -> None:
+    src_provider = DummyProvider("alfresco")
+    dst_provider = DummyProvider("webdav")
+    dst_provider.stat_item.return_value = DmsItem(id="dst-1", name="target.txt", path="/target.txt", size=8)
+    src_provider.download_item.return_value = OperationResult(
+        success=True,
+        operation="download",
+        provider="alfresco",
+        content_base64="Y29udGVudA==",
+        size=7,
+    )
+    dst_provider.upload_item.return_value = OperationResult(success=True, operation="upload", provider="webdav")
+    src_provider.delete_item.return_value = OperationResult(success=True, operation="delete", provider="alfresco")
+
+    monkeypatch.setattr(bridge_service_module, "validate_bridge_auth", lambda auth: None)
+    monkeypatch.setattr(
+        bridge_service_module,
+        "_resolve",
+        lambda path: (src_provider, type("P", (), {"path": "/source.txt"})())
+        if path == "alfresco:/source.txt"
+        else (dst_provider, type("P", (), {"path": "/target.txt"})()),
+    )
+
+    response = bridge_service_module.rename_path("alfresco:/source.txt", "webdav:/target.txt", _auth(), overwrite=True)
+
+    assert response.ok is True
+    assert dst_provider.upload_item.call_args.kwargs["overwrite"] is True
+    src_provider.delete_item.assert_called_once_with("/source.txt", _auth())
 
 
 def test_rename_path_cross_provider_uses_source_auth_for_delete_and_destination_auth_for_upload(monkeypatch: pytest.MonkeyPatch) -> None:

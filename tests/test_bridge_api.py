@@ -538,15 +538,16 @@ def test_core_wfx_operations_smoke() -> None:
     assert download_raw_resp.status_code == 200
 
 
-def test_bridge_copy_accepts_source_and_destination_auth(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_bridge_copy_accepts_source_destination_auth_and_overwrite(monkeypatch: pytest.MonkeyPatch) -> None:
     captured = {}
 
-    def _copy_path(source, destination, auth, source_auth=None, destination_auth=None, versioning=None):
+    def _copy_path(source, destination, auth, source_auth=None, destination_auth=None, versioning=None, overwrite=False):
         captured["source"] = source
         captured["destination"] = destination
         captured["auth"] = auth
         captured["source_auth"] = source_auth
         captured["destination_auth"] = destination_auth
+        captured["overwrite"] = overwrite
         return WfxResponse(ok=True, data={"copied": True})
 
     monkeypatch.setattr(bridge_routes, "copy_path", _copy_path)
@@ -560,6 +561,7 @@ def test_bridge_copy_accepts_source_and_destination_auth(monkeypatch: pytest.Mon
             "auth": {"mode": "credentials", "credential_id": "fallback"},
             "source_auth": {"mode": "credentials", "credential_id": "edocat-credential"},
             "destination_auth": {"mode": "credentials", "credential_id": "alfresco-credential"},
+            "overwrite": True,
         },
     )
 
@@ -570,12 +572,13 @@ def test_bridge_copy_accepts_source_and_destination_auth(monkeypatch: pytest.Mon
     assert captured["auth"].credential_id == "fallback"
     assert captured["source_auth"].credential_id == "edocat-credential"
     assert captured["destination_auth"].credential_id == "alfresco-credential"
+    assert captured["overwrite"] is True
 
 
 def test_bridge_copy_accepts_versioning(monkeypatch: pytest.MonkeyPatch) -> None:
     captured = {}
 
-    def _copy_path(source, destination, auth, source_auth=None, destination_auth=None, versioning=None):
+    def _copy_path(source, destination, auth, source_auth=None, destination_auth=None, versioning=None, overwrite=False):
         captured["versioning"] = versioning
         return WfxResponse(ok=True, data={"copied": True})
 

@@ -144,6 +144,48 @@ def _cross_provider_target_conflict_response(
     )
 
 
+def _target_supports_versioning(provider) -> bool:
+    capabilities = provider.versioning_capabilities() if callable(getattr(provider, "versioning_capabilities", None)) else {}
+    return bool(capabilities.get("supported")) if isinstance(capabilities, dict) else False
+
+
+def _cross_provider_overwrite_conflict_response(
+    operation: str,
+    src_provider,
+    src_path: str,
+    src_item: DmsItem | None,
+    dst_provider,
+    dst_path: str,
+    dst_item: DmsItem,
+) -> WfxResponse:
+    metadata: dict[str, object] = {
+        "action": "overwrite_required",
+        "reason": "target_exists",
+        "operation": operation,
+        "transfer": "download-upload" if operation == "copy" else "download-upload-delete",
+        "allowed_actions": ["overwrite", "cancel"],
+        "versioning": {
+            "supported": False,
+        },
+    }
+    metadata.update(_item_version_metadata("source", src_provider.name, src_path, src_item))
+    metadata.update(_item_version_metadata("target", dst_provider.name, dst_path, dst_item))
+    metadata.update(
+        {
+            "connection": dst_provider.name,
+            "provider": dst_provider.name,
+            "path": dst_path,
+            "name": dst_item.name,
+            "node_id": dst_item.id,
+        }
+    )
+    return _failure(
+        WfxErrorCode.ACCESS_DENIED,
+        f"Cross-provider {operation} target exists and requires overwrite choice: {dst_path}",
+        metadata,
+    )
+
+
 def _cross_provider_existing_target_response(
     operation: str,
     src_provider,
@@ -153,12 +195,30 @@ def _cross_provider_existing_target_response(
     dst_path: str,
     dst_auth: BridgeAuthContext,
     versioning: object,
+    overwrite: bool = False,
 ) -> WfxResponse | None:
     target_item = dst_provider.stat_item(dst_path, dst_auth)
-    if target_item is None or _versioning_payload(versioning) is not None:
+    if target_item is None:
         return None
+
+    target_supports_versioning = _target_supports_versioning(dst_provider)
+    if target_supports_versioning and _versioning_payload(versioning) is not None:
+        return None
+    if not target_supports_versioning and overwrite:
+        return None
+
     source_item = src_provider.stat_item(src_path, src_auth)
-    return _cross_provider_target_conflict_response(
+    if target_supports_versioning:
+        return _cross_provider_target_conflict_response(
+            operation,
+            src_provider,
+            src_path,
+            source_item,
+            dst_provider,
+            dst_path,
+            target_item,
+        )
+    return _cross_provider_overwrite_conflict_response(
         operation,
         src_provider,
         src_path,
@@ -197,6 +257,7 @@ def _upload_downloaded_content(
     auth: BridgeAuthContext,
     content_base64: str,
     versioning: dict | None = None,
+    overwrite: bool = False,
 ):
     payload_size = estimated_binary_size_from_base64(content_base64)
     if payload_size <= max_inline_upload_bytes(dst_provider):
@@ -206,7 +267,7 @@ def _upload_downloaded_content(
             file_name,
             auth,
             content_base64=content_base64,
-            overwrite=False,
+            overwrite=overwrite,
             versioning=versioning,
         )
 
@@ -218,7 +279,7 @@ def _upload_downloaded_content(
             file_name,
             auth,
             source_path=temp_path,
-            overwrite=False,
+            overwrite=overwrite,
             versioning=versioning,
         )
     finally:
@@ -473,6 +534,7 @@ def rename_path(
     source_auth: BridgeAuthContext | None = None,
     destination_auth: BridgeAuthContext | None = None,
     versioning: object = None,
+    overwrite: bool = False,
 ) -> WfxResponse:
     started_at = time.perf_counter()
     connection_name: str | None = None
@@ -498,6 +560,7 @@ def rename_path(
                 dst.path,
                 dst_auth,
                 versioning,
+                overwrite=overwrite,
             )
             if conflict_response is not None:
                 return _log_and_return("rename", connection_name, operation_path, started_at, conflict_response, conflict_response.message)
@@ -508,7 +571,15 @@ def rename_path(
             if not download_result.content_base64:
                 response = _failure(WfxErrorCode.INTERNAL_ERROR, "Cross-provider move failed: source download returned no content.")
                 return _log_and_return("rename", connection_name, operation_path, started_at, response, response.message)
-            upload_result = _upload_downloaded_content(dst_provider, target_folder, file_name, dst_auth, download_result.content_base64, _versioning_payload(versioning))
+            upload_result = _upload_downloaded_content(
+                dst_provider,
+                target_folder,
+                file_name,
+                dst_auth,
+                download_result.content_base64,
+                _versioning_payload(versioning),
+                overwrite=overwrite,
+            )
             if not upload_result.success:
                 response = _failure(WfxErrorCode.INTERNAL_ERROR, _operation_failure_message("move upload", upload_result))
                 return _log_and_return("rename", connection_name, operation_path, started_at, response, response.message)
@@ -541,6 +612,7 @@ def copy_path(
     source_auth: BridgeAuthContext | None = None,
     destination_auth: BridgeAuthContext | None = None,
     versioning: object = None,
+    overwrite: bool = False,
 ) -> WfxResponse:
     started_at = time.perf_counter()
     connection_name: str | None = None
@@ -570,6 +642,7 @@ def copy_path(
             dst.path,
             dst_auth,
             versioning,
+            overwrite=overwrite,
         )
         if conflict_response is not None:
             return _log_and_return("copy", connection_name, operation_path, started_at, conflict_response, conflict_response.message)
@@ -580,7 +653,15 @@ def copy_path(
         if not download_result.content_base64:
             response = _failure(WfxErrorCode.INTERNAL_ERROR, "Cross-provider copy failed: source download returned no content.")
             return _log_and_return("copy", connection_name, operation_path, started_at, response, response.message)
-        upload_result = _upload_downloaded_content(dst_provider, target_folder, file_name, dst_auth, download_result.content_base64, _versioning_payload(versioning))
+        upload_result = _upload_downloaded_content(
+            dst_provider,
+            target_folder,
+            file_name,
+            dst_auth,
+            download_result.content_base64,
+            _versioning_payload(versioning),
+            overwrite=overwrite,
+        )
         if not upload_result.success:
             response = _failure(WfxErrorCode.INTERNAL_ERROR, _operation_failure_message("copy upload", upload_result))
             return _log_and_return("copy", connection_name, operation_path, started_at, response, response.message)

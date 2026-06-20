@@ -73,6 +73,7 @@ class WfxMoveRequest(BaseModel):
         description="Optional destination-connection auth override for connection-to-connection copy/move operations. Falls back to auth.",
     )
     versioning: UploadVersioning | None = None
+    overwrite: bool = False
 
 
 class WfxUploadRequest(BaseModel):
