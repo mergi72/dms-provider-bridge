@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 from dataclasses import dataclass
+from threading import RLock
 from typing import Any
 
 from dms_provider_bridge.core.credentials import ProviderCredentials, load_windows_credential
@@ -10,6 +11,8 @@ from dms_provider_bridge.models.bridge import BridgeAuthContext
 
 
 _CREDENTIAL_MODES = {"credentials", "windows"}
+_CREDENTIAL_CACHE: dict[str, ProviderCredentials] = {}
+_CREDENTIAL_CACHE_LOCK = RLock()
 
 
 @dataclass(slots=True)
@@ -92,10 +95,18 @@ def _credentials_config(config: dict[str, Any] | None) -> dict[str, Any]:
     auth = config.get("auth")
     merged: dict[str, Any] = {}
     if isinstance(credentials, dict):
-        merged.update(credentials)
+        merged.update(_strip_empty_values(credentials))
     if isinstance(auth, dict):
-        merged.update(auth)
+        merged.update(_strip_empty_values(auth))
     return merged
+
+
+def _strip_empty_values(config: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in config.items()
+        if value not in ("", None)
+    }
 
 
 def _normalize_auth_scheme(value: object, default: str) -> str:
@@ -151,11 +162,39 @@ def _credential_target_candidates(base_target: str | None, auth: BridgeAuthConte
     return deduped
 
 
+def _copy_credentials(credentials: ProviderCredentials) -> ProviderCredentials:
+    return ProviderCredentials(
+        base_url=credentials.base_url,
+        username=credentials.username,
+        password=credentials.password,
+        token=credentials.token,
+    )
+
+
+def clear_credential_cache() -> None:
+    with _CREDENTIAL_CACHE_LOCK:
+        _CREDENTIAL_CACHE.clear()
+
+
+def _load_cached_windows_credential(candidate: str) -> ProviderCredentials:
+    with _CREDENTIAL_CACHE_LOCK:
+        cached = _CREDENTIAL_CACHE.get(candidate)
+        if cached is not None:
+            return _copy_credentials(cached)
+
+    loaded = load_windows_credential(candidate)
+
+    with _CREDENTIAL_CACHE_LOCK:
+        _CREDENTIAL_CACHE[candidate] = _copy_credentials(loaded)
+
+    return _copy_credentials(loaded)
+
+
 def _load_first_available_credential(candidates: list[str]) -> ProviderCredentials | None:
     last_error: AuthenticationError | None = None
     for candidate in candidates:
         try:
-            return load_windows_credential(candidate)
+            return _load_cached_windows_credential(candidate)
         except AuthenticationError as exc:
             last_error = exc
     if last_error is not None:
@@ -177,6 +216,11 @@ def auth_requirements(config: dict[str, Any] | None, *, default_scheme: str = "b
         value = _str_or_none(credentials.get(key))
         if value:
             result[key] = value
+
+    if "credential_id" not in result and "target" in result:
+        result["credential_id"] = result["target"]
+    if "target" not in result and "credential_id" in result:
+        result["target"] = result["credential_id"]
 
     _ = default_scheme
     scheme = _str_or_none(credentials.get("authScheme") or credentials.get("scheme") or credentials.get("type"))

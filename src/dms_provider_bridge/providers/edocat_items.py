@@ -117,19 +117,43 @@ def _extract_version_type(node: dict) -> str | None:
     )
 
 
+def _extract_modified_at(node: dict) -> str | None:
+    modified = _extract_string(
+        node,
+        (
+            "modifiedAt",
+            "lastModified",
+            "modified",
+            "lastModificationDate",
+            "modifiedDate",
+            "updatedAt",
+            "updated",
+            "cm:modified",
+            "sys:modified",
+        ),
+    )
+    if modified is not None:
+        return modified
+
+    return _extract_string(
+        node,
+        (
+            "createdAt",
+            "created",
+            "creationDate",
+            "createdDate",
+            "cm:created",
+            "sys:created",
+        ),
+    )
+
+
 def item_from_node(node: dict, fallback_path: str, public_path: Callable[[str], str]) -> DmsItem:
     node_path = str(node.get("_normalized_path") or "") or fallback_path
     exposed_path = public_path(node_path)
     name = str(node.get("name") or node_path.rstrip("/").split("/")[-1] or "/")
     size = _extract_size(node)
-    modified_at = (
-        node.get("modifiedAt")
-        or node.get("lastModified")
-        or node.get("modified")
-        or node.get("lastModificationDate")
-    )
-    if modified_at is not None:
-        modified_at = str(modified_at)
+    modified_at = _extract_modified_at(node)
     read_only_flag = node.get("readOnly")
     if not isinstance(read_only_flag, bool):
         read_only_flag = None

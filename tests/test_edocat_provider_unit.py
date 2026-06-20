@@ -64,6 +64,32 @@ def _make_provider(
     return EdocatProvider()
 
 
+def test_versioning_capabilities_are_loaded_from_driver_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _make_provider(
+        monkeypatch,
+        config={
+            "doc_library": "/deals",
+            "capabilities": {
+                "versioning": {
+                    "supported": True,
+                    "modes": ["version"],
+                    "existing_upload": "version_required",
+                    "majorVersion": False,
+                    "comment_supported": True,
+                }
+            },
+        },
+    )
+
+    assert provider.versioning_capabilities() == {
+        "supported": True,
+        "existing_upload": "version_required",
+        "modes": ["version"],
+        "majorVersion": False,
+        "comment_supported": True,
+    }
+
+
 def test_client_create_update_and_delete_payloads(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, Any] = {}
 
@@ -414,6 +440,36 @@ def test_list_items_maps_file_size_from_edocat_metadata(monkeypatch: pytest.Monk
     ]
 
 
+def test_list_items_maps_modified_date_from_edocat_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    client.query_nodes.return_value = {
+        "nodes": [
+            {
+                "uuid": "direct-file",
+                "name": "a.txt",
+                "path": "/deals/folder",
+                "nodeType": "com.onlio.edocat.BaseDoc",
+                "props": {"cm:modified": "2026-06-20T13:45:00.000+0000"},
+            },
+            {
+                "uuid": "fallback-file",
+                "name": "b.txt",
+                "path": "/deals/folder",
+                "nodeType": "com.onlio.edocat.BaseDoc",
+                "metadata": {"createdAt": "2026-06-19T08:15:00Z"},
+            },
+        ]
+    }
+    provider = _make_provider(monkeypatch, client)
+
+    listing = provider.list_items("/folder", BridgeAuthContext(mode="credentials", username="user", password="pass"))
+
+    assert [(item.name, item.modified_at) for item in listing.items] == [
+        ("a.txt", "2026-06-20T13:45:00.000+0000"),
+        ("b.txt", "2026-06-19T08:15:00Z"),
+    ]
+
+
 def test_stat_item_enriches_missing_edocat_version_from_alfresco_uuid(monkeypatch: pytest.MonkeyPatch) -> None:
     client = FakeClient()
     client.query_nodes.return_value = {
@@ -437,6 +493,83 @@ def test_stat_item_enriches_missing_edocat_version_from_alfresco_uuid(monkeypatc
     assert item.version_label == "0.0"
     assert item.version_type == "MAJOR"
     provider._alfresco_version_metadata_from_uuid.assert_called_once()
+
+
+def test_stat_item_reads_fresh_edocat_version_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    client.query_nodes.return_value = {
+        "nodes": [
+            {
+                "uuid": "node-1",
+                "name": "a.txt",
+                "path": "/deals/folder/a.txt",
+                "nodeType": "com.onlio.edocat.BaseDoc",
+            },
+        ]
+    }
+    provider = _make_provider(monkeypatch, client)
+    versions = iter([
+        {"version_label": "5.1", "version_type": "MINOR"},
+        {"version_label": "5.2", "version_type": "MINOR"},
+    ])
+    provider._alfresco_version_metadata_from_uuid = Mock(  # type: ignore[method-assign]
+        side_effect=lambda uuid, auth, use_cache=True: next(versions)
+    )
+
+    first = provider.stat_item("/folder/a.txt", BridgeAuthContext(mode="credentials", username="user", password="pass"))
+    second = provider.stat_item("/folder/a.txt", BridgeAuthContext(mode="credentials", username="user", password="pass"))
+
+    assert first is not None
+    assert second is not None
+    assert first.version_label == "5.1"
+    assert second.version_label == "5.2"
+    assert provider._alfresco_version_metadata_from_uuid.call_args_list[0].kwargs["use_cache"] is False
+    assert provider._alfresco_version_metadata_from_uuid.call_args_list[1].kwargs["use_cache"] is False
+
+
+def test_edocat_version_fallback_uses_edocat_base_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    class FakeAlfrescoClient:
+        @classmethod
+        def from_config(cls, config: dict[str, Any]) -> "FakeAlfrescoClient":
+            captured["config"] = config
+            return cls()
+
+        def basic_auth_token(self, username: str, password: str) -> str:
+            captured["credentials"] = (username, password)
+            return "basic-token"
+
+        def get_node(self, ticket: str, uuid: str, include: list[str] | None = None) -> dict[str, Any]:
+            captured["get_node"] = (ticket, uuid, include)
+            return {
+                "entry": {
+                    "properties": {
+                        "cm:versionLabel": "5.1",
+                        "cm:versionType": "MINOR",
+                    }
+                }
+            }
+
+    monkeypatch.setattr(edocat_provider_module.AlfrescoClient, "from_config", FakeAlfrescoClient.from_config)
+    provider = _make_provider(
+        monkeypatch,
+        config={
+            "base_url": "https://edocat.example",
+            "doc_library": "/deals",
+        },
+    )
+
+    metadata = provider._alfresco_version_metadata_from_uuid(
+        "node-1",
+        BridgeAuthContext(mode="credentials", username="user", password="pass"),
+    )
+
+    assert captured["config"]["base_url"] == "https://edocat.example/alfresco"
+    assert captured["config"]["api"]["repo_root"] == "/api/-default-/public/alfresco/versions/1"
+    assert captured["credentials"] == ("user", "pass")
+    assert captured["get_node"] == ("basic-token", "node-1", ["aspectNames", "properties"])
+    assert metadata == {"version_label": "5.1", "version_type": "MINOR"}
 
 
 def test_delete_item_deletes_folder_bottom_up(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -585,6 +718,100 @@ def test_upload_item_reads_source_path_as_base64(monkeypatch: pytest.MonkeyPatch
         username="user",
         password="pass",
     )
+
+
+def test_upload_item_versioning_updates_existing_node(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    class FakeAlfrescoClient:
+        @classmethod
+        def from_config(cls, config: dict[str, Any]) -> "FakeAlfrescoClient":
+            captured["config"] = config
+            return cls()
+
+        def basic_auth_token(self, username: str, password: str) -> str:
+            captured["credentials"] = (username, password)
+            return "basic-token"
+
+        def update_node_content(
+            self,
+            ticket: str,
+            node_id: str,
+            file_name: str,
+            content_base64: str | None = None,
+            source_path: str | None = None,
+            major_version: bool = False,
+            comment: str | None = None,
+        ) -> dict[str, Any]:
+            captured["update_node_content"] = {
+                "ticket": ticket,
+                "node_id": node_id,
+                "file_name": file_name,
+                "content_base64": content_base64,
+                "source_path": source_path,
+                "major_version": major_version,
+                "comment": comment,
+            }
+            return {
+                "entry": {
+                    "id": "existing-1",
+                    "properties": {
+                        "cm:versionLabel": "6.0",
+                        "cm:versionType": "MAJOR",
+                    },
+                }
+            }
+
+        def node_content_url(self, node_id: str) -> str:
+            return f"https://edocat.example/alfresco/api/-default-/public/alfresco/versions/1/nodes/{node_id}/content"
+
+    monkeypatch.setattr(edocat_provider_module.AlfrescoClient, "from_config", FakeAlfrescoClient.from_config)
+    client = FakeClient()
+    provider = _make_provider(monkeypatch, client, config={"base_url": "https://edocat.example", "doc_library": "/deals"})
+    provider._alfresco_version_cache["existing-1"] = {"version_label": "5.1", "version_type": "MINOR"}
+    monkeypatch.setattr(
+        provider,
+        "_query_single_node",
+        lambda path, auth, include_content=False: {
+            "uuid": "existing-1",
+            "name": "upload.txt",
+            "path": "/deals/folder/upload.txt",
+            "nodeType": "ctbd:baseDoc",
+        },
+    )
+
+    result = provider.upload_item(
+        "/folder",
+        "upload.txt",
+        content_base64="dGVzdA==",
+        auth=BridgeAuthContext(mode="credentials", username="user", password="pass"),
+        versioning={"mode": "version", "majorVersion": True, "comment": "Major update"},
+    )
+
+    assert result.success is True
+    assert result.operation == "upload"
+    assert result.metadata == {
+        "action": "version",
+        "node_id": "existing-1",
+        "major_version": True,
+        "comment": "Major update",
+        "version": "6.0",
+        "version_type": "MAJOR",
+    }
+    assert captured["config"]["base_url"] == "https://edocat.example/alfresco"
+    assert captured["credentials"] == ("user", "pass")
+    assert captured["update_node_content"] == {
+        "ticket": "basic-token",
+        "node_id": "existing-1",
+        "file_name": "upload.txt",
+        "content_base64": "dGVzdA==",
+        "source_path": None,
+        "major_version": True,
+        "comment": "Major update",
+    }
+    client.update_node.assert_not_called()
+    client.create_node.assert_not_called()
+    assert "existing-1" not in provider._alfresco_version_cache
 
 
 def test_copy_item_clones_content_and_metadata(monkeypatch: pytest.MonkeyPatch) -> None:

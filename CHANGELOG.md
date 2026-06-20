@@ -1,3 +1,12 @@
+## 0.7.20-beta - 2026-06-20
+
+- Unified bridge runtime auth resolution so operations use connection/driver credential settings consistently.
+- Added credential cache for Windows credential lookups to reduce repeated broker reads.
+- Added eDoCat version metadata and version upload support through the underlying Alfresco API.
+- Added overwrite conflict metadata for non-versioned targets and version conflict metadata for DMS targets.
+- Added regression coverage for cross-driver auth, eDoCat versioning, and modified date mapping.
+- Release/version bump to `0.7.20-beta`.
+
 ## 0.7.18-beta - 2026-06-20
 
 - Aligned driver and connection templates with the auth/config split.

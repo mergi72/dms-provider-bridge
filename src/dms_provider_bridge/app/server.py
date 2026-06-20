@@ -13,7 +13,7 @@ from dms_provider_bridge.app.routes.listing import router as listing_router
 def create_app() -> FastAPI:
     app = FastAPI(
         title="dms-provider-bridge",
-        version="0.7.19-beta",
+        version="0.7.20-beta",
         description="Local DMS provider bridge API. Config UI is available at /config.",
         docs_url=None,
     )

@@ -71,6 +71,28 @@ class EdocatProvider(Provider):
     def _document_node_type(self) -> str:
         return edocat_config.document_node_type(self.config)
 
+    def versioning_capabilities(self) -> dict[str, object]:
+        capabilities = self.config.get("capabilities")
+        versioning = capabilities.get("versioning") if isinstance(capabilities, dict) else None
+        if isinstance(versioning, dict):
+            return {
+                "supported": bool(versioning.get("supported")),
+                "existing_upload": versioning.get("existing_upload") or "version_required",
+                "modes": versioning.get("modes") or ["version"],
+                "majorVersion": bool(versioning.get("majorVersion", False)),
+                "comment_supported": bool(versioning.get("comment_supported", True)),
+            }
+        return {
+            "supported": True,
+            "existing_upload": "version_required",
+            "modes": ["version"],
+            "majorVersion": False,
+            "comment_supported": True,
+        }
+
+    def _versioning_choice(self, versioning: dict | None) -> tuple[bool, str | None] | None:
+        return alfresco_versioning.versioning_choice(versioning)
+
     def _copy_max_nodes(self) -> int:
         return edocat_config.copy_max_nodes(self.config)
 
@@ -315,9 +337,35 @@ class EdocatProvider(Provider):
 
         return self._find_exact_node(parent_nodes, resolved_path)
 
-    def _alfresco_version_metadata_from_uuid(self, uuid: str, auth: BridgeAuthContext | None) -> dict[str, str | None]:
+    def _alfresco_version_config(self) -> dict[str, object]:
+        configured = self.config.get("alfresco")
+        base_config: dict[str, object] = {}
+        if isinstance(configured, dict):
+            base_config.update(configured)
+
+        base_url = str(base_config.get("base_url") or self.config.get("alfresco_base_url") or self.config.get("base_url") or "").rstrip("/")
+        if base_url and not base_url.lower().rstrip("/").endswith("/alfresco"):
+            base_url = f"{base_url}/alfresco"
+
+        return {
+            "base_url": base_url,
+            "api": base_config.get("api") or {
+                "search_root": "/api/-default-/public/search/versions/1",
+                "repo_root": "/api/-default-/public/alfresco/versions/1",
+            },
+            "endpoints": base_config.get("endpoints") or {
+                "search": "/search",
+                "nodes": "/nodes",
+                "people_me": "/people/-me-",
+            },
+            "doc_library": base_config.get("doc_library") or self.config.get("doc_library") or "/",
+            "nodeType": base_config.get("nodeType") or {},
+            "timeouts": base_config.get("timeouts") or self.config.get("timeouts") or {},
+        }
+
+    def _alfresco_version_metadata_from_uuid(self, uuid: str, auth: BridgeAuthContext | None, *, use_cache: bool = True) -> dict[str, str | None]:
         cached = self._alfresco_version_cache.get(uuid)
-        if cached is not None:
+        if use_cache and cached is not None:
             return cached
 
         username, password = self._runtime_credentials(auth)
@@ -325,7 +373,7 @@ class EdocatProvider(Provider):
             return {}
 
         if self._alfresco_version_client is None:
-            self._alfresco_version_client = AlfrescoClient.from_config(load_provider_config("alfresco"))
+            self._alfresco_version_client = AlfrescoClient.from_config(self._alfresco_version_config())
 
         try:
             ticket = self._alfresco_version_client.basic_auth_token(username, password)
@@ -350,7 +398,7 @@ class EdocatProvider(Provider):
         self._alfresco_version_cache[uuid] = metadata
         return metadata
 
-    def _item_from_node(self, node: dict, fallback_path: str, auth: BridgeAuthContext | None = None) -> DmsItem:
+    def _item_from_node(self, node: dict, fallback_path: str, auth: BridgeAuthContext | None = None, *, use_version_cache: bool = True) -> DmsItem:
         node_path = self._normalize_node_path(node) or fallback_path
         normalized_node = dict(node)
         normalized_node["_normalized_path"] = node_path
@@ -362,7 +410,7 @@ class EdocatProvider(Provider):
         if not uuid:
             return item
 
-        version_metadata = self._alfresco_version_metadata_from_uuid(uuid, auth)
+        version_metadata = self._alfresco_version_metadata_from_uuid(uuid, auth, use_cache=use_version_cache)
         version_label = version_metadata.get("version_label")
         version_type = version_metadata.get("version_type")
         if not (version_label or version_type):
@@ -492,7 +540,7 @@ class EdocatProvider(Provider):
         resolved_path = self._resolve_path(path)
         node = self._query_single_node(resolved_path, auth, include_content=False)
         if node is not None:
-            return self._item_from_node(node, resolved_path, auth)
+            return self._item_from_node(node, resolved_path, auth, use_version_cache=False)
 
         if self._public_path(resolved_path) == "/":
             return DmsItem(id="edo-root", name="/", path="/", is_folder=True)
@@ -741,7 +789,6 @@ class EdocatProvider(Provider):
         )
 
     def upload_item(self, destination: str, file_name: str, content_base64: str | None = None, source_path: str | None = None, overwrite: bool = False, auth: BridgeAuthContext | None = None, versioning: dict | None = None) -> OperationResult:
-        _ = versioning
         username, password = self._runtime_credentials(auth)
         resolved_destination = self._resolve_path(destination)
         target = f"{resolved_destination.rstrip('/')}/{file_name}" if resolved_destination != "/" else f"/{file_name}"
@@ -768,6 +815,56 @@ class EdocatProvider(Provider):
             "content": encoded_content,
             "nodeType": self._document_node_type(),
         }
+        version_choice = self._versioning_choice(versioning)
+        if version_choice is not None:
+            existing_node = self._query_single_node(target, auth, include_content=False)
+            if existing_node is None:
+                raise ProviderOperationError(f"eDoCat version upload failed: target does not exist: {target}")
+            existing_uuid = self._node_uuid(existing_node)
+            if not existing_uuid:
+                raise ProviderOperationError(f"eDoCat version upload failed: existing node uuid is missing for {target}")
+            major_version, comment = version_choice
+            try:
+                if self._alfresco_version_client is None:
+                    self._alfresco_version_client = AlfrescoClient.from_config(self._alfresco_version_config())
+                if not (username and password):
+                    raise ProviderOperationError("eDoCat version upload failed: credentials are missing.")
+                ticket = self._alfresco_version_client.basic_auth_token(username, password)
+                response = self._alfresco_version_client.update_node_content(
+                    ticket,
+                    existing_uuid,
+                    name,
+                    content_base64=encoded_content,
+                    source_path=source_path,
+                    major_version=major_version,
+                    comment=comment,
+                )
+            except Exception as exc:
+                raise ProviderOperationError(f"eDoCat version upload failed for {target}: {exc}") from exc
+
+            updated = response if isinstance(response, dict) else {}
+            entry = updated.get("entry") if isinstance(updated.get("entry"), dict) else updated
+            target_uuid = str(entry.get("id") or entry.get("uuid") or existing_uuid) if isinstance(entry, dict) else existing_uuid
+            self._alfresco_version_cache.pop(existing_uuid, None)
+            self._alfresco_version_cache.pop(target_uuid, None)
+            version_label = alfresco_versioning.version_label_from_entry(entry if isinstance(entry, dict) else None)
+            version_type = alfresco_versioning.version_type_from_entry(entry if isinstance(entry, dict) else None)
+            return OperationResult(
+                success=True,
+                operation="upload",
+                provider=self.name,
+                source=file_name,
+                destination=self._public_path(target),
+                message=f"endpoint={self._alfresco_version_client.node_content_url(target_uuid)};uuid={target_uuid};mode=version",
+                metadata={
+                    "action": "version",
+                    "node_id": target_uuid,
+                    "major_version": major_version,
+                    "comment": comment,
+                    "version": version_label,
+                    "version_type": version_type,
+                },
+            )
         if overwrite:
             payload["autoRename"] = False
         try:

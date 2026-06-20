@@ -132,6 +132,7 @@ def test_resolve_alfresco_credentials_tries_user_specific_target_variants(monkey
 
 
 def test_effective_auth_resolver_uses_connection_credential_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    auth_resolver_module.clear_credential_cache()
     monkeypatch.setattr(
         auth_resolver_module,
         "load_windows_credential",
@@ -160,7 +161,33 @@ def test_effective_auth_resolver_uses_connection_credential_id(monkeypatch: pyte
     assert result.password == "tc-wfx/webdav-pass"
 
 
+def test_effective_auth_resolver_caches_windows_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    auth_resolver_module.clear_credential_cache()
+    calls: list[str] = []
+
+    def _load(credential_id: str) -> ProviderCredentials:
+        calls.append(credential_id)
+        return ProviderCredentials(base_url="", username="vault-user", password="vault-pass")
+
+    monkeypatch.setattr(auth_resolver_module, "load_windows_credential", _load)
+
+    first = auth_resolver_module.resolve_effective_auth(
+        {"credentials": {"mode": "windows", "target": "tc-wfx/bridge"}},
+        BridgeAuthContext(mode="credentials"),
+    )
+    first.password = "mutated"
+    second = auth_resolver_module.resolve_effective_auth(
+        {"credentials": {"mode": "windows", "target": "tc-wfx/bridge"}},
+        BridgeAuthContext(mode="credentials"),
+    )
+
+    assert calls == ["tc-wfx/bridge"]
+    assert second.username == "vault-user"
+    assert second.password == "vault-pass"
+
+
 def test_effective_auth_resolver_supports_shared_target_base_user_variant(monkeypatch: pytest.MonkeyPatch) -> None:
+    auth_resolver_module.clear_credential_cache()
     calls: list[str] = []
 
     def _load(credential_id: str) -> ProviderCredentials:
@@ -180,6 +207,46 @@ def test_effective_auth_resolver_supports_shared_target_base_user_variant(monkey
     assert result.password == "secret"
     assert calls[0] == "tc-wfx/company-dms"
     assert "tc-wfx/company-dms/tester" in calls
+
+
+def test_effective_auth_resolver_ignores_empty_auth_template_over_legacy_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    auth_resolver_module.clear_credential_cache()
+    calls: list[str] = []
+
+    def _load(credential_id: str) -> ProviderCredentials:
+        calls.append(credential_id)
+        if credential_id == "merhautr@cheminvest/eDoCat_Helper":
+            return ProviderCredentials(base_url="", username="edocat-user", password="edocat-pass")
+        raise AuthenticationError(f"missing {credential_id}")
+
+    monkeypatch.setattr(auth_resolver_module, "load_windows_credential", _load)
+
+    result = auth_resolver_module.resolve_effective_auth(
+        {
+            "credentials": {
+                "mode": "windows",
+                "authScheme": "basic",
+                "targetBase": "cheminvest/eDoCat_Helper",
+                "target": "merhautr@cheminvest/eDoCat_Helper",
+                "required": True,
+            },
+            "auth": {
+                "mode": "windows",
+                "authScheme": "basic",
+                "credential_id": "",
+                "target": "",
+                "targetBase": "",
+                "required": True,
+            },
+        },
+        BridgeAuthContext(mode="credentials"),
+    )
+
+    assert result.target == "merhautr@cheminvest/eDoCat_Helper"
+    assert result.target_base == "cheminvest/eDoCat_Helper"
+    assert result.username == "edocat-user"
+    assert result.password == "edocat-pass"
+    assert "merhautr@cheminvest/eDoCat_Helper" in calls
 
 
 def test_effective_auth_resolver_none_mode_returns_no_headers() -> None:
@@ -215,3 +282,19 @@ def test_effective_auth_requirements_preserve_configured_public_fields() -> None
         "targetBase": "demo",
         "authScheme": "bearer",
     }
+
+
+def test_auth_requirements_exposes_target_as_credential_id_alias() -> None:
+    result = auth_resolver_module.auth_requirements(
+        {
+            "credentials": {
+                "mode": "windows",
+                "target": "tc-wfx/bridge",
+                "authScheme": "ticket",
+                "required": True,
+            }
+        }
+    )
+
+    assert result["target"] == "tc-wfx/bridge"
+    assert result["credential_id"] == "tc-wfx/bridge"

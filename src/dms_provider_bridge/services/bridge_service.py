@@ -13,7 +13,7 @@ from dms_provider_bridge.models.bridge import BridgeAuthContext, WfxResponse
 from dms_provider_bridge.models.item import DmsItem
 from dms_provider_bridge.models.listing import ListingResult
 from dms_provider_bridge.services.auth_service import validate_bridge_auth
-from dms_provider_bridge.services.auth_resolver import auth_requirements
+from dms_provider_bridge.services.auth_resolver import auth_requirements, resolve_effective_auth
 from dms_provider_bridge.services.bridge_errors import map_exception
 from dms_provider_bridge.services.provider_service import (
     get_connection_runtime,
@@ -129,6 +129,8 @@ def _cross_provider_target_conflict_response(
         {
             "connection": dst_provider.name,
             "provider": dst_provider.name,
+            "destination_connection": dst_provider.name,
+            "destination_provider": dst_provider.name,
             "path": dst_path,
             "name": dst_item.name,
             "node_id": dst_item.id,
@@ -174,6 +176,8 @@ def _cross_provider_overwrite_conflict_response(
         {
             "connection": dst_provider.name,
             "provider": dst_provider.name,
+            "destination_connection": dst_provider.name,
+            "destination_provider": dst_provider.name,
             "path": dst_path,
             "name": dst_item.name,
             "node_id": dst_item.id,
@@ -298,10 +302,25 @@ def _copy_auth(auth: BridgeAuthContext) -> BridgeAuthContext:
     return auth.model_copy(deep=True)
 
 
-def _validated_auth(auth: BridgeAuthContext) -> BridgeAuthContext:
+def _validated_connection_auth(provider, auth: BridgeAuthContext) -> BridgeAuthContext:
     auth_copy = _copy_auth(auth)
-    validate_bridge_auth(auth_copy)
-    return auth_copy
+    default_scheme = getattr(provider, "upstream_auth_scheme", None) or "basic"
+    effective = resolve_effective_auth(
+        getattr(provider, "config", None),
+        auth_copy,
+        default_scheme=default_scheme,
+    )
+    if effective.mode == "none":
+        return auth_copy
+    return BridgeAuthContext(
+        mode="credentials",
+        credential_id=effective.credential_id,
+        target=effective.target,
+        username=effective.username,
+        password=effective.password,
+        token=effective.token,
+        win_user=effective.win_user,
+    )
 
 
 def _connection_root_listing() -> ListingResult:
@@ -455,9 +474,8 @@ def list_path(path: str, auth: BridgeAuthContext | None) -> WfxResponse:
         if auth is None and auth_info.get("required") is not False:
             response = _failure(WfxErrorCode.ACCESS_DENIED, "Authentication is required for provider paths.")
             return _log_and_return("list", connection_name, resolved_path, started_at, response, response.message)
-        if auth is not None:
-            validate_bridge_auth(auth)
-        listing = provider.list_items(parsed.path, auth)
+        runtime_auth = _validated_connection_auth(provider, auth) if auth is not None else None
+        listing = provider.list_items(parsed.path, runtime_auth)
         response = _success(data=listing.model_dump(), metadata=_metadata(provider, "list"))
         return _log_and_return("list", connection_name, resolved_path, started_at, response)
     except Exception as exc:
@@ -473,12 +491,12 @@ def stat_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
         provider, parsed = _resolve(path)
         connection_name = provider.name
         resolved_path = parsed.path
-        validate_bridge_auth(auth)
-        item = provider.stat_item(parsed.path, auth)
+        runtime_auth = _validated_connection_auth(provider, auth)
+        item = provider.stat_item(parsed.path, runtime_auth)
         if item is None:
             deduplicated_path = _deduplicate_repeated_leaf(parsed.path)
             if deduplicated_path and deduplicated_path != parsed.path:
-                item = provider.stat_item(deduplicated_path, auth)
+                item = provider.stat_item(deduplicated_path, runtime_auth)
                 if item is not None:
                     resolved_path = deduplicated_path
                     response = _success(data=item.model_dump(), metadata=_metadata(provider, "stat"))
@@ -501,8 +519,8 @@ def mkdir_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
         provider, parsed = _resolve(path)
         connection_name = provider.name
         resolved_path = parsed.path
-        validate_bridge_auth(auth)
-        result = provider.make_dir(parsed.path, auth)
+        runtime_auth = _validated_connection_auth(provider, auth)
+        result = provider.make_dir(parsed.path, runtime_auth)
         response = _success(data=result.model_dump(), metadata=_metadata(provider, "mkdir"))
         return _log_and_return("mkdir", connection_name, resolved_path, started_at, response)
     except Exception as exc:
@@ -518,8 +536,8 @@ def delete_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
         provider, parsed = _resolve(path)
         connection_name = provider.name
         resolved_path = parsed.path
-        validate_bridge_auth(auth)
-        result = provider.delete_item(parsed.path, auth)
+        runtime_auth = _validated_connection_auth(provider, auth)
+        result = provider.delete_item(parsed.path, runtime_auth)
         response = _success(data=result.model_dump(), metadata=_metadata(provider, "delete"))
         return _log_and_return("delete", connection_name, resolved_path, started_at, response)
     except Exception as exc:
@@ -544,9 +562,9 @@ def rename_path(
         dst_provider, dst = _resolve(destination)
         connection_name = src_provider.name
         operation_path = f"{src.path} -> {dst.path}"
-        src_auth = _validated_auth(source_auth or auth)
+        src_auth = _validated_connection_auth(src_provider, source_auth or auth)
         if src_provider.name != dst_provider.name:
-            dst_auth = _validated_auth(destination_auth or auth)
+            dst_auth = _validated_connection_auth(dst_provider, destination_auth or auth)
             target_folder, file_name = _split_parent_and_name(dst.path)
             if not file_name:
                 response = _failure(WfxErrorCode.BAD_PATH, "Cross-provider move requires a destination file name.")
@@ -622,13 +640,13 @@ def copy_path(
         dst_provider, dst = _resolve(destination)
         connection_name = f"{src_provider.name}->{dst_provider.name}"
         operation_path = f"{src.path} -> {dst.path}"
-        src_auth = _validated_auth(source_auth or auth)
+        src_auth = _validated_connection_auth(src_provider, source_auth or auth)
         if src_provider.name == dst_provider.name:
             result = src_provider.copy_item(src.path, dst.path, src_auth)
             response = _success(data=result.model_dump(), metadata=_metadata(src_provider, "copy"))
             return _log_and_return("copy", connection_name, operation_path, started_at, response)
 
-        dst_auth = _validated_auth(destination_auth or auth)
+        dst_auth = _validated_connection_auth(dst_provider, destination_auth or auth)
         target_folder, file_name = _split_parent_and_name(dst.path)
         if not file_name:
             response = _failure(WfxErrorCode.BAD_PATH, "Cross-provider copy requires a destination file name.")
@@ -690,8 +708,8 @@ def download_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
         provider, parsed = _resolve(path)
         connection_name = provider.name
         resolved_path = parsed.path
-        validate_bridge_auth(auth)
-        result = provider.download_item(parsed.path, auth)
+        runtime_auth = _validated_connection_auth(provider, auth)
+        result = provider.download_item(parsed.path, runtime_auth)
         response = _success(data=result.model_dump(), metadata=_metadata(provider, "download"))
         return _log_and_return("download", connection_name, resolved_path, started_at, response)
     except Exception as exc:
@@ -710,8 +728,8 @@ def open_download_stream(path: str, auth: BridgeAuthContext) -> WfxResponse | No
         stream_item = getattr(provider, "stream_item", None)
         if not callable(stream_item):
             return None
-        validate_bridge_auth(auth)
-        result = stream_item(parsed.path, auth)
+        runtime_auth = _validated_connection_auth(provider, auth)
+        result = stream_item(parsed.path, runtime_auth)
         response = _success(data=result, metadata=_metadata(provider, "download"))
         return _log_and_return("download_raw_stream", connection_name, resolved_path, started_at, response)
     except Exception as exc:
@@ -727,9 +745,9 @@ def upload_path(destination: str, file_name: str, auth: BridgeAuthContext, conte
         provider, parsed = _resolve(destination)
         connection_name = provider.name
         resolved_path = parsed.path
-        validate_bridge_auth(auth)
+        runtime_auth = _validated_connection_auth(provider, auth)
         try:
-            result = upload_with_preflight(provider, parsed.path, file_name, auth, content_base64=content_base64, source_path=source_path, overwrite=overwrite, versioning=_versioning_payload(versioning))
+            result = upload_with_preflight(provider, parsed.path, file_name, runtime_auth, content_base64=content_base64, source_path=source_path, overwrite=overwrite, versioning=_versioning_payload(versioning))
         except Exception as exc:
             response = _failure_from_exception(exc)
             return _log_and_return("upload", connection_name, resolved_path, started_at, response, str(exc))
