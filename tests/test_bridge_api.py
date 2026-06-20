@@ -95,6 +95,7 @@ def test_bridge_connection_detail_returns_auth_and_capabilities() -> None:
     assert body["data"]["auth"] == {
         "mode": "windows",
         "target": "tc-wfx/bridge",
+        "authScheme": "ticket",
         "required": True,
     }
     assert body["data"]["capabilities"] == {

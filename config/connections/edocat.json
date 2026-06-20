@@ -20,6 +20,19 @@
         "display_name": "eDoCat",
         "description": "Default eDoCat connection.",
         "mount": "edocat:/",
-        "driver": "edocat"
+        "driver": "edocat",
+
+        "base_url": "",
+        "root_path": "",
+        "doc_library": "",
+
+        "credentials": {
+            "mode": "windows",
+            "authScheme": "basic",
+            "credential_id": "",
+            "target": "",
+            "targetBase": "",
+            "required": true
+        }
     }
 }

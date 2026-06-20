@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.7.17-beta`
-- Latest bridge-only release: `v0.7.17-beta`
+- Bridge repository latest changelog version: `0.7.18-beta`
+- Latest bridge-only release: `v0.7.18-beta`
 
 ## Configuration Model
 
@@ -142,7 +142,7 @@ Bridge can be run in two different Windows runtime models. Keep them separate:
   - Current setup installs the bridge service and preserves the installing user AppData path for configuration and logs.
   - `LocalSystem` cannot see credentials stored in an interactive user's Windows Credential Manager.
 
-Current setup release `v0.7.17-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
+Current setup release `v0.7.18-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
 
 ## Connection Operations
 

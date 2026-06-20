@@ -12,6 +12,7 @@ from dms_provider_bridge.core.paths import MACHINE_CONFIG_DIR, USER_CONFIG_DIR
 _LOGGER = get_logger(__name__)
 _SENSITIVE_CONFIG_KEY_PARTS = ("password", "secret", "token", "apikey")
 _MASKED_CONFIG_VALUE = "***"
+_CONFIG_METADATA_KEYS = {"key", "projectInfo", "config.json", "_comment"}
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -37,14 +38,23 @@ def _extract_provider_section(payload: dict[str, Any], provider_name: str) -> di
 
     key = payload.get("key")
     if isinstance(key, str) and isinstance(payload.get(key), dict):
-        return payload[key]
+        root_values = {
+            name: value
+            for name, value in payload.items()
+            if name not in _CONFIG_METADATA_KEYS and name != key
+        }
+        return _merge_dicts(root_values, payload[key])
 
     section = payload.get(provider_name)
     if isinstance(section, dict):
-        return section
+        root_values = {
+            name: value
+            for name, value in payload.items()
+            if name not in _CONFIG_METADATA_KEYS and name != provider_name
+        }
+        return _merge_dicts(root_values, section)
 
-    metadata_keys = {"key", "projectInfo", "config.json", "_comment"}
-    direct_payload = {name: value for name, value in payload.items() if name not in metadata_keys}
+    direct_payload = {name: value for name, value in payload.items() if name not in _CONFIG_METADATA_KEYS}
     if direct_payload:
         return direct_payload
 
@@ -178,7 +188,11 @@ def _provider_config_paths(machine_dir: Path, user_dir: Path | None, provider_na
 def _connection_config_paths(machine_dir: Path, user_dir: Path | None, connection_name: str) -> tuple[Path, Path | None]:
     connections_dir = _configured_registry_paths(machine_dir)["connections"]
     connection_base_path = connections_dir / f"{connection_name}.json"
-    connection_user_path = user_dir / "connections" / f"{connection_name}.local.json" if user_dir is not None else None
+    connection_user_path = None
+    if user_dir is not None:
+        legacy_user_path = user_dir / f"{connection_name}.local.json"
+        structured_user_path = user_dir / "connections" / f"{connection_name}.local.json"
+        connection_user_path = legacy_user_path if legacy_user_path.exists() else structured_user_path
     return connection_base_path, connection_user_path
 
 

@@ -14,15 +14,51 @@
         "_comment": "This file contains the configuration for the VBA project."
     },
 
-    "_comment": "List config files used in the project",
+    "_comment": "Unix/VFS mapping: edocat.json = filesystem driver for eDoCat repositories. It maps Provider ABC operations to eDoCat API calls and Alfresco fallback APIs when needed.",
 
     "key": "edocat",
 
+    "debug": {
+        "enable": false,
+        "path": "%APPDATA%\\DMS Provider\\logs"
+    },
+
+    "credentials": {
+        "mode": "windows",
+        "authScheme": "basic",
+        "credential_id": "",
+        "target": "",
+        "targetBase": ""
+    },
+
+    "copy": {
+        "maxNodes": 200
+    },
+
+    "transfer": {
+        "maxBase64Bytes": 314572800,
+        "maxNodes": 500
+    },
+
+    "upload": {
+        "maxBase64Bytes": 314572800
+    },
+
+    "download": {
+        "maxBase64Bytes": 314572800,
+        "maxNodes": 500
+    },
+
+    "timeouts": {
+        "requestSeconds": 60,
+        "uploadSeconds": 300
+    },
+
     "edocat": {
-        "debug": {
-            "enable": false,
-            "path": "%APPDATA%\\DMS Provider\\logs"
-        },
+        "display_name": "eDoCat",
+        "description": "eDoCat repository driver.",
+        "provider_abc": "provider",
+
         "base_url": "https://example.com",
         "api": "/edocat/api/v1",
         "doc_library": "/deals",
@@ -37,28 +73,26 @@
             "baseDoc": "com.onlio.edocat.BaseDoc",
             "file": "com.onlio.edocat.File"
         },
-        "copy": {
-            "maxNodes": 200
-        },
-        "transfer": {
-            "maxBase64Bytes": 314572800,
-            "maxNodes": 500
-        },
-        "upload": {
-            "maxBase64Bytes": 314572800
-        },
-        "download": {
-            "maxBase64Bytes": 314572800,
-            "maxNodes": 500
-        },
-        "timeouts": {
-            "requestSeconds": 60,
-            "uploadSeconds": 300
-        },
-        "credentials": {
-            "mode": "windows",
-            "targetBase": "example/eDoCat_Helper",
-            "target": "example_user@example.com/eDoCat_Helper"
+
+        "capabilities": {
+            "versioning": {
+                "supported": true,
+                "modes": ["version"],
+                "existing_upload": "version_required",
+                "majorVersion": false,
+                "comment_supported": true
+            },
+            "shareUrl": {
+                "supported": false
+            },
+            "folderDownload": {
+                "supported": true
+            },
+            "stream": {
+                "download": true,
+                "upload": true,
+                "copy": false
+            }
         }
     }
 }

@@ -3,13 +3,13 @@
         "name": "WebDAV Connection",
         "author": "DMS Provider Bridge contributors",
         "email": "",
-        "version": "0.7.17-beta",
+        "version": "0.7.18-beta",
         "description": "Default WebDAV mount exposed as webdav:/",
         "license": ""
     },
 
     "config.json": {
-        "version": "0.7.17-beta",
+        "version": "0.7.18-beta",
         "lastModified": "",
         "_comment": "Concrete WebDAV connection. Technical server settings are inherited from driver webdav or local driver config."
     },
@@ -20,6 +20,23 @@
         "display_name": "WebDAV",
         "description": "Default WebDAV connection.",
         "mount": "webdav:/",
-        "driver": "webdav"
+        "driver": "webdav",
+
+        "base_url": "",
+        "root_path": "",
+
+        "credentials": {
+            "mode": "credentials",
+            "authScheme": "basic",
+            "credential_id": "",
+            "target": "",
+            "targetBase": "",
+            "required": true
+        },
+
+        "webdav": {
+            "resource_path": "",
+            "directory_trailing_slash": true
+        }
     }
 }

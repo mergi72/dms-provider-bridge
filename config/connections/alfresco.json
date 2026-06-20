@@ -20,6 +20,19 @@
         "display_name": "Alfresco",
         "description": "Default Alfresco connection.",
         "mount": "alfresco:/",
-        "driver": "alfresco"
+        "driver": "alfresco",
+
+        "base_url": "",
+        "root_path": "",
+        "doc_library": "",
+
+        "credentials": {
+            "mode": "windows",
+            "authScheme": "ticket",
+            "credential_id": "",
+            "target": "",
+            "targetBase": "",
+            "required": true
+        }
     }
 }

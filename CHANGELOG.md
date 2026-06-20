@@ -1,3 +1,12 @@
+## 0.7.18-beta - 2026-06-20
+
+- Aligned driver and connection templates with the auth/config split.
+- Preferred flat user local config files from `%APPDATA%\DMS Provider\config`.
+- Kept local server-specific values out of repository templates.
+- Fixed Alfresco document-library resolution for deployments where REST `-root-` already maps to `company_home`.
+- Added regression coverage for localized/virtual Alfresco root fallback.
+- Release/version bump to `0.7.18-beta`.
+
 ## 0.7.15-beta - 2026-06-20
 
 - Added initial generic WebDAV driver and WebDAV connection templates.

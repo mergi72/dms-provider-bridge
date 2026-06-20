@@ -523,7 +523,7 @@ class AlfrescoClient:
         if folded == "company_home":
             return ["Company Home", "company_home", "company home", "app:company_home"]
         if folded == "sites":
-            return ["Sites", "sites", "st:sites"]
+            return ["Sites", "sites", "st:sites", "Stránky", "Stranky"]
         if folded == "documentlibrary":
             return ["documentLibrary", "Document Library", "documentlibrary", "cm:documentLibrary"]
         return [segment, f"cm:{segment}"]
@@ -537,18 +537,26 @@ class AlfrescoClient:
         if not segments:
             return None
 
-        current: dict[str, str] = {"id": "-root-", "name": "/"}
-        for segment in segments:
-            candidates = self._doc_library_segment_candidates(segment)
-            resolved = None
-            for candidate in candidates:
-                resolved = self.child_by_name(ticket, str(current.get("id", "")), candidate)
-                if resolved is not None:
+        attempts = [segments]
+        if segments[0].casefold() == "company_home":
+            attempts.append(segments[1:])
+
+        for candidate_segments in attempts:
+            current: dict[str, str] = {"id": "-root-", "name": "/"}
+            for segment in candidate_segments:
+                candidates = self._doc_library_segment_candidates(segment)
+                resolved = None
+                for candidate in candidates:
+                    resolved = self.child_by_name(ticket, str(current.get("id", "")), candidate)
+                    if resolved is not None:
+                        break
+                if resolved is None:
+                    current = {}
                     break
-            if resolved is None:
-                return None
-            current = resolved
-        return current
+                current = resolved
+            if current:
+                return current
+        return None
 
     def resolve_doc_library_node(self, ticket: str) -> dict | None:
         cache_key = f"{self._ticket_key(ticket)}|{self.doc_library}"

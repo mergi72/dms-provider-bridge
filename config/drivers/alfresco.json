@@ -14,15 +14,42 @@
         "_comment": "Configuration for Alfresco Search API (used instead of eDoCat wrapper search)."
     },
 
-    "_comment": "Alfresco configuration file used for search and listing operations",
+    "_comment": "Unix/VFS mapping: alfresco.json = filesystem driver for Alfresco repositories. It maps Provider ABC operations to Alfresco REST API calls.",
 
     "key": "alfresco",
 
+    "debug": {
+        "enable": false,
+        "path": "%APPDATA%\\DMS Provider\\logs"
+    },
+
+    "credentials": {
+        "mode": "windows",
+        "authScheme": "ticket",
+        "credential_id": "",
+        "target": "",
+        "targetBase": ""
+    },
+
+    "download": {
+        "maxBase64Bytes": 314572800
+    },
+
+    "transfer": {
+        "maxBase64Bytes": 314572800
+    },
+
+    "upload": {
+        "inline": {
+            "maxBytes": 314572800
+        }
+    },
+
     "alfresco": {
-        "debug": {
-            "enable": false,
-            "path": "%APPDATA%\\DMS Provider\\logs"
-        },
+        "display_name": "Alfresco",
+        "description": "Alfresco repository driver.",
+        "provider_abc": "provider",
+
         "base_url": "https://example.com/alfresco",
 
         "api": {
@@ -77,22 +104,24 @@
             ]
         },
 
-        "credentials": {
-            "mode": "windows",
-            "target": "tc-wfx/bridge"
-        },
-
-        "download": {
-            "maxBase64Bytes": 314572800
-        },
-
-        "transfer": {
-            "maxBase64Bytes": 314572800
-        },
-
-        "upload": {
-            "inline": {
-                "maxBytes": 314572800
+        "capabilities": {
+            "versioning": {
+                "supported": true,
+                "modes": ["version"],
+                "existing_upload": "version_required",
+                "majorVersion": false,
+                "comment_supported": true
+            },
+            "shareUrl": {
+                "supported": true
+            },
+            "folderDownload": {
+                "supported": false
+            },
+            "stream": {
+                "download": true,
+                "upload": true,
+                "copy": false
             }
         }
     }
