@@ -6,7 +6,8 @@
   "paths": {
     "providers": "providers",
     "drivers": "drivers",
-    "connections": "connections"
+    "connections": "connections",
+    "auth": "auth"
   },
   "operations": {
     "list": true,

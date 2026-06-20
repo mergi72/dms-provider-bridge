@@ -13,6 +13,7 @@ from dms_provider_bridge.models.bridge import BridgeAuthContext, WfxResponse
 from dms_provider_bridge.models.item import DmsItem
 from dms_provider_bridge.models.listing import ListingResult
 from dms_provider_bridge.services.auth_service import validate_bridge_auth
+from dms_provider_bridge.services.auth_resolver import auth_requirements
 from dms_provider_bridge.services.bridge_errors import map_exception
 from dms_provider_bridge.services.provider_service import (
     get_connection_runtime,
@@ -297,22 +298,10 @@ def _provider_versioning(provider) -> dict[str, object]:
 
 def _provider_auth_requirements(provider) -> dict[str, object]:
     config = getattr(provider, "config", {})
-    credentials = config.get("credentials") if isinstance(config, dict) else None
-    auth: dict[str, object] = {}
-    if isinstance(credentials, dict):
-        mode = str(credentials.get("mode") or "").strip() or "credentials"
-        auth["mode"] = mode
-        for key in ("credential_id", "target", "targetBase", "authScheme"):
-            value = credentials.get(key)
-            if isinstance(value, str) and value.strip():
-                auth[key] = value
-        required = credentials.get("required")
-        auth["required"] = bool(required) if isinstance(required, bool) else mode.lower() != "none"
-        return auth
-
-    if getattr(provider, "upstream_auth_scheme", "unknown") == "none":
-        return {"mode": "none", "required": False}
-    return {"mode": "credentials", "required": True}
+    upstream_auth_scheme = getattr(provider, "upstream_auth_scheme", "unknown")
+    if upstream_auth_scheme == "none":
+        return auth_requirements(config, default_scheme="none")
+    return auth_requirements(config, default_scheme=upstream_auth_scheme)
 
 
 def _log_and_return(
@@ -398,13 +387,15 @@ def list_path(path: str, auth: BridgeAuthContext | None) -> WfxResponse:
                 },
             )
             return _log_and_return("list", "bridge", "/", started_at, response)
-        if auth is None:
-            response = _failure(WfxErrorCode.ACCESS_DENIED, "Authentication is required for provider paths.")
-            return _log_and_return("list", connection_name, resolved_path, started_at, response, response.message)
         provider, parsed = _resolve(path)
         connection_name = provider.name
         resolved_path = parsed.path
-        validate_bridge_auth(auth)
+        auth_info = _provider_auth_requirements(provider)
+        if auth is None and auth_info.get("required") is not False:
+            response = _failure(WfxErrorCode.ACCESS_DENIED, "Authentication is required for provider paths.")
+            return _log_and_return("list", connection_name, resolved_path, started_at, response, response.message)
+        if auth is not None:
+            validate_bridge_auth(auth)
         listing = provider.list_items(parsed.path, auth)
         response = _success(data=listing.model_dump(), metadata=_metadata(provider, "list"))
         return _log_and_return("list", connection_name, resolved_path, started_at, response)

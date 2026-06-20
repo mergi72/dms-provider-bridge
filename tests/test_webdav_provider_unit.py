@@ -112,6 +112,36 @@ def test_webdav_bearer_scheme_uses_password_as_token(monkeypatch: pytest.MonkeyP
     assert captured["headers"]["Authorization"] == "Bearer access-token"
 
 
+def test_webdav_none_auth_sends_no_authorization_header(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+    xml = b"""<?xml version="1.0" encoding="utf-8"?>
+<d:multistatus xmlns:d="DAV:">
+  <d:response>
+    <d:href>/</d:href>
+    <d:propstat><d:prop><d:displayname></d:displayname><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat>
+  </d:response>
+</d:multistatus>
+"""
+
+    def fake_urlopen(req: object, timeout: int) -> FakeResponse:
+        _ = timeout
+        captured["headers"] = dict(getattr(req, "headers"))
+        return FakeResponse(xml)
+
+    monkeypatch.setattr(webdav_provider_module.request, "urlopen", fake_urlopen)
+    provider = WebdavProvider(
+        name="webdav",
+        config={
+            "base_url": "http://127.0.0.1:8080",
+            "credentials": {"mode": "none", "required": False},
+        },
+    )
+
+    provider.list_items("/", None)
+
+    assert "Authorization" not in captured["headers"]
+
+
 def test_webdav_upload_uses_put(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, Any] = {}
 

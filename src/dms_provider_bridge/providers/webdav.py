@@ -10,14 +10,14 @@ from urllib.parse import quote, unquote, urlparse
 from xml.etree import ElementTree
 
 from dms_provider_bridge.core.config_loader import load_provider_config
-from dms_provider_bridge.core.credentials import load_windows_credential
 from dms_provider_bridge.core.debug import provider_debug_logger
-from dms_provider_bridge.core.errors import AuthenticationError, ProviderOperationError
+from dms_provider_bridge.core.errors import ProviderOperationError
 from dms_provider_bridge.models.bridge import BridgeAuthContext
 from dms_provider_bridge.models.item import DmsItem
 from dms_provider_bridge.models.listing import ListingResult
 from dms_provider_bridge.models.operation import OperationResult
 from dms_provider_bridge.providers.base import Provider
+from dms_provider_bridge.services.auth_resolver import resolve_effective_auth
 
 
 DAV_NS = "{DAV:}"
@@ -89,37 +89,13 @@ class WebdavProvider(Provider):
         return url
 
     def _auth_headers(self, auth: BridgeAuthContext | None) -> dict[str, str]:
-        username = auth.username if auth else None
-        password = auth.password if auth else None
-        token = auth.token if auth else None
-
-        if auth and auth.credential_id and not (username and password):
-            try:
-                credential = load_windows_credential(auth.credential_id)
-            except AuthenticationError:
-                credential = None
-            if credential is not None:
-                username = username or credential.username
-                password = password or credential.password
-                token = token or credential.token
-
-        if token:
-            normalized = token.strip()
-            if normalized.lower().startswith(("basic ", "bearer ")):
-                return {"Authorization": normalized}
-            return {"Authorization": f"Bearer {normalized}"}
-
-        if self.upstream_auth_scheme == "bearer" and password:
-            normalized = password.strip()
-            if normalized.lower().startswith("bearer "):
-                return {"Authorization": normalized}
-            return {"Authorization": f"Bearer {normalized}"}
-
-        if username:
-            encoded = base64.b64encode(f"{username}:{password or ''}".encode("utf-8")).decode("ascii")
-            return {"Authorization": f"Basic {encoded}"}
-
-        raise ProviderOperationError("WebDAV credentials are missing; live operation cannot continue.")
+        effective_auth = resolve_effective_auth(
+            self.config,
+            auth,
+            default_scheme=self.upstream_auth_scheme,
+            validate_required=False,
+        )
+        return effective_auth.authorization_headers()
 
     def _request_bytes(
         self,

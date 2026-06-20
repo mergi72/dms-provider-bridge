@@ -22,6 +22,7 @@ from dms_provider_bridge.models.operation import OperationResult
 from dms_provider_bridge.providers.base import Provider
 from dms_provider_bridge.providers import alfresco_versioning
 from dms_provider_bridge.providers import edocat_config, edocat_items, edocat_nodes, edocat_paths, edocat_tree
+from dms_provider_bridge.services.auth_resolver import resolve_effective_auth
 
 
 class EdocatProvider(Provider):
@@ -46,11 +47,13 @@ class EdocatProvider(Provider):
         return edocat_paths.public_path(path, self._browse_root())
 
     def _runtime_credentials(self, auth: BridgeAuthContext | None) -> tuple[str | None, str | None]:
-        if auth is None:
-            return None, None
-        username = auth.username or auth.credential_id
-        password = auth.password or auth.token
-        return username, password
+        credentials = resolve_effective_auth(
+            self.config,
+            auth,
+            default_scheme=self.upstream_auth_scheme,
+            validate_required=False,
+        )
+        return credentials.username, credentials.password or credentials.token
 
     def _parent_and_name(self, path: str) -> tuple[str, str]:
         return edocat_paths.parent_and_name(path, self._browse_root())

@@ -7,7 +7,6 @@ from urllib.error import HTTPError
 
 from dms_provider_bridge.clients.alfresco_client import AlfrescoClient
 from dms_provider_bridge.core.config_loader import load_provider_config
-from dms_provider_bridge.core.credentials import resolve_alfresco_credentials
 from dms_provider_bridge.core.debug import (
     log_provider_operation_done,
     log_provider_operation_failed,
@@ -21,6 +20,7 @@ from dms_provider_bridge.models.listing import ListingResult
 from dms_provider_bridge.models.operation import OperationResult
 from dms_provider_bridge.providers.base import Provider
 from dms_provider_bridge.providers import alfresco_config, alfresco_items, alfresco_share, alfresco_versioning
+from dms_provider_bridge.services.auth_resolver import resolve_effective_auth
 
 
 class AlfrescoProvider(Provider):
@@ -34,7 +34,12 @@ class AlfrescoProvider(Provider):
         self.debug_logger = provider_debug_logger(self.name, self.config)
 
     def _runtime_credentials(self, auth: BridgeAuthContext | None) -> tuple[str | None, str | None, str | None]:
-        credentials = resolve_alfresco_credentials(auth, self.client.base_url, self.config)
+        credentials = resolve_effective_auth(
+            self.config,
+            auth,
+            default_scheme=self.upstream_auth_scheme,
+            validate_required=False,
+        ).as_credentials(self.client.base_url)
         return credentials.username, credentials.password, credentials.token
 
     def versioning_capabilities(self) -> dict[str, object]:

@@ -38,6 +38,7 @@ $specPath = Join-Path $pyiRoot "spec"
 $configStageDir = Join-Path $pyiRoot "config"
 $configTemplatePaths = @(
     "bridge.json",
+    "auth\auth.json",
     "providers\provider.json",
     "providers\provider.local.json",
     "drivers\driver.json",
@@ -47,8 +48,7 @@ $configTemplatePaths = @(
     "connections\connection.json",
     "connections\alfresco.json",
     "connections\edocat.json",
-    "connections\webdav.json",
-    "connections\webdav1.json"
+    "connections\webdav.json"
 )
 
 if (-not (Test-Path $entryScript)) {

@@ -26,12 +26,14 @@ router = APIRouter()
 
 _SECTION_TITLES = {
     "providers": "Provider ABC",
+    "auth": "Auth",
     "drivers": "Drivers",
     "connections": "Connections",
 }
 
 _SECTION_ROLES = {
     "providers": "VFS/common contract",
+    "auth": "credential/token resolution contract",
     "drivers": "filesystem driver definitions",
     "connections": "mount definitions",
 }
@@ -39,6 +41,10 @@ _SECTION_ROLES = {
 _SECTION_HELP = {
     "providers": (
         "Provider ABC is the internal bridge contract. It can be changed and configured, "
+        "but only when you know exactly what you are doing."
+    ),
+    "auth": (
+        "Auth is the internal credential and token resolution contract. It can be changed and configured, "
         "but only when you know exactly what you are doing."
     ),
     "drivers": (
@@ -80,6 +86,7 @@ def _registry_paths() -> dict[str, Path]:
     machine_config_dir = _machine_config_dir()
     return {
         "providers": machine_config_dir / str(paths.get("providers") or "providers"),
+        "auth": machine_config_dir / str(paths.get("auth") or "auth"),
         "drivers": machine_config_dir / str(paths.get("drivers") or "drivers"),
         "connections": machine_config_dir / str(paths.get("connections") or "connections"),
     }
@@ -118,7 +125,7 @@ def _read_json_file(path: Path) -> dict[str, Any]:
 
 
 def _file_read_only(section: str, file_name: str) -> bool:
-    return section == "providers" or _TEMPLATE_FILES.get(section) == file_name
+    return section in {"providers", "auth"} or _TEMPLATE_FILES.get(section) == file_name
 
 
 def _section_can_create(section: str) -> bool:
@@ -180,6 +187,8 @@ def _string_cell(value: Any) -> str:
 
 def _file_mode(section: str, file_name: str) -> str:
     if section == "providers":
+        return "read-only contract"
+    if section == "auth":
         return "read-only contract"
     if _TEMPLATE_FILES.get(section) == file_name:
         return "template read only"
@@ -528,6 +537,14 @@ def config_home() -> HTMLResponse:
       <p><span class="badge badge-read-only">READ ONLY</span></p>
       <p class="contract-warning">Provider ABC is the internal bridge contract. It can be changed and configured, but only when you know exactly what you are doing.</p>
       <p>VFS/common contract used internally by the bridge.</p>
+    </div>
+  </a>
+  <a class="section-card" href="/config/auth">
+    <h2>Auth</h2>
+    <div>
+      <p><span class="badge badge-read-only">READ ONLY</span></p>
+      <p class="contract-warning">Auth is the internal credential and token resolution contract. It can be changed and configured, but only when you know exactly what you are doing.</p>
+      <p>Credential, token and upstream auth resolution contract.</p>
     </div>
   </a>
   <a class="section-card" href="/config/drivers">
@@ -1046,7 +1063,7 @@ def _render_editor(
         <span>Role: {html.escape(_SECTION_ROLES[section])}</span>
         <span>Mode: {html.escape(mode)}</span>
       </p>
-      <p class="{'contract-warning' if section == 'providers' else 'help'}">{html.escape(_SECTION_HELP[section])}</p>
+      <p class="{'contract-warning' if section in {'providers', 'auth'} else 'help'}">{html.escape(_SECTION_HELP[section])}</p>
       {form_open}
         <input type="hidden" name="file_name" value="{html.escape(original_value)}">
         <input type="hidden" name="overwrite" value="{html.escape(overwrite_value)}">

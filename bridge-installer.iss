@@ -1,7 +1,7 @@
 [Setup]
 AppId={{CFD8BDCC-B59A-4CB3-93D7-530BB5283773}
 AppName=DMS Provider Bridge Setup
-AppVersion=0.7.16-beta
+AppVersion=0.7.17-beta
 AppPublisher=mergi72
 DefaultDirName={commonpf}\DMS Provider
 DefaultGroupName=DMS Provider Bridge
@@ -11,7 +11,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=artifacts\installer
-OutputBaseFilename=DmsProviderBridgeSetupCore-v0.7.16-beta
+OutputBaseFilename=DmsProviderBridgeSetupCore-v0.7.17-beta
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -23,11 +23,13 @@ Source: "artifacts\bridge-installer-payload\nssm.exe"; DestDir: "{tmp}\dms-provi
 Source: "artifacts\bridge-installer-payload\install-bridge-service.ps1"; DestDir: "{tmp}\dms-provider-payload\app"; Flags: ignoreversion deleteafterinstall
 Source: "artifacts\bridge-installer-payload\uninstall-bridge-service.ps1"; DestDir: "{tmp}\dms-provider-payload\app"; Flags: ignoreversion deleteafterinstall
 Source: "artifacts\bridge-installer-payload\config\bridge.json"; DestDir: "{tmp}\dms-provider-payload\config"; Flags: ignoreversion deleteafterinstall
+Source: "artifacts\bridge-installer-payload\config\auth\*"; DestDir: "{tmp}\dms-provider-payload\config\auth"; Flags: ignoreversion recursesubdirs createallsubdirs deleteafterinstall
 Source: "artifacts\bridge-installer-payload\config\providers\*"; DestDir: "{tmp}\dms-provider-payload\config\providers"; Flags: ignoreversion recursesubdirs createallsubdirs deleteafterinstall
 Source: "artifacts\bridge-installer-payload\config\drivers\*"; DestDir: "{tmp}\dms-provider-payload\config\drivers"; Flags: ignoreversion recursesubdirs createallsubdirs deleteafterinstall
 Source: "artifacts\bridge-installer-payload\config\connections\*"; DestDir: "{tmp}\dms-provider-payload\config\connections"; Flags: ignoreversion recursesubdirs createallsubdirs deleteafterinstall
 Source: "artifacts\bridge-installer-payload\user-config\drivers\alfresco.local.json"; DestDir: "{tmp}\dms-provider-payload\user-config\drivers"; Flags: ignoreversion deleteafterinstall
 Source: "artifacts\bridge-installer-payload\user-config\drivers\edocat.local.json"; DestDir: "{tmp}\dms-provider-payload\user-config\drivers"; Flags: ignoreversion deleteafterinstall
+Source: "artifacts\bridge-installer-payload\user-config\drivers\webdav.local.json"; DestDir: "{tmp}\dms-provider-payload\user-config\drivers"; Flags: ignoreversion deleteafterinstall
 
 [Code]
 var
@@ -124,6 +126,7 @@ begin
 
   CopyFileChecked(PayloadUserConfig + '\alfresco.local.json', UserConfigRoot + '\drivers\alfresco.local.json', LogPath, True);
   CopyFileChecked(PayloadUserConfig + '\edocat.local.json', UserConfigRoot + '\drivers\edocat.local.json', LogPath, True);
+  CopyFileChecked(PayloadUserConfig + '\webdav.local.json', UserConfigRoot + '\drivers\webdav.local.json', LogPath, True);
 
   WriteLog(LogPath, '[STEP] Setting user environment: DMS_PROVIDER_MACHINE_CONFIG_DIR=' + UserConfigRoot);
   if not RegWriteStringValue(HKEY_CURRENT_USER, 'Environment', 'DMS_PROVIDER_MACHINE_CONFIG_DIR', UserConfigRoot) then begin
@@ -292,6 +295,7 @@ begin
     '}' + #13#10 +
     'Ensure-Dir $appRoot' + #13#10 +
     'Ensure-Dir $configRoot' + #13#10 +
+    'Ensure-Dir (Join-Path $configRoot "auth")' + #13#10 +
     'Ensure-Dir (Join-Path $configRoot "providers")' + #13#10 +
     'Ensure-Dir (Join-Path $configRoot "drivers")' + #13#10 +
     'Ensure-Dir (Join-Path $configRoot "connections")' + #13#10 +
@@ -312,14 +316,17 @@ begin
     'Copy-Checked (Join-Path $payloadRoot "app\install-bridge-service.ps1") (Join-Path $appRoot "install-bridge-service.ps1")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "app\uninstall-bridge-service.ps1") (Join-Path $appRoot "uninstall-bridge-service.ps1")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "config\bridge.json") (Join-Path $configRoot "bridge.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\auth\auth.json") (Join-Path $configRoot "auth\auth.json")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "config\providers\provider.json") (Join-Path $configRoot "providers\provider.json")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "config\providers\provider.local.json") (Join-Path $configRoot "providers\provider.local.json")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "config\drivers\driver.json") (Join-Path $configRoot "drivers\driver.json")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "config\drivers\alfresco.json") (Join-Path $configRoot "drivers\alfresco.json")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "config\drivers\edocat.json") (Join-Path $configRoot "drivers\edocat.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\drivers\webdav.json") (Join-Path $configRoot "drivers\webdav.json")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "config\connections\connection.json") (Join-Path $configRoot "connections\connection.json")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "config\connections\alfresco.json") (Join-Path $configRoot "connections\alfresco.json")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "config\connections\edocat.json") (Join-Path $configRoot "connections\edocat.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\connections\webdav.json") (Join-Path $configRoot "connections\webdav.json")' + #13#10 +
     '$serviceName = "DMSProviderBridge"' + #13#10 +
     '$serviceDisplayName = "DMS Provider Bridge"' + #13#10 +
     '$bridgeExe = Join-Path $appRoot "dms-provider-bridge.exe"' + #13#10 +

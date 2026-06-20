@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.7.16-beta`
-- Latest bridge-only release: `v0.7.16-beta`
+- Bridge repository latest changelog version: `0.7.17-beta`
+- Latest bridge-only release: `v0.7.17-beta`
 
 ## Configuration Model
 
@@ -23,6 +23,7 @@ Short version:
 Connection is the mount users open.
 Driver is how the bridge talks to a DMS type.
 Provider ABC is the shared contract underneath.
+Auth is how identity is resolved for a connection.
 ```
 
 The bridge configuration follows a simple VFS-style model:
@@ -30,6 +31,7 @@ The bridge configuration follows a simple VFS-style model:
 - `Provider ABC` is the common bridge contract. It can be changed and configured, but only when you know exactly what you are doing.
 - `Driver` describes one DMS type, for example Alfresco, eDoCat, WebDAV or another backend.
 - `Connection` is the named mount exposed to clients and Total Commander, for example `alfresco:/` or `company-dms:/`.
+- `Auth` resolves how a connection obtains credentials, tokens or anonymous access. Secrets are still owned by the Credential Broker / Windows Credential Manager.
 
 Bridge Configurator is available at [http://127.0.0.1:8765/config](http://127.0.0.1:8765/config).
 
@@ -98,7 +100,32 @@ The 0.7 configuration/runtime model is intentionally split by responsibility:
 Provider ABC  read-only common VFS contract
 Driver        concrete DMS/API implementation settings
 Connection    named mount exposed to clients as connection:/path
+Auth          credential/token resolution layer used by connections and drivers
 ```
+
+Auth responsibility:
+
+```text
+Connection
+  says: this is the mount, driver, URL/root override and auth reference
+
+Auth
+  says: this connection uses none/basic/bearer/ticket credentials and this credential target/id
+
+Broker / Windows Credential Manager
+  says: here is the actual username/password/token secret
+
+Driver
+  receives resolved auth and only applies it to the upstream DMS request
+```
+
+Rules:
+
+- Connection config may reference credentials, but must not store passwords or long-lived tokens.
+- Multiple connections may share one credential target/id when they represent the same login identity.
+- Drivers must not implement their own credential lookup logic.
+- `AuthResolver` is the single bridge layer that merges driver defaults, connection overrides, `*.local.json` values and incoming WFX/API auth.
+- Driver-specific code may still decide how to apply resolved auth, for example Alfresco ticket, HTTP Basic or HTTP Bearer.
 
 ## Runtime Modes
 
@@ -115,7 +142,7 @@ Bridge can be run in two different Windows runtime models. Keep them separate:
   - Current setup installs the bridge service and preserves the installing user AppData path for configuration and logs.
   - `LocalSystem` cannot see credentials stored in an interactive user's Windows Credential Manager.
 
-Current setup release `v0.7.16-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
+Current setup release `v0.7.17-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
 
 ## Connection Operations
 
@@ -464,7 +491,9 @@ Rules:
 - Driver local config contains technical DMS settings such as `base_url`, timeouts and driver-specific defaults.
 - Connection config contains the mount shown to clients, for example `alfresco:/` or `company-dms:/`.
 - Credentials are not stored in these files. The TC plugin and Credential Broker handle saved credentials; Swagger can use inline `username` and `password` only for one test request.
-- eDoCat `credentials.targetBase` and `credentials.target` are Credential Broker target identifiers, not stored passwords.
+- `credentials` / `auth` sections are references to the Auth layer. They may contain `mode`, `authScheme`, `credential_id`, `target` and `targetBase`, but not stored secrets.
+- `targetBase` and `target` are Credential Broker / Windows Credential Manager target identifiers, not stored passwords.
+- If two connections use the same login identity, they may share the same `credential_id` or `targetBase`.
 
 After changing a local driver config:
 
@@ -539,7 +568,7 @@ The public client contract for file operations is `POST /bridge/wfx/*`. Legacy e
 
 Authentication (`auth`) is required for every call:
 
-The bridge uses one incoming authentication model for all connections. Driver-specific upstream HTTP authentication is resolved inside the driver implementation.
+The bridge uses one incoming authentication model for all connections. Driver-specific credential lookup is handled by the Auth layer before the driver performs the upstream request.
 
 - `credentials`:
   `{ "auth": { "mode": "credentials", "credential_id": "dms-prod" } }`

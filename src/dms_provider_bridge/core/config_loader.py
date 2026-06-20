@@ -156,6 +156,7 @@ def _configured_registry_paths(machine_dir: Path) -> dict[str, Path]:
         "providers": machine_dir / str(paths.get("providers") or "providers"),
         "drivers": machine_dir / str(paths.get("drivers") or "drivers"),
         "connections": machine_dir / str(paths.get("connections") or "connections"),
+        "auth": machine_dir / str(paths.get("auth") or "auth"),
     }
 
 

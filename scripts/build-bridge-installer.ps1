@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "v0.7.16-beta",
+    [string]$Version = "v0.7.17-beta",
     [string]$BridgeExePath = "dist\dms-provider-bridge.exe",
     [string]$NssmExePath,
     [string]$InnoCompilerPath,
@@ -74,6 +74,7 @@ $userConfigPayloadDir = Join-Path $payloadDir "user-config"
 $userDriverConfigPayloadDir = Join-Path $userConfigPayloadDir "drivers"
 $machineConfigTemplatePaths = @(
     "bridge.json",
+    "auth\auth.json",
     "providers\provider.json",
     "providers\provider.local.json",
     "drivers\driver.json",
@@ -83,8 +84,7 @@ $machineConfigTemplatePaths = @(
     "connections\connection.json",
     "connections\alfresco.json",
     "connections\edocat.json",
-    "connections\webdav.json",
-    "connections\webdav1.json"
+    "connections\webdav.json"
 )
 $userDriverLocalConfigNames = @(
     "alfresco.local.json",
