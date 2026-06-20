@@ -40,6 +40,28 @@ The bridge now has two clearly separated responsibilities:
 
 The configurator currently runs inside the same local FastAPI process as the bridge, but it should be treated as an admin/configuration layer rather than as provider runtime logic.
 
+## Screenshots
+
+Bridge Configurator overview:
+
+![Bridge Configurator overview](docs/images/bridge-config-overview.png)
+
+Connections list:
+
+![Bridge Configurator connections](docs/images/bridge-config-connections.png)
+
+Connection detail:
+
+![Bridge Configurator connection detail](docs/images/bridge-config-connection-detail.png)
+
+Provider ABC contract view:
+
+![Bridge Configurator Provider ABC](docs/images/bridge-config-provider-abc.png)
+
+Bridge API / Swagger:
+
+![Bridge API Swagger](docs/images/bridge-docs.png)
+
 Runtime naming:
 
 - WFX endpoints expose `connections`; old runtime `providers` naming is not used in the 0.7 beta API.
