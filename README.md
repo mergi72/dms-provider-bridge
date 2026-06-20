@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Beta-yellowgreen)](https://github.com/mergi72/dms-provider-bridge)
-[![Bridge Version](https://img.shields.io/badge/Bridge-v0.7.14--beta-blue)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.7.14-beta)
-[![Bridge Setup](https://img.shields.io/badge/Setup-v0.5.0--beta-blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/tag/v0.5.0-beta)
+[![Bridge](https://img.shields.io/github/v/release/mergi72/dms-provider-bridge?include_prereleases&label=Bridge&color=blue)](https://github.com/mergi72/dms-provider-bridge/releases/latest)
+[![Setup](https://img.shields.io/github/v/release/mergi72/dms-provider-bridge?include_prereleases&label=Setup&color=blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/latest)
 
 Current development branch: `develop`  
 Stable release branch: `main`
@@ -112,10 +112,10 @@ Bridge can be run in two different Windows runtime models. Keep them separate:
 - Service mode:
   - Intended for server-style local bridge usage.
   - Runs as the `DMSProviderBridge` Windows Service via NSSM.
-  - Current `v0.5.0-beta` installer installs this service as `LocalSystem`.
+  - Current setup installs the bridge service and preserves the installing user AppData path for configuration and logs.
   - `LocalSystem` cannot see credentials stored in an interactive user's Windows Credential Manager.
 
-Current setup release `v0.5.0-beta` is the Service mode installer. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
+Current setup release `v0.7.14-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
 
 ## Connection Operations
 
