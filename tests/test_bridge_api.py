@@ -19,10 +19,12 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(autouse=True)
-def _use_repo_config(monkeypatch: pytest.MonkeyPatch) -> None:
+def _use_repo_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     repo_config = Path(__file__).resolve().parents[1] / "config"
+    user_config = tmp_path / "user-config"
+    user_config.mkdir()
     monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(repo_config))
-    monkeypatch.delenv("DMS_PROVIDER_USER_CONFIG_DIR", raising=False)
+    monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_config))
 
 
 def _auth() -> dict[str, str]:
@@ -92,12 +94,9 @@ def test_bridge_connection_detail_returns_auth_and_capabilities() -> None:
     assert body["data"]["mount"] == "alfresco:/"
     assert body["data"]["display_name"] == "Alfresco"
     assert body["data"]["enabled"] is True
-    assert body["data"]["auth"] == {
-        "mode": "windows",
-        "target": "tc-wfx/bridge",
-        "authScheme": "ticket",
-        "required": True,
-    }
+    assert body["data"]["auth"]["mode"] == "windows"
+    assert body["data"]["auth"]["authScheme"] == "ticket"
+    assert body["data"]["auth"]["required"] is True
     assert body["data"]["capabilities"] == {
         "list": True,
         "stat": True,

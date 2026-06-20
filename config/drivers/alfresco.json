@@ -23,7 +23,7 @@
         "path": "%APPDATA%\\DMS Provider\\logs"
     },
 
-    "credentials": {
+    "auth": {
         "mode": "windows",
         "authScheme": "ticket",
         "credential_id": "",

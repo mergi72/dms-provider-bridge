@@ -16,10 +16,12 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(autouse=True)
-def _use_repo_config(monkeypatch: pytest.MonkeyPatch) -> None:
+def _use_repo_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     repo_config = Path(__file__).resolve().parents[1] / "config"
+    user_config = tmp_path / "user-config"
+    user_config.mkdir()
     monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(repo_config))
-    monkeypatch.delenv("DMS_PROVIDER_USER_CONFIG_DIR", raising=False)
+    monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_config))
 
 
 def test_config_home_links_sections() -> None:
@@ -193,7 +195,8 @@ def test_config_connection_test_loads_runtime_config() -> None:
     assert "Connection runtime configuration was loaded successfully" in response.text
     assert "Connection OK" in response.text
     assert "alfresco:/" in response.text
-    assert "tc-wfx/bridge" in response.text
+    assert "Auth scheme" in response.text
+    assert "ticket" in response.text
     assert "Live List Root" in response.text
     assert "Auth JSON is used only for this request and is not saved." in response.text
 

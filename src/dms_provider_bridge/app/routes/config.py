@@ -373,7 +373,10 @@ def _validate_config_payload(
             if existing_file:
                 errors.append(f"Connection mount '{mount}' is already used by {existing_file}.")
 
+        auth = section_payload.get("auth")
         credentials = section_payload.get("credentials")
+        if auth is not None and not isinstance(auth, dict):
+            errors.append("Connection field 'auth' must be a JSON object when present.")
         if credentials is not None and not isinstance(credentials, dict):
             errors.append("Connection field 'credentials' must be a JSON object when present.")
 
@@ -811,9 +814,17 @@ def config_test(section: str, file_name: str) -> HTMLResponse:
         reload_provider_cache()
         provider = get_connection_runtime(key)
         config = getattr(provider, "config", {})
-        credentials = config.get("credentials") if isinstance(config, dict) else None
-        auth_mode = credentials.get("mode") if isinstance(credentials, dict) else None
-        auth_target = credentials.get("target") if isinstance(credentials, dict) else None
+        auth_config = {}
+        if isinstance(config, dict):
+            credentials = config.get("credentials")
+            auth = config.get("auth")
+            if isinstance(credentials, dict):
+                auth_config.update(credentials)
+            if isinstance(auth, dict):
+                auth_config.update(auth)
+        auth_mode = auth_config.get("mode")
+        auth_scheme = auth_config.get("authScheme") or auth_config.get("scheme") or auth_config.get("type")
+        auth_target = auth_config.get("target") or auth_config.get("credential_id") or auth_config.get("targetBase")
         rows = [
             ("Status", "Connection OK"),
             ("Name", getattr(provider, "name", key)),
@@ -822,6 +833,7 @@ def config_test(section: str, file_name: str) -> HTMLResponse:
             ("Display name", _string_value(config.get("display_name") if isinstance(config, dict) else None)),
             ("Base URL", _string_value(config.get("base_url") if isinstance(config, dict) else None)),
             ("Auth mode", _string_value(auth_mode)),
+            ("Auth scheme", _string_value(auth_scheme)),
             ("Auth target", _string_value(auth_target)),
             ("List endpoint", _string_value(provider.bridge_endpoint_for("list"))),
         ]

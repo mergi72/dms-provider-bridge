@@ -34,8 +34,9 @@
         "root_path": "",
         "doc_library": "",
 
-        "credentials": {
+        "auth": {
             "mode": "credentials",
+            "authScheme": "",
             "credential_id": "",
             "target": "",
             "targetBase": "",

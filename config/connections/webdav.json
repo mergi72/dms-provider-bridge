@@ -25,7 +25,7 @@
         "base_url": "",
         "root_path": "",
 
-        "credentials": {
+        "auth": {
             "mode": "credentials",
             "authScheme": "basic",
             "credential_id": "",
