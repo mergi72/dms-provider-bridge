@@ -225,6 +225,22 @@ def test_listing_service_accepts_connection_name_alias(monkeypatch: pytest.Monke
     assert result == {"path": "/contracts"}
 
 
+def test_listing_service_accepts_driver_name_with_connection_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    dummy = _DummyProvider()
+
+    def fake_get_connection_runtime(name: str | None = None):
+        assert name == "webdav1"
+        return dummy
+
+    monkeypatch.setattr(listing_service_module, "connection_driver_name", lambda name: "webdav" if name == "webdav1" else None)
+    monkeypatch.setattr(listing_service_module, "get_connection_runtime", fake_get_connection_runtime)
+
+    result = listing_service_module.list_items("/contracts", provider_name="webdav", connection_name="webdav1")
+
+    assert dummy.calls == ["/contracts"]
+    assert result == {"path": "/contracts"}
+
+
 def test_listing_service_has_connection_first_entrypoint(monkeypatch: pytest.MonkeyPatch) -> None:
     dummy = _DummyProvider()
 

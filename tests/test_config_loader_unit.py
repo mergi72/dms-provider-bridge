@@ -132,6 +132,37 @@ def test_load_provider_config_reads_driver_directory_layout(
     assert compat_config == config
 
 
+def test_load_provider_config_reads_legacy_user_local_for_driver_directory_layout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine_dir = tmp_path / "machine"
+    user_dir = tmp_path / "user"
+    drivers_dir = machine_dir / "drivers"
+    drivers_dir.mkdir(parents=True)
+    user_dir.mkdir()
+    (machine_dir / "bridge.json").write_text(
+        '{"paths": {"drivers": "drivers"}}',
+        encoding="utf-8",
+    )
+    (drivers_dir / "alfresco.json").write_text(
+        '{"key": "alfresco", "alfresco": {"base_url": "https://machine.alfresco.net", "transfer": {"maxNodes": 100}}}',
+        encoding="utf-8",
+    )
+    (user_dir / "alfresco.local.json").write_text(
+        '{"key": "alfresco", "alfresco": {"base_url": "https://legacy-local.alfresco.net", "credentials": {"target": "tc-wfx/alfresco"}}}',
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
+    monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_dir))
+
+    config = config_loader.load_driver_config("alfresco")
+
+    assert config["base_url"] == "https://legacy-local.alfresco.net"
+    assert config["credentials"]["target"] == "tc-wfx/alfresco"
+    assert config["transfer"]["maxNodes"] == 100
+
+
 def test_list_provider_config_names_reads_driver_directory_layout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -177,10 +208,12 @@ def test_load_connection_config_merges_driver_and_connection(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     machine_dir = tmp_path / "machine"
+    user_dir = tmp_path / "user"
     drivers_dir = machine_dir / "drivers"
     connections_dir = machine_dir / "connections"
     drivers_dir.mkdir(parents=True)
     connections_dir.mkdir(parents=True)
+    user_dir.mkdir()
     (machine_dir / "bridge.json").write_text(
         '{"paths": {"drivers": "drivers", "connections": "connections"}}',
         encoding="utf-8",
@@ -195,7 +228,7 @@ def test_load_connection_config_merges_driver_and_connection(
     )
 
     monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
-    monkeypatch.delenv("DMS_PROVIDER_USER_CONFIG_DIR", raising=False)
+    monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_dir))
 
     config = config_loader.load_connection_config("company")
 
@@ -210,10 +243,12 @@ def test_load_connection_config_ignores_blank_template_values(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     machine_dir = tmp_path / "machine"
+    user_dir = tmp_path / "user"
     drivers_dir = machine_dir / "drivers"
     connections_dir = machine_dir / "connections"
     drivers_dir.mkdir(parents=True)
     connections_dir.mkdir(parents=True)
+    user_dir.mkdir()
     (machine_dir / "bridge.json").write_text(
         '{"paths": {"drivers": "drivers", "connections": "connections"}}',
         encoding="utf-8",
@@ -228,7 +263,7 @@ def test_load_connection_config_ignores_blank_template_values(
     )
 
     monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
-    monkeypatch.delenv("DMS_PROVIDER_USER_CONFIG_DIR", raising=False)
+    monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_dir))
 
     config = config_loader.load_connection_config("company")
 

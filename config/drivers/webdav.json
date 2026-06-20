@@ -1,40 +1,64 @@
 {
     "projectInfo": {
-        "name": "DMS Driver / Filesystem Driver",
+        "name": "WebDAV Driver",
         "author": "DMS Provider Bridge contributors",
         "email": "",
         "version": "0.7.15-beta",
-        "description": "Generic Driver contract template, equivalent to a filesystem driver definition.",
+        "description": "Generic WebDAV driver configuration.",
         "license": ""
     },
 
     "config.json": {
         "version": "0.7.15-beta",
         "lastModified": "",
-        "_comment": "Driver / filesystem driver contract template. Concrete DMS implementation values belong here."
+        "_comment": "Generic WebDAV driver. Concrete server URL and mount values belong to connection config."
     },
 
-    "_comment": "Unix/VFS mapping: driver.json = filesystem driver definition. It maps the Provider ABC contract to a concrete DMS API.",
+    "_comment": "Unix/VFS mapping: webdav.json = generic filesystem driver for WebDAV endpoints. It maps Provider ABC operations to RFC 4918 WebDAV methods.",
 
     "debug": {
         "enable": false,
-        "path": ""
+        "path": "%APPDATA%\\DMS Provider\\logs"
     },
 
-    "key": "driver_name",
+    "key": "webdav",
 
-    "driver_name": {
-        "display_name": "",
-        "description": "",
+    "webdav": {
+        "display_name": "WebDAV",
+        "description": "Generic WebDAV filesystem driver.",
 
         "provider_abc": "provider",
 
         "api": {
             "base": "",
-            "version": "",
+            "version": "RFC4918",
             "root": "",
             "search_root": "",
             "repo_root": ""
+        },
+
+        "webdav": {
+            "resource_path": "",
+            "path_encoding": "url",
+            "directory_trailing_slash": true,
+            "propfind": {
+                "list_depth": "1",
+                "stat_depth": "0",
+                "properties": [
+                    "displayname",
+                    "resourcetype",
+                    "getcontentlength",
+                    "getcontenttype",
+                    "getlastmodified",
+                    "getetag",
+                    "creationdate"
+                ]
+            },
+            "overwrite": {
+                "copy": false,
+                "move": false,
+                "upload": false
+            }
         },
 
         "endpoints": {
@@ -51,6 +75,17 @@
             "move": "",
             "delete": "",
             "mkdir": ""
+        },
+
+        "methods": {
+            "list": "PROPFIND",
+            "stat": "PROPFIND",
+            "download": "GET",
+            "upload": "PUT",
+            "copy": "COPY",
+            "move": "MOVE",
+            "delete": "DELETE",
+            "mkdir": "MKCOL"
         },
 
         "search": {
@@ -98,41 +133,41 @@
                 "supported": false
             },
             "stream": {
-                "download": false,
-                "upload": false,
-                "copy": false
+                "download": true,
+                "upload": true,
+                "copy": true
             }
         },
 
         "limits": {
             "timeouts": {
-                "requestSeconds": 0,
-                "downloadSeconds": 0,
-                "uploadSeconds": 0
+                "requestSeconds": 60,
+                "downloadSeconds": 300,
+                "uploadSeconds": 300
             },
             "copy": {
-                "maxNodes": 0
+                "maxNodes": 500
             },
             "download": {
-                "maxBase64Bytes": 0,
-                "maxNodes": 0
+                "maxBase64Bytes": 314572800,
+                "maxNodes": 500
             },
             "upload": {
-                "maxBase64Bytes": 0,
+                "maxBase64Bytes": 314572800,
                 "inline": {
-                    "maxBytes": 0
+                    "maxBytes": 314572800
                 },
                 "raw": {
-                    "chunkBytes": 0,
-                    "maxBytes": 0
+                    "chunkBytes": 1048576,
+                    "maxBytes": 314572800
                 }
             },
             "transfer": {
-                "maxInlineBytes": 0,
-                "maxBase64Bytes": 0,
-                "maxNodes": 0,
-                "preferStream": false,
-                "tempFallback": false
+                "maxInlineBytes": 10485760,
+                "maxBase64Bytes": 314572800,
+                "maxNodes": 500,
+                "preferStream": true,
+                "tempFallback": true
             }
         }
     }

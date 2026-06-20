@@ -1,3 +1,10 @@
+## 0.7.15-beta - 2026-06-20
+
+- Added initial generic WebDAV driver and WebDAV connection templates.
+- Merged driver local configuration into connection runtime so credentials and endpoints can be overridden from user AppData.
+- Exposed merged connection auth metadata for WFX credential target resolution.
+- Updated bridge packaging scripts to include WebDAV config and runtime provider import.
+- Release/version bump to `0.7.15-beta`.
 # Changelog
 
 ## 0.7.14-beta - 2026-06-19

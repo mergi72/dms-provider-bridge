@@ -167,7 +167,10 @@ def _provider_config_paths(machine_dir: Path, user_dir: Path | None, provider_na
 
     drivers_dir = _configured_registry_paths(machine_dir)["drivers"]
     driver_base_path = drivers_dir / f"{provider_name}.json"
-    driver_user_path = user_dir / "drivers" / f"{provider_name}.local.json" if user_dir is not None else None
+    driver_user_path = None
+    if user_dir is not None:
+        structured_user_path = user_dir / "drivers" / f"{provider_name}.local.json"
+        driver_user_path = structured_user_path if structured_user_path.exists() else legacy_user_path
     return driver_base_path, driver_user_path
 
 

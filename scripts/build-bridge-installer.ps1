@@ -1,5 +1,5 @@
-﻿param(
-    [string]$Version = "v0.7.14-beta",
+param(
+    [string]$Version = "v0.7.15-beta",
     [string]$BridgeExePath = "dist\dms-provider-bridge.exe",
     [string]$NssmExePath,
     [string]$InnoCompilerPath,
@@ -79,13 +79,17 @@ $machineConfigTemplatePaths = @(
     "drivers\driver.json",
     "drivers\alfresco.json",
     "drivers\edocat.json",
+    "drivers\webdav.json",
     "connections\connection.json",
     "connections\alfresco.json",
-    "connections\edocat.json"
+    "connections\edocat.json",
+    "connections\webdav.json",
+    "connections\webdav1.json"
 )
 $userDriverLocalConfigNames = @(
     "alfresco.local.json",
-    "edocat.local.json"
+    "edocat.local.json",
+    "webdav.local.json"
 )
 $userDriverLocalTemplate = Join-Path $repoRoot "config\providers\provider.local.json"
 

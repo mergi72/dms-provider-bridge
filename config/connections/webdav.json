@@ -1,0 +1,25 @@
+{
+    "projectInfo": {
+        "name": "WebDAV Connection",
+        "author": "DMS Provider Bridge contributors",
+        "email": "",
+        "version": "0.7.15-beta",
+        "description": "Default WebDAV mount exposed as webdav:/",
+        "license": ""
+    },
+
+    "config.json": {
+        "version": "0.7.15-beta",
+        "lastModified": "",
+        "_comment": "Concrete WebDAV connection. Technical server settings are inherited from driver webdav or local driver config."
+    },
+
+    "key": "webdav",
+
+    "webdav": {
+        "display_name": "WebDAV",
+        "description": "Default WebDAV connection.",
+        "mount": "webdav:/",
+        "driver": "webdav"
+    }
+}

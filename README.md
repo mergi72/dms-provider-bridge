@@ -1,4 +1,4 @@
-﻿# dms-provider-bridge
+# dms-provider-bridge
 
 [![CI](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/Status-Beta-yellowgreen)](https://github.com/mergi72/dms-provider-bridge)
@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.7.14-beta`
-- Latest bridge-only release: `v0.7.14-beta`
+- Bridge repository latest changelog version: `0.7.15-beta`
+- Latest bridge-only release: `v0.7.15-beta`
 
 ## Configuration Model
 
@@ -115,7 +115,7 @@ Bridge can be run in two different Windows runtime models. Keep them separate:
   - Current setup installs the bridge service and preserves the installing user AppData path for configuration and logs.
   - `LocalSystem` cannot see credentials stored in an interactive user's Windows Credential Manager.
 
-Current setup release `v0.7.14-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
+Current setup release `v0.7.15-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
 
 ## Connection Operations
 
@@ -148,6 +148,100 @@ Connection-to-connection copy/move can use separate credentials for each side:
 ```
 
 `source_auth` and `destination_auth` are optional. When omitted, the bridge falls back to `auth` for backward compatibility.
+
+## WebDAV Driver Proposal
+
+WebDAV is a good next driver candidate because it is a standard filesystem-like HTTP protocol and maps naturally to the bridge Provider ABC. It should be implemented as a generic driver, not as an Alfresco or eDoCat special case.
+
+Planned mapping:
+
+```text
+Provider ABC operation    WebDAV operation
+list                      PROPFIND Depth: 1
+stat                      PROPFIND Depth: 0
+download                  GET
+upload                    PUT
+mkdir                     MKCOL
+delete                    DELETE
+copy                      COPY
+move                      MOVE
+```
+
+Initial scope:
+
+- Add `config/drivers/webdav.json`.
+- Add `config/connections/webdav.json`.
+- Add a generic WebDAV provider/driver implementation behind the existing Provider ABC.
+- Support `list`, `stat`, `download`, `upload`, `mkdir` and `delete` first.
+- Add `copy` and `move` after the basic operations are stable.
+- Keep versioning, WebDAV locks, `PROPPATCH`, WebDAV Sync and provider-specific extensions out of the first implementation.
+
+Configuration shape:
+
+```text
+Provider ABC
+  -> Driver: webdav
+       -> Connection: webdav
+       -> Connection: company_webdav
+       -> Connection: nextcloud_test
+```
+
+The driver should contain generic WebDAV behavior and defaults:
+
+```json
+{
+  "key": "webdav",
+  "webdav": {
+    "display_name": "WebDAV",
+    "provider_abc": "provider",
+    "api": {
+      "base": "",
+      "root": ""
+    },
+    "capabilities": {
+      "versioning": {
+        "supported": false
+      },
+      "stream": {
+        "download": true,
+        "upload": true,
+        "copy": true
+      }
+    }
+  }
+}
+```
+
+The connection should contain the concrete mount and target server:
+
+```json
+{
+  "key": "webdav",
+  "webdav": {
+    "display_name": "WebDAV",
+    "mount": "webdav:/",
+    "driver": "webdav",
+    "base_url": "https://example.org/webdav",
+    "root_path": "/",
+    "credentials": {
+      "mode": "credentials",
+      "credential_id": "",
+      "target": "",
+      "targetBase": "",
+      "required": true
+    }
+  }
+}
+```
+
+Testing strategy:
+
+- First test against a disposable local or private WebDAV server.
+- Use a public WebDAV endpoint only as a smoke test, because public writable WebDAV services may disappear, rate-limit, or behave differently from real DMS-backed servers.
+- Keep the first test matrix small: root listing, folder listing, upload small file, download small file, create directory, delete file, delete directory.
+- Add large file and connection-to-connection transfer tests only after the basic WebDAV operations are stable.
+
+This driver is useful as a reference implementation because it proves that `Provider ABC -> Driver -> Connection` is not tied to Alfresco/eDoCat APIs.
 
 ## Related Projects
 
@@ -567,4 +661,3 @@ Project is split into:
 ## License
 
 The project is licensed under the MIT License. Full text is available in `LICENSE`.
-

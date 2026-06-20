@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dms_provider_bridge.adapters.commander_api import parse_wfx_path
 from dms_provider_bridge.models.listing import ListingResult
+from dms_provider_bridge.core.config_loader import connection_driver_name
 from dms_provider_bridge.services.provider_service import get_connection_runtime
 
 
@@ -15,7 +16,7 @@ def _normalize_connection_name(value: str | None) -> str | None:
 def _effective_connection_name(legacy_provider_name: str | None = None, connection_name: str | None = None) -> str | None:
     legacy_name = _normalize_connection_name(legacy_provider_name)
     new_name = _normalize_connection_name(connection_name)
-    if legacy_name and new_name and legacy_name != new_name:
+    if legacy_name and new_name and legacy_name != new_name and connection_driver_name(new_name) != legacy_name:
         raise ValueError(
             f"Connection mismatch: provider_name '{legacy_provider_name}' does not match connection_name '{connection_name}'."
         )

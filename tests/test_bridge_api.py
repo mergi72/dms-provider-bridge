@@ -117,6 +117,59 @@ def test_bridge_connection_detail_returns_auth_and_capabilities() -> None:
     assert body["metadata"]["operation"] == "connection_detail"
 
 
+def test_bridge_connection_detail_returns_credential_id_when_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = TestClient(create_app())
+
+    class _Provider:
+        name = "webdav1"
+        config = {
+            "display_name": "WebDAV",
+            "mount": "webdav1:/",
+            "credentials": {
+                "mode": "credentials",
+                "credential_id": "tc-wfx/webdav",
+                "target": "demo.owncloud.com/webdav",
+                "targetBase": "demo.owncloud.com/webdav",
+                "authScheme": "bearer",
+                "required": True,
+            },
+        }
+
+        def capability_map(self) -> dict[str, bool]:
+            return {"list": True}
+
+        def versioning_capabilities(self) -> dict[str, bool]:
+            return {"supported": False}
+
+    monkeypatch.setattr(bridge_service, "get_connection_runtime", lambda _name: _Provider())
+    monkeypatch.setattr(
+        bridge_service,
+        "load_connection_metadata",
+        lambda _name: {
+            "kind": "connection",
+            "driver": "webdav",
+            "mount": "webdav1:/",
+            "display_name": "WebDAV",
+            "description": "Test WebDAV connection.",
+        },
+    )
+    monkeypatch.setattr(bridge_service, "list_registered_connections", lambda: ["webdav1"])
+
+    response = client.get("/bridge/wfx/connections/webdav1")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["data"]["auth"] == {
+        "mode": "credentials",
+        "credential_id": "tc-wfx/webdav",
+        "target": "demo.owncloud.com/webdav",
+        "targetBase": "demo.owncloud.com/webdav",
+        "authScheme": "bearer",
+        "required": True,
+    }
+
+
 def test_bridge_connection_audit_returns_connection_runtime_status() -> None:
     client = TestClient(create_app())
     response = client.get("/bridge/wfx/connections/audit")

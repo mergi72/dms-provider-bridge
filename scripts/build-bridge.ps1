@@ -43,9 +43,12 @@ $configTemplatePaths = @(
     "drivers\driver.json",
     "drivers\alfresco.json",
     "drivers\edocat.json",
+    "drivers\webdav.json",
     "connections\connection.json",
     "connections\alfresco.json",
-    "connections\edocat.json"
+    "connections\edocat.json",
+    "connections\webdav.json",
+    "connections\webdav1.json"
 )
 
 if (-not (Test-Path $entryScript)) {
@@ -96,6 +99,7 @@ Write-Host "Building onefile bridge executable..."
     --hidden-import dms_provider_bridge.app.server `
     --hidden-import dms_provider_bridge.providers.alfresco `
     --hidden-import dms_provider_bridge.providers.edocat `
+    --hidden-import dms_provider_bridge.providers.webdav `
     --add-data $addData `
     --distpath $outputPath `
     --workpath $workPath `

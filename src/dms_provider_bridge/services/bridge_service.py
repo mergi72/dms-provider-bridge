@@ -302,7 +302,7 @@ def _provider_auth_requirements(provider) -> dict[str, object]:
     if isinstance(credentials, dict):
         mode = str(credentials.get("mode") or "").strip() or "credentials"
         auth["mode"] = mode
-        for key in ("target", "targetBase"):
+        for key in ("credential_id", "target", "targetBase", "authScheme"):
             value = credentials.get(key)
             if isinstance(value, str) and value.strip():
                 auth[key] = value
