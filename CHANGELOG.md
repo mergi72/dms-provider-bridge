@@ -1,3 +1,11 @@
+## 0.8.6-beta - 2026-06-21
+
+- Renamed the internal bridge contract terminology from Provider ABC to TC VFS Contract in UI, config templates and documentation.
+- Added `dms_provider_bridge.drivers.tc_vfs_contract.TcVfsContract` as the primary Python contract module.
+- Kept `Provider = TcVfsContract` and `provider_abc` as temporary compatibility aliases for the 0.8.x transition.
+- Added `tc_vfs_contract` metadata alongside legacy `provider_abc` runtime/config fields.
+- Release/version bump to `0.8.6-beta`.
+
 ## 0.8.5-beta - 2026-06-21
 
 - Continued runtime API naming cleanup by renaming internal bridge service variables from provider-era names to connection runtime names.

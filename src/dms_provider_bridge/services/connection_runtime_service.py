@@ -17,11 +17,11 @@ from dms_provider_bridge.core.config_loader import (
     load_connection_config,
 )
 from dms_provider_bridge.core.errors import ConfigurationError, ConnectionNotFoundError
-from dms_provider_bridge.drivers.base import Provider
+from dms_provider_bridge.drivers.tc_vfs_contract import TcVfsContract
 
 
-_DRIVER_FACTORIES: dict[str, Callable[[], Provider]] | None = None
-_CONNECTION_RUNTIME_CACHE: dict[str, Provider] = {}
+_DRIVER_FACTORIES: dict[str, Callable[[], TcVfsContract]] | None = None
+_CONNECTION_RUNTIME_CACHE: dict[str, TcVfsContract] = {}
 
 # Backward-compatible module attribute for tests and older integrations.
 list_provider_config_names = list_driver_config_names
@@ -51,14 +51,14 @@ class RuntimeConnection:
         }
 
 
-def _discover_driver_factories() -> dict[str, Callable[[], Provider]]:
-    factories: dict[str, Callable[[], Provider]] = {}
+def _discover_driver_factories() -> dict[str, Callable[[], TcVfsContract]]:
+    factories: dict[str, Callable[[], TcVfsContract]] = {}
     for module_info in pkgutil.iter_modules(drivers_package.__path__):
         if module_info.name == "base":
             continue
         module = importlib.import_module(f"{drivers_package.__name__}.{module_info.name}")
         for _name, candidate in inspect.getmembers(module, inspect.isclass):
-            if candidate is Provider or not issubclass(candidate, Provider) or inspect.isabstract(candidate):
+            if candidate is TcVfsContract or not issubclass(candidate, TcVfsContract) or inspect.isabstract(candidate):
                 continue
             driver_name = _normalize_driver_name(getattr(candidate, "name", None))
             if driver_name:
@@ -66,7 +66,7 @@ def _discover_driver_factories() -> dict[str, Callable[[], Provider]]:
     return factories
 
 
-def _driver_factories() -> dict[str, Callable[[], Provider]]:
+def _driver_factories() -> dict[str, Callable[[], TcVfsContract]]:
     global _DRIVER_FACTORIES
     if _DRIVER_FACTORIES is None:
         _DRIVER_FACTORIES = _discover_driver_factories()
@@ -108,7 +108,7 @@ def _resolve_default_connection_name() -> str:
     raise ConfigurationError("No connections are registered.")
 
 
-def get_connection_runtime(connection_name: str | None = None) -> Provider:
+def get_connection_runtime(connection_name: str | None = None) -> TcVfsContract:
     name = _normalize_connection_name(connection_name) or _resolve_default_connection_name()
     registered = set(list_registered_connections())
     driver_name = connection_driver_name(name) or name
@@ -173,6 +173,7 @@ def runtime_registry_snapshot() -> dict[str, object]:
             )
         )
     return {
+        "tc_vfs_contract": "provider",
         "provider_abc": "provider",
         "available_drivers": sorted(factories.keys()),
         "connections": [connection.as_dict() for connection in connections],

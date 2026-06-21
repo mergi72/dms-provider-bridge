@@ -19,13 +19,13 @@ from dms_provider_bridge.models.bridge import BridgeAuthContext
 from dms_provider_bridge.models.item import DmsItem
 from dms_provider_bridge.models.listing import ListingResult
 from dms_provider_bridge.models.operation import OperationResult
-from dms_provider_bridge.drivers.base import Provider
+from dms_provider_bridge.drivers.tc_vfs_contract import TcVfsContract
 from dms_provider_bridge.drivers import alfresco_versioning
 from dms_provider_bridge.drivers import edocat_config, edocat_items, edocat_nodes, edocat_paths, edocat_tree
 from dms_provider_bridge.services.auth_resolver import resolve_effective_auth
 
 
-class EdocatProvider(Provider):
+class EdocatProvider(TcVfsContract):
     name = "edocat"
     upstream_auth_scheme = "basic"
 

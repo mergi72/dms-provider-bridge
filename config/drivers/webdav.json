@@ -14,7 +14,7 @@
         "_comment": "Generic WebDAV driver. Concrete server URL and mount values belong to connection config."
     },
 
-    "_comment": "Unix/VFS mapping: webdav.json = generic filesystem driver for WebDAV endpoints. It maps Provider ABC operations to RFC 4918 WebDAV methods.",
+    "_comment": "Unix/VFS mapping: webdav.json = generic filesystem driver for WebDAV endpoints. It maps TC VFS Contract operations to RFC 4918 WebDAV methods.",
 
     "debug": {
         "enable": false,
@@ -27,6 +27,7 @@
         "display_name": "WebDAV",
         "description": "Generic WebDAV filesystem driver.",
 
+        "tc_vfs_contract": "provider",
         "provider_abc": "provider",
 
         "api": {

@@ -9,8 +9,8 @@ first, then rename safely in small steps.
 ## Target Model
 
 ```text
-Provider ABC
-  shared internal VFS/common operation contract
+TC VFS Contract
+  shared internal Total Commander VFS/common operation contract
 
 Driver
   concrete DMS/API implementation, for example alfresco, edocat, webdav
@@ -28,8 +28,7 @@ Operation
 
 ## Rules
 
-- Keep `Provider ABC` for now. It is visible in the UI and documentation and is
-  understandable enough for the beta series.
+- Use `TC VFS Contract` for the internal bridge filesystem contract.
 - Do not rename the public `/bridge/wfx/*` API in 0.8.x unless there is a
   functional reason.
 - Prefer `connection` for user-visible mounts.
@@ -40,7 +39,7 @@ Operation
 
 ## Current Meanings of `provider`
 
-### Provider ABC
+### TC VFS Contract
 
 Meaning: internal common contract.
 
@@ -48,13 +47,18 @@ Examples:
 
 - `config/providers/provider.json`
 - Config UI section `/config/providers`
-- README text `Provider ABC`
-- runtime snapshot key `provider_abc`
+- `src/dms_provider_bridge/drivers/tc_vfs_contract.py`
+- `class TcVfsContract(ABC)`
+- README text `TC VFS Contract`
+- runtime snapshot key `tc_vfs_contract`
+- legacy runtime snapshot key `provider_abc`
 
 Decision:
 
-- Keep the name `Provider ABC` in 0.8.x.
-- Do not rename to `VFS ABC` yet.
+- Use the name `TC VFS Contract` in UI and docs.
+- Use `dms_provider_bridge.drivers.tc_vfs_contract.TcVfsContract` as the primary Python contract.
+- Keep `Provider ABC` and `provider_abc` only as compatibility aliases while 0.8.x is in transition.
+- Keep `Provider = TcVfsContract` through the transition for old imports.
 - Treat it as a read-only/internal contract in UI and docs.
 
 ### Driver
@@ -226,8 +230,8 @@ Rules:
 
 ## Backlog Candidates After 0.8.x
 
-- Consider renaming `Provider ABC` to `VFS ABC` only after the beta series, when
-  UI/docs and user mental model are stable.
+- Remove legacy `Provider ABC` / `provider_abc` aliases only after the beta
+  series, when UI/docs and user mental model are stable.
 - Generate shared auth/request contracts for Bridge and WFX from one source.
 - Decide when legacy edit/transfer service modules can be removed completely.
 - Decide when response model field `provider` can become `connection` without

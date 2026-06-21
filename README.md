@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.8.5-beta`
-- Latest bridge-only release: `v0.8.5-beta`
+- Bridge repository latest changelog version: `0.8.6-beta`
+- Latest bridge-only release: `v0.8.6-beta`
 
 ## 0.8.x Naming Refactor Strategy
 
@@ -21,7 +21,7 @@ The 0.8.x line is planned as a terminology cleanup, not a behavior rewrite.
 The first step is an audit that separates the old overloaded `provider` word
 into its current meanings:
 
-- `Provider ABC` for the internal bridge contract.
+- `TC VFS Contract` for the internal bridge filesystem contract.
 - `Driver` for concrete DMS implementations such as Alfresco, eDoCat and WebDAV.
 - `Connection` for named mounts exposed to clients and Total Commander.
 - Legacy `provider` aliases for backward compatibility.
@@ -35,13 +35,15 @@ Short version:
 ```text
 Connection is the mount users open.
 Driver is how the bridge talks to a DMS type.
-Provider ABC is the shared contract underneath.
+TC VFS Contract is the shared filesystem contract underneath.
+Its Python contract lives in `dms_provider_bridge.drivers.tc_vfs_contract.TcVfsContract`.
+`dms_provider_bridge.drivers.base.Provider` remains as a temporary compatibility alias.
 Auth is how identity is resolved for a connection.
 ```
 
 The bridge configuration follows a simple VFS-style model:
 
-- `Provider ABC` is the common bridge contract. It can be changed and configured, but only when you know exactly what you are doing.
+- `TC VFS Contract` is the common bridge filesystem contract. It can be changed and configured, but only when you know exactly what you are doing.
 - `Driver` describes one DMS type, for example Alfresco, eDoCat, WebDAV or another backend.
 - `Connection` is the named mount exposed to clients and Total Commander, for example `alfresco:/` or `company-dms:/`.
 - `Auth` resolves how a connection obtains credentials, tokens or anonymous access. Secrets are still owned by the Credential Broker / Windows Credential Manager.
@@ -69,9 +71,9 @@ Connection detail:
 
 ![Bridge Configurator connection detail](docs/images/bridge-config-connection-detail.png)
 
-Provider ABC contract view:
+TC VFS Contract view:
 
-![Bridge Configurator Provider ABC](docs/images/bridge-config-provider-abc.png)
+![Bridge Configurator TC VFS Contract](docs/images/bridge-config-provider-abc.png)
 
 Bridge API / Swagger:
 
@@ -94,7 +96,7 @@ Compatibility aliases:
 
 Current UI rules:
 
-- `provider.json` is shown as the Provider ABC contract.
+- `provider.json` is shown as the TC VFS Contract.
 - `driver.json` and `connection.json` are templates and are shown as readonly.
 - Concrete driver and connection files can be created and saved from the UI.
 - Connection saves validate required driver and mount fields before writing JSON.
@@ -110,7 +112,7 @@ Configuration checks:
 The 0.7 configuration/runtime model is intentionally split by responsibility:
 
 ```text
-Provider ABC  read-only common VFS contract
+TC VFS Contract  read-only common filesystem contract
 Driver        concrete DMS/API implementation settings
 Connection    named mount exposed to clients as connection:/path
 Auth          credential/token resolution layer used by connections and drivers
@@ -155,7 +157,7 @@ Bridge can be run in two different Windows runtime models. Keep them separate:
   - Current setup installs the bridge service and preserves the installing user AppData path for configuration and logs.
   - `LocalSystem` cannot see credentials stored in an interactive user's Windows Credential Manager.
 
-Current setup release `v0.8.5-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
+Current setup release `v0.8.6-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
 
 ## Connection Operations
 
@@ -191,12 +193,12 @@ Connection-to-connection copy/move can use separate credentials for each side:
 
 ## WebDAV Driver Proposal
 
-WebDAV is a good next driver candidate because it is a standard filesystem-like HTTP protocol and maps naturally to the bridge Provider ABC. It should be implemented as a generic driver, not as an Alfresco or eDoCat special case.
+WebDAV is a good driver candidate because it is a standard filesystem-like HTTP protocol and maps naturally to the bridge TC VFS Contract. It is implemented as a generic driver, not as an Alfresco or eDoCat special case.
 
 Planned mapping:
 
 ```text
-Provider ABC operation    WebDAV operation
+TC VFS operation          WebDAV operation
 list                      PROPFIND Depth: 1
 stat                      PROPFIND Depth: 0
 download                  GET
@@ -211,7 +213,7 @@ Initial scope:
 
 - Add `config/drivers/webdav.json`.
 - Add `config/connections/webdav.json`.
-- Add a generic WebDAV provider/driver implementation behind the existing Provider ABC.
+- Add a generic WebDAV driver implementation behind the existing TC VFS Contract.
 - Support `list`, `stat`, `download`, `upload`, `mkdir` and `delete` first.
 - Add `copy` and `move` after the basic operations are stable.
 - Keep versioning, WebDAV locks, `PROPPATCH`, WebDAV Sync and provider-specific extensions out of the first implementation.
@@ -219,7 +221,7 @@ Initial scope:
 Configuration shape:
 
 ```text
-Provider ABC
+TC VFS Contract
   -> Driver: webdav
        -> Connection: webdav
        -> Connection: company_webdav
@@ -233,6 +235,7 @@ The driver should contain generic WebDAV behavior and defaults:
   "key": "webdav",
   "webdav": {
     "display_name": "WebDAV",
+    "tc_vfs_contract": "provider",
     "provider_abc": "provider",
     "api": {
       "base": "",
@@ -281,7 +284,7 @@ Testing strategy:
 - Keep the first test matrix small: root listing, folder listing, upload small file, download small file, create directory, delete file, delete directory.
 - Add large file and connection-to-connection transfer tests only after the basic WebDAV operations are stable.
 
-This driver is useful as a reference implementation because it proves that `Provider ABC -> Driver -> Connection` is not tied to Alfresco/eDoCat APIs.
+This driver is useful as a reference implementation because it proves that `TC VFS Contract -> Driver -> Connection` is not tied to Alfresco/eDoCat APIs.
 
 ## Related Projects
 
@@ -499,7 +502,7 @@ For eDoCat:
 
 Rules:
 
-- Do not edit `provider.json` unless you are changing the internal Provider ABC contract.
+- Do not edit `provider.json` unless you are changing the internal TC VFS Contract.
 - Do not overwrite `driver.json` or `connection.json` templates.
 - Driver local config contains technical DMS settings such as `base_url`, timeouts and driver-specific defaults.
 - Connection config contains the mount shown to clients, for example `alfresco:/` or `company-dms:/`.

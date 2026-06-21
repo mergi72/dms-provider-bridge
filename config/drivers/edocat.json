@@ -14,7 +14,7 @@
         "_comment": "This file contains the configuration for the VBA project."
     },
 
-    "_comment": "Unix/VFS mapping: edocat.json = filesystem driver for eDoCat repositories. It maps Provider ABC operations to eDoCat API calls and Alfresco fallback APIs when needed.",
+    "_comment": "Unix/VFS mapping: edocat.json = filesystem driver for eDoCat repositories. It maps TC VFS Contract operations to eDoCat API calls and Alfresco fallback APIs when needed.",
 
     "key": "edocat",
 
@@ -57,6 +57,7 @@
     "edocat": {
         "display_name": "eDoCat",
         "description": "eDoCat repository driver.",
+        "tc_vfs_contract": "provider",
         "provider_abc": "provider",
 
         "base_url": "https://example.com",

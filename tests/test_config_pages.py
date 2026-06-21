@@ -112,7 +112,7 @@ def test_config_providers_is_read_only() -> None:
 
     assert response.status_code == 200
     assert "readonly" in response.text
-    assert "Provider ABC" in response.text
+    assert "TC VFS Contract" in response.text
 
 
 def test_config_bridge_is_read_only() -> None:

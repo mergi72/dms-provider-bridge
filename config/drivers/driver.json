@@ -14,7 +14,7 @@
         "_comment": "Driver / filesystem driver contract template. Concrete DMS implementation values belong here."
     },
 
-    "_comment": "Unix/VFS mapping: driver.json = filesystem driver definition. It maps the Provider ABC contract to a concrete DMS API.",
+    "_comment": "Unix/VFS mapping: driver.json = filesystem driver definition. It maps the TC VFS Contract to a concrete DMS API.",
 
     "debug": {
         "enable": false,
@@ -27,6 +27,7 @@
         "display_name": "",
         "description": "",
 
+        "tc_vfs_contract": "provider",
         "provider_abc": "provider",
 
         "api": {

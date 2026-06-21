@@ -26,14 +26,14 @@ reload_provider_cache = reload_connection_runtime_cache
 
 
 _SECTION_TITLES = {
-    "providers": "Provider ABC",
+    "providers": "TC VFS Contract",
     "auth": "Auth",
     "drivers": "Drivers",
     "connections": "Connections",
 }
 
 _SECTION_ROLES = {
-    "providers": "VFS/common contract",
+    "providers": "Total Commander VFS/common contract",
     "auth": "credential/token resolution contract",
     "drivers": "filesystem driver definitions",
     "connections": "mount definitions",
@@ -41,7 +41,7 @@ _SECTION_ROLES = {
 
 _SECTION_HELP = {
     "providers": (
-        "Provider ABC is the internal bridge contract. It can be changed and configured, "
+        "TC VFS Contract is the internal bridge filesystem contract. It can be changed and configured, "
         "but only when you know exactly what you are doing."
     ),
     "auth": (
@@ -347,6 +347,9 @@ def _validate_config_payload(
         return errors
 
     if section == "drivers":
+        tc_vfs_contract = section_payload.get("tc_vfs_contract")
+        if tc_vfs_contract is not None and not isinstance(tc_vfs_contract, str):
+            errors.append("Driver field 'tc_vfs_contract' must be a string when present.")
         provider_abc = section_payload.get("provider_abc")
         if provider_abc is not None and not isinstance(provider_abc, str):
             errors.append("Driver field 'provider_abc' must be a string when present.")
@@ -536,11 +539,11 @@ def config_home() -> HTMLResponse:
     </div>
   </a>
   <a class="section-card" href="/config/providers">
-    <h2>Provider ABC</h2>
+    <h2>TC VFS Contract</h2>
     <div>
       <p><span class="badge badge-read-only">READ ONLY</span></p>
-      <p class="contract-warning">Provider ABC is the internal bridge contract. It can be changed and configured, but only when you know exactly what you are doing.</p>
-      <p>VFS/common contract used internally by the bridge.</p>
+      <p class="contract-warning">TC VFS Contract is the internal bridge filesystem contract. It can be changed and configured, but only when you know exactly what you are doing.</p>
+      <p>Total Commander VFS/common contract used internally by the bridge.</p>
     </div>
   </a>
   <a class="section-card" href="/config/auth">
@@ -1087,7 +1090,7 @@ def _render_editor(
           {delete_link}
           <a class="button button-muted" href="/config/reload">Reload</a>
           <a class="button button-muted" href="/config/{html.escape(section)}">Cancel</a>
-          <span class="muted">Templates and Provider ABC are read-only.</span>
+          <span class="muted">Templates and TC VFS Contract are read-only.</span>
         </div>
       {form_close}
     </div>

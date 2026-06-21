@@ -25,7 +25,7 @@ class _DummyProvider:
 def test_drivers_package_exposes_current_driver_modules() -> None:
     module_names = {module.name for module in pkgutil.iter_modules(drivers_package.__path__)}
 
-    assert {"alfresco", "edocat", "base"} <= module_names
+    assert {"alfresco", "edocat", "base", "tc_vfs_contract"} <= module_names
 
 
 def test_get_connection_runtime_accepts_trailing_colon() -> None:
@@ -58,6 +58,7 @@ def test_runtime_registry_snapshot_maps_wfx_connections(monkeypatch: pytest.Monk
     snapshot = connection_runtime_module.runtime_registry_snapshot()
     connections = {item["name"]: item for item in snapshot["connections"]}
 
+    assert snapshot["tc_vfs_contract"] == "provider"
     assert snapshot["provider_abc"] == "provider"
     assert set(snapshot["wfx_connections"]) >= {"edocat", "alfresco"}
     assert set(snapshot["available_drivers"]) >= {"edocat", "alfresco"}

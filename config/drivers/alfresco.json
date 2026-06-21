@@ -14,7 +14,7 @@
         "_comment": "Configuration for Alfresco Search API (used instead of eDoCat wrapper search)."
     },
 
-    "_comment": "Unix/VFS mapping: alfresco.json = filesystem driver for Alfresco repositories. It maps Provider ABC operations to Alfresco REST API calls.",
+    "_comment": "Unix/VFS mapping: alfresco.json = filesystem driver for Alfresco repositories. It maps TC VFS Contract operations to Alfresco REST API calls.",
 
     "key": "alfresco",
 
@@ -48,6 +48,7 @@
     "alfresco": {
         "display_name": "Alfresco",
         "description": "Alfresco repository driver.",
+        "tc_vfs_contract": "provider",
         "provider_abc": "provider",
 
         "base_url": "https://example.com/alfresco",
