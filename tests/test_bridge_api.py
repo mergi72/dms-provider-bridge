@@ -340,6 +340,32 @@ def test_openapi_exposes_listing_but_not_legacy_edit_transfer_routes() -> None:
     assert "/transfer/copy" not in paths
 
 
+def test_openapi_documents_connection_as_primary_listing_parameter() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    listing_parameters = response.json()["paths"]["/listing"]["get"]["parameters"]
+    parameter_names = [parameter["name"] for parameter in listing_parameters]
+    assert parameter_names[:3] == ["path", "connection", "provider"]
+    provider_parameter = next(parameter for parameter in listing_parameters if parameter["name"] == "provider")
+    assert "Legacy alias for connection" in provider_parameter["description"]
+
+
+def test_openapi_documents_share_url_provider_as_legacy_alias() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    schemas = response.json()["components"]["schemas"]
+    for schema_name in ("WfxShareUrlRequest", "WfxShareUrlBrowseRequest", "WfxShareUrlValidateRequest"):
+        properties = schemas[schema_name]["properties"]
+        assert list(properties).index("connection") < list(properties).index("provider")
+        assert "Legacy alias for connection" in properties["provider"]["description"]
+
+
 def test_legacy_edit_endpoint_is_not_exposed() -> None:
     client = TestClient(create_app())
 

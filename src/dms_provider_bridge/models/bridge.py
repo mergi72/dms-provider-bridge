@@ -92,9 +92,17 @@ class WfxUploadRequest(BaseModel):
 
 
 class WfxShareUrlRequest(BaseModel):
-    share_url: str = Field(min_length=10, description="Full provider share URL.")
-    provider: str | None = Field(default=None, min_length=1, description="Legacy alias for connection.")
-    connection: str | None = Field(default=None, min_length=1, description="Connection key that supports this Share URL format.")
+    share_url: str = Field(min_length=10, description="Full DMS share URL.")
+    connection: str | None = Field(
+        default=None,
+        min_length=1,
+        description="Preferred connection/mount name that supports this Share URL format.",
+    )
+    provider: str | None = Field(
+        default=None,
+        min_length=1,
+        description="Legacy alias for connection. Kept for compatibility with older clients.",
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -103,10 +111,18 @@ class WfxShareUrlRequest(BaseModel):
 
 
 class WfxShareUrlBrowseRequest(BaseModel):
-    share_url: str = Field(min_length=10, description="Full provider share URL.")
+    share_url: str = Field(min_length=10, description="Full DMS share URL.")
     auth: BridgeAuthContext
-    provider: str | None = Field(default=None, min_length=1, description="Legacy alias for connection.")
-    connection: str | None = Field(default=None, min_length=1, description="Connection key that supports this Share URL format.")
+    connection: str | None = Field(
+        default=None,
+        min_length=1,
+        description="Preferred connection/mount name that supports this Share URL format.",
+    )
+    provider: str | None = Field(
+        default=None,
+        min_length=1,
+        description="Legacy alias for connection. Kept for compatibility with older clients.",
+    )
     operation: Literal["list", "stat", "download", "copy", "move", "mkdir", "delete", "upload"] = "list"
     execute: bool = True
     connection_path_override: str | None = Field(
@@ -115,7 +131,7 @@ class WfxShareUrlBrowseRequest(BaseModel):
     )
     provider_path_override: str | None = Field(
         default=None,
-        description="Legacy alias for connection_path_override.",
+        description="Legacy alias for connection_path_override. Kept for compatibility with older clients.",
     )
     destination_share_url: str | None = Field(default=None, description="Optional destination Share URL for copy/move.")
     destination_path_override: str | None = Field(
@@ -134,9 +150,17 @@ class WfxShareUrlBrowseRequest(BaseModel):
 
 
 class WfxShareUrlValidateRequest(BaseModel):
-    share_url: str = Field(min_length=10, description="Full provider share URL.")
-    provider: str | None = Field(default=None, min_length=1, description="Legacy alias for connection.")
-    connection: str | None = Field(default=None, min_length=1, description="Connection key that supports this Share URL format.")
+    share_url: str = Field(min_length=10, description="Full DMS share URL.")
+    connection: str | None = Field(
+        default=None,
+        min_length=1,
+        description="Preferred connection/mount name that supports this Share URL format.",
+    )
+    provider: str | None = Field(
+        default=None,
+        min_length=1,
+        description="Legacy alias for connection. Kept for compatibility with older clients.",
+    )
     operation: Literal["list", "stat", "download", "copy", "move", "mkdir", "delete", "upload"] = "list"
     connection_path_override: str | None = Field(
         default=None,
@@ -144,7 +168,7 @@ class WfxShareUrlValidateRequest(BaseModel):
     )
     provider_path_override: str | None = Field(
         default=None,
-        description="Legacy alias for connection_path_override.",
+        description="Legacy alias for connection_path_override. Kept for compatibility with older clients.",
     )
     destination_share_url: str | None = Field(default=None, description="Optional destination Share URL for copy/move/upload.")
     destination_path_override: str | None = Field(

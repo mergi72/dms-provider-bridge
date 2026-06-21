@@ -1,3 +1,11 @@
+## 0.9.2-beta - 2026-06-21
+
+- Updated route/OpenAPI terminology so `connection` is the primary request parameter.
+- Kept `provider` as a documented legacy compatibility alias for older clients.
+- Moved Share URL schemas to list `connection` before `provider`.
+- Added OpenAPI regression coverage for connection-first route documentation.
+- Release/version bump to `0.9.2-beta`.
+
 ## 0.8.9-beta - 2026-06-21
 
 - Moved connection/provider alias helpers from service glue into `core.connection_aliases`.
