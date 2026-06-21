@@ -346,7 +346,7 @@ def _default_connection_name_or_none() -> str | None:
         return None
 
 
-def _provider_capabilities(provider) -> dict[str, bool]:
+def _connection_capabilities(connection_runtime) -> dict[str, bool]:
     method_by_operation = {
         "list": "list_items",
         "stat": "stat_item",
@@ -358,9 +358,14 @@ def _provider_capabilities(provider) -> dict[str, bool]:
         "copy": "copy_item",
     }
     return {
-        operation: callable(getattr(provider, method_name, None))
+        operation: callable(getattr(connection_runtime, method_name, None))
         for operation, method_name in method_by_operation.items()
     }
+
+
+def _provider_capabilities(connection_runtime) -> dict[str, bool]:
+    """Backward-compatible internal alias during the provider naming cleanup."""
+    return _connection_capabilities(connection_runtime)
 
 
 def _versioning_payload(versioning: object) -> dict | None:
@@ -372,16 +377,26 @@ def _versioning_payload(versioning: object) -> dict | None:
     return versioning if isinstance(versioning, dict) else None
 
 
-def _provider_versioning(provider) -> dict[str, object]:
-    return provider.versioning_capabilities()
+def _connection_versioning(connection_runtime) -> dict[str, object]:
+    return connection_runtime.versioning_capabilities()
 
 
-def _provider_auth_requirements(provider) -> dict[str, object]:
-    config = getattr(provider, "config", {})
-    upstream_auth_scheme = getattr(provider, "upstream_auth_scheme", "unknown")
+def _provider_versioning(connection_runtime) -> dict[str, object]:
+    """Backward-compatible internal alias during the provider naming cleanup."""
+    return _connection_versioning(connection_runtime)
+
+
+def _connection_auth_requirements(connection_runtime) -> dict[str, object]:
+    config = getattr(connection_runtime, "config", {})
+    upstream_auth_scheme = getattr(connection_runtime, "upstream_auth_scheme", "unknown")
     if upstream_auth_scheme == "none":
         return auth_requirements(config, default_scheme="none")
     return auth_requirements(config, default_scheme=upstream_auth_scheme)
+
+
+def _provider_auth_requirements(connection_runtime) -> dict[str, object]:
+    """Backward-compatible internal alias during the provider naming cleanup."""
+    return _connection_auth_requirements(connection_runtime)
 
 
 def _log_and_return(
@@ -439,9 +454,9 @@ def connection_detail_path(connection_name: str) -> WfxResponse:
                 "display_name": connection_metadata.get("display_name"),
                 "description": connection_metadata.get("description"),
                 "enabled": provider.name in list_registered_connections(),
-                "auth": _provider_auth_requirements(provider),
-                "capabilities": _provider_capabilities(provider),
-                "versioning": _provider_versioning(provider),
+                "auth": _connection_auth_requirements(provider),
+                "capabilities": _connection_capabilities(provider),
+                "versioning": _connection_versioning(provider),
             },
             metadata={"operation": "connection_detail", "connection": provider.name},
         )
@@ -470,7 +485,7 @@ def list_path(path: str, auth: BridgeAuthContext | None) -> WfxResponse:
         provider, parsed = _resolve(path)
         connection_name = provider.name
         resolved_path = parsed.path
-        auth_info = _provider_auth_requirements(provider)
+        auth_info = _connection_auth_requirements(provider)
         if auth is None and auth_info.get("required") is not False:
             response = _failure(WfxErrorCode.ACCESS_DENIED, "Authentication is required for provider paths.")
             return _log_and_return("list", connection_name, resolved_path, started_at, response, response.message)

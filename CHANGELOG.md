@@ -1,3 +1,11 @@
+## 0.8.3-beta - 2026-06-21
+
+- Added connection-first transfer limit naming in bridge transfer helpers.
+- Kept `max_cross_provider_upload_bytes()` as a backward-compatible alias.
+- Added regression coverage for connection runtime upload limit handling.
+- Added connection-first bridge helper names for capabilities, auth requirements and versioning metadata.
+- Release/version bump to `0.8.3-beta`.
+
 ## 0.8.2-beta - 2026-06-21
 
 - Moved concrete driver implementations from `dms_provider_bridge.providers` to `dms_provider_bridge.drivers`.
