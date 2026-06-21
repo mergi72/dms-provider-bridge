@@ -335,7 +335,7 @@ def _connection_root_listing() -> ListingResult:
         )
         for connection_name in connections
     ]
-    return ListingResult(provider="bridge", path="/", total=len(items), items=items)
+    return ListingResult(provider="bridge", connection="bridge", path="/", total=len(items), items=items)
 
 
 def _default_connection_name_or_none() -> str | None:
@@ -363,11 +363,6 @@ def _connection_capabilities(connection_runtime) -> dict[str, bool]:
     }
 
 
-def _provider_capabilities(connection_runtime) -> dict[str, bool]:
-    """Backward-compatible internal alias during the provider naming cleanup."""
-    return _connection_capabilities(connection_runtime)
-
-
 def _versioning_payload(versioning: object) -> dict | None:
     if versioning is None:
         return None
@@ -381,22 +376,12 @@ def _connection_versioning(connection_runtime) -> dict[str, object]:
     return connection_runtime.versioning_capabilities()
 
 
-def _provider_versioning(connection_runtime) -> dict[str, object]:
-    """Backward-compatible internal alias during the provider naming cleanup."""
-    return _connection_versioning(connection_runtime)
-
-
 def _connection_auth_requirements(connection_runtime) -> dict[str, object]:
     config = getattr(connection_runtime, "config", {})
     upstream_auth_scheme = getattr(connection_runtime, "upstream_auth_scheme", "unknown")
     if upstream_auth_scheme == "none":
         return auth_requirements(config, default_scheme="none")
     return auth_requirements(config, default_scheme=upstream_auth_scheme)
-
-
-def _provider_auth_requirements(connection_runtime) -> dict[str, object]:
-    """Backward-compatible internal alias during the provider naming cleanup."""
-    return _connection_auth_requirements(connection_runtime)
 
 
 def _log_and_return(
@@ -624,8 +609,10 @@ def rename_path(
                     "transfer": "download-upload-delete",
                     "source_connection": source_runtime.name,
                     "destination_connection": destination_runtime.name,
+                    "target_connection": destination_runtime.name,
                     "source_provider": source_runtime.name,
                     "destination_provider": destination_runtime.name,
+                    "target_provider": destination_runtime.name,
                     "delete": delete_result.model_dump(),
                 },
             )
@@ -705,8 +692,10 @@ def copy_path(
                 "transfer": "download-upload",
                 "source_connection": source_runtime.name,
                 "destination_connection": destination_runtime.name,
+                "target_connection": destination_runtime.name,
                 "source_provider": source_runtime.name,
                 "destination_provider": destination_runtime.name,
+                "target_provider": destination_runtime.name,
             },
         )
         return _log_and_return("copy", connection_name, operation_path, started_at, response)

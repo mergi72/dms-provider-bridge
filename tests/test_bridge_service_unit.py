@@ -63,6 +63,18 @@ def test_list_path_logs_connection_and_legacy_provider_alias(monkeypatch: pytest
     assert "bridge_operation operation=list connection=edocat provider=edocat path=/folder" in caplog.text
 
 
+def test_list_path_root_exposes_connection_and_legacy_provider_alias(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bridge_service_module, "list_registered_connections", lambda: ["alfresco"])
+    monkeypatch.setattr(bridge_service_module, "_default_connection_name_or_none", lambda: "alfresco")
+
+    response = bridge_service_module.list_path("/", None)
+
+    assert response.ok is True
+    assert response.metadata["connection_root"] is True
+    assert response.data["connection"] == "bridge"
+    assert response.data["provider"] == "bridge"
+
+
 def test_copy_path_same_provider_delegates_to_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     provider = DummyProvider("edocat")
     provider.copy_item.return_value = OperationResult(success=True, operation="copy", provider="edocat")
@@ -116,8 +128,10 @@ def test_copy_path_cross_provider_downloads_and_uploads(monkeypatch: pytest.Monk
     assert response.metadata["transfer"] == "download-upload"
     assert response.metadata["source_connection"] == "edocat"
     assert response.metadata["destination_connection"] == "alfresco"
+    assert response.metadata["target_connection"] == "alfresco"
     assert response.metadata["source_provider"] == "edocat"
     assert response.metadata["destination_provider"] == "alfresco"
+    assert response.metadata["target_provider"] == "alfresco"
 
 
 def test_copy_path_cross_provider_passes_versioning_to_upload(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -495,8 +509,10 @@ def test_rename_path_cross_provider_downloads_uploads_and_deletes(monkeypatch: p
     assert response.metadata["transfer"] == "download-upload-delete"
     assert response.metadata["source_connection"] == "alfresco"
     assert response.metadata["destination_connection"] == "edocat"
+    assert response.metadata["target_connection"] == "edocat"
     assert response.metadata["source_provider"] == "alfresco"
     assert response.metadata["destination_provider"] == "edocat"
+    assert response.metadata["target_provider"] == "edocat"
 
 
 def test_rename_path_cross_provider_passes_versioning_to_upload(monkeypatch: pytest.MonkeyPatch) -> None:
