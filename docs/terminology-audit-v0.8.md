@@ -270,3 +270,12 @@ Rules:
 - Decide when response model field `provider` can become `connection` without
   breaking existing clients.
 
+## 0.9.x Follow-up Notes
+
+- `ListingResult` and `OperationResult` now expose preferred `connection`
+  fields next to legacy `provider` fields.
+- When older driver code only fills `provider`, the result model mirrors that
+  value into `connection`.
+- Legacy `/edit/*` and `/transfer/*` route modules were removed after the
+  routes had already been disconnected from the FastAPI app.
+

@@ -9,6 +9,7 @@ class OperationResult(BaseModel):
     success: bool
     operation: str
     provider: str
+    connection: str | None = None
     source: str | None = None
     destination: str | None = None
     message: str | None = None
@@ -16,3 +17,7 @@ class OperationResult(BaseModel):
     mime_type: str | None = None
     size: int | None = None
     metadata: dict[str, Any] | None = None
+
+    def model_post_init(self, __context: object) -> None:
+        if self.connection is None:
+            self.connection = self.provider
