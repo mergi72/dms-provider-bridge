@@ -6,7 +6,7 @@ from typing import IO
 from urllib.error import HTTPError
 
 from dms_provider_bridge.clients.alfresco_client import AlfrescoClient
-from dms_provider_bridge.core.config_loader import load_provider_config
+from dms_provider_bridge.core.config_loader import load_driver_config
 from dms_provider_bridge.core.debug import (
     log_provider_operation_done,
     log_provider_operation_failed,
@@ -29,7 +29,7 @@ class AlfrescoProvider(Provider):
 
     def __init__(self, name: str | None = None, config: dict | None = None) -> None:
         self.name = name or self.name
-        self.config = config or load_provider_config("alfresco")
+        self.config = config or load_driver_config("alfresco")
         self.client = AlfrescoClient.from_config(self.config)
         self.debug_logger = provider_debug_logger(self.name, self.config)
 

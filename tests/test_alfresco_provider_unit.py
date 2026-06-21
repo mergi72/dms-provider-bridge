@@ -144,7 +144,7 @@ class FakeClient:
 
 def _provider(monkeypatch: pytest.MonkeyPatch, client: FakeClient | None = None) -> AlfrescoProvider:
     fake_client = client or FakeClient()
-    monkeypatch.setattr(alfresco_provider_module, "load_provider_config", lambda name: {"doc_library": "/deals"})
+    monkeypatch.setattr(alfresco_provider_module, "load_driver_config", lambda name: {"doc_library": "/deals"})
     monkeypatch.setattr(alfresco_provider_module.AlfrescoClient, "from_config", lambda config: fake_client)
     provider = AlfrescoProvider()
     provider.client = fake_client  # type: ignore[assignment]
@@ -153,7 +153,7 @@ def _provider(monkeypatch: pytest.MonkeyPatch, client: FakeClient | None = None)
 
 def _provider_with_config(monkeypatch: pytest.MonkeyPatch, config: dict[str, Any], client: FakeClient | None = None) -> AlfrescoProvider:
     fake_client = client or FakeClient()
-    monkeypatch.setattr(alfresco_provider_module, "load_provider_config", lambda name: config)
+    monkeypatch.setattr(alfresco_provider_module, "load_driver_config", lambda name: config)
     monkeypatch.setattr(alfresco_provider_module.AlfrescoClient, "from_config", lambda cfg: fake_client)
     provider = AlfrescoProvider()
     provider.client = fake_client  # type: ignore[assignment]

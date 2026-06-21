@@ -59,7 +59,7 @@ def _make_provider(
     config: dict[str, Any] | None = None,
 ) -> EdocatProvider:
     provider_config = config or {"doc_library": "/deals"}
-    monkeypatch.setattr(edocat_provider_module, "load_provider_config", lambda name: provider_config)
+    monkeypatch.setattr(edocat_provider_module, "load_driver_config", lambda name: provider_config)
     monkeypatch.setattr(edocat_provider_module.EdocatClient, "from_config", lambda config: client or FakeClient())
     return EdocatProvider()
 

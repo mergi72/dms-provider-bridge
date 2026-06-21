@@ -14,7 +14,7 @@ from dms_provider_bridge.core.debug import (
 )
 from dms_provider_bridge.core.errors import AuthenticationError, ProviderOperationError
 from dms_provider_bridge.clients.edocat_client import EdocatClient
-from dms_provider_bridge.core.config_loader import load_provider_config
+from dms_provider_bridge.core.config_loader import load_driver_config
 from dms_provider_bridge.models.bridge import BridgeAuthContext
 from dms_provider_bridge.models.item import DmsItem
 from dms_provider_bridge.models.listing import ListingResult
@@ -31,7 +31,7 @@ class EdocatProvider(Provider):
 
     def __init__(self, name: str | None = None, config: dict | None = None) -> None:
         self.name = name or self.name
-        self.config = config or load_provider_config("edocat")
+        self.config = config or load_driver_config("edocat")
         self.client = EdocatClient.from_config(self.config)
         self.debug_logger = provider_debug_logger(self.name, self.config)
         self._alfresco_version_client: AlfrescoClient | None = None

@@ -115,15 +115,15 @@ def get_connection_runtime(connection_name: str | None = None) -> Provider:
     factory = _driver_factories().get(driver_name)
     if name not in registered or factory is None:
         raise ConnectionNotFoundError(f"Connection '{name}' is not registered.")
-    provider = _CONNECTION_RUNTIME_CACHE.get(name)
-    if provider is None:
+    connection_runtime = _CONNECTION_RUNTIME_CACHE.get(name)
+    if connection_runtime is None:
         config = load_connection_config(name) if connection_driver_name(name) else None
         try:
-            provider = factory(name=name, config=config)
+            connection_runtime = factory(name=name, config=config)
         except TypeError:
-            provider = factory()
-        _CONNECTION_RUNTIME_CACHE[name] = provider
-    return provider
+            connection_runtime = factory()
+        _CONNECTION_RUNTIME_CACHE[name] = connection_runtime
+    return connection_runtime
 
 
 def reload_connection_runtime_cache() -> None:
@@ -219,9 +219,9 @@ def audit_connection_runtime() -> dict[str, object]:
         runtime_mount = None
         if name in registered and driver_name in factories:
             try:
-                provider = get_connection_runtime(name)
-                runtime_name = provider.name
-                config = getattr(provider, "config", {})
+                connection_runtime = get_connection_runtime(name)
+                runtime_name = connection_runtime.name
+                config = getattr(connection_runtime, "config", {})
                 if isinstance(config, dict):
                     runtime_driver = config.get("driver")
                     runtime_mount = config.get("mount")

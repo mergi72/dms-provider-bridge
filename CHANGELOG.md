@@ -1,3 +1,9 @@
+## 0.8.4-beta - 2026-06-21
+
+- Renamed internal connection runtime cache variables away from provider-era naming.
+- Switched concrete drivers to `load_driver_config()` instead of the legacy `load_provider_config()` alias.
+- Release/version bump to `0.8.4-beta`.
+
 ## 0.8.3-beta - 2026-06-21
 
 - Added connection-first transfer limit naming in bridge transfer helpers.

@@ -9,7 +9,7 @@ from urllib.error import HTTPError
 from urllib.parse import quote, unquote, urlparse
 from xml.etree import ElementTree
 
-from dms_provider_bridge.core.config_loader import load_provider_config
+from dms_provider_bridge.core.config_loader import load_driver_config
 from dms_provider_bridge.core.debug import provider_debug_logger
 from dms_provider_bridge.core.errors import ProviderOperationError
 from dms_provider_bridge.models.bridge import BridgeAuthContext
@@ -29,7 +29,7 @@ class WebdavProvider(Provider):
 
     def __init__(self, name: str | None = None, config: dict | None = None) -> None:
         self.name = name or self.name
-        self.config = config or load_provider_config("webdav")
+        self.config = config or load_driver_config("webdav")
         self.upstream_auth_scheme = self._configured_auth_scheme()
         self.debug_logger = provider_debug_logger(self.name, self.config)
 
