@@ -210,6 +210,12 @@ Implementation status:
   name. Legacy `provider` request fields are mirrored into `connection` by the
   request model, and responses include both `connection` and legacy `provider`
   metadata during the transition.
+- Share URL request model alias normalization now uses connection-first helper
+  naming internally.
+- Alfresco upload version-conflict metadata now includes `connection` as the
+  primary name and keeps legacy `provider` for older clients.
+- Debug compatibility wrappers now delegate to the connection-first debug
+  helpers instead of duplicating operation logging logic.
 
 ### 0.8.3-beta: move implementation modules
 

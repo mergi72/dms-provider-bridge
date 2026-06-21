@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.8.9-beta`
-- Latest bridge-only release: `v0.8.9-beta`
+- Bridge repository latest changelog version: `0.8.10-beta`
+- Latest bridge-only release: `v0.8.10-beta`
 
 ## 0.8.x Naming Refactor Strategy
 
@@ -81,7 +81,7 @@ Bridge API / Swagger:
 
 Runtime naming:
 
-- WFX endpoints expose `connections`; old runtime `providers` naming is not used in the 0.7 beta API.
+- WFX endpoints expose `connections`; old runtime `providers` naming is kept only as compatibility naming in the 0.8 beta API.
 - Runtime connection names are connection keys/mounts from connection config.
 - Driver modules such as `alfresco.py` and `edocat.py` remain the concrete DMS implementations behind those connections.
 - Runtime discovery treats those modules as driver factories.
@@ -91,7 +91,7 @@ Compatibility aliases:
 
 - New request payloads should use `connection` or `connection_name` for the user-visible mount.
 - Existing request payloads that still send `provider` or `provider_name` remain accepted as legacy aliases for `connection`.
-- Responses and logs may include both `connection` and `provider` keys during the 0.7 beta series. `connection` is the preferred key; `provider` is kept for compatibility with existing tools and logs.
+- Responses and logs may include both `connection` and `provider` keys during the 0.8 beta series. `connection` is the preferred key; `provider` is kept for compatibility with existing tools and logs.
 - When both names are supplied, they must point to the same value. A mismatch is treated as a validation/configuration error.
 
 Current UI rules:
@@ -157,7 +157,7 @@ Bridge can be run in two different Windows runtime models. Keep them separate:
   - Current setup installs the bridge service and preserves the installing user AppData path for configuration and logs.
   - `LocalSystem` cannot see credentials stored in an interactive user's Windows Credential Manager.
 
-Current setup release `v0.8.9-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
+Current setup release `v0.8.10-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
 
 ## Connection Operations
 
@@ -698,7 +698,8 @@ Project is split into:
 
 - `app/` API layer
 - `services/` business logic
-- `providers/` provider implementations
+- `drivers/` concrete DMS driver implementations
+- `providers/` compatibility wrappers for old imports
 - `clients/` API clients
 - `models/` data models
 - `core/` configuration, logging, and core utilities

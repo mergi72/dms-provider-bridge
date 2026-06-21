@@ -33,10 +33,10 @@ def _normalize_connection_path(path: str, empty_message: str) -> str | WfxRespon
 
 def _resolve_source_path_override(
     connection_path_override: str | None,
-    provider_path_override: str | None,
+    legacy_provider_path_override: str | None,
 ) -> str | WfxResponse | None:
     try:
-        return resolve_connection_path_override(connection_path_override, provider_path_override)
+        return resolve_connection_path_override(connection_path_override, legacy_provider_path_override)
     except ValueError as exc:
         return _failure(WfxErrorCode.BAD_PATH, str(exc))
 

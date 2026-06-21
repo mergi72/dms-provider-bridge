@@ -70,11 +70,12 @@ def versioning_choice(versioning: dict | None) -> tuple[bool, str | None] | None
     return major_version, str(comment) if isinstance(comment, str) and comment.strip() else None
 
 
-def existing_upload_metadata(provider_name: str, target_destination: str, existing: dict) -> dict[str, object]:
+def existing_upload_metadata(connection_name: str, target_destination: str, existing: dict) -> dict[str, object]:
     audit = audit_from_entry(existing)
     return {
         "action": "version_required",
-        "provider": provider_name,
+        "connection": connection_name,
+        "provider": connection_name,
         "path": target_destination,
         "name": str(existing.get("name") or target_destination.rstrip("/").split("/")[-1]),
         "node_id": str(existing.get("id") or ""),

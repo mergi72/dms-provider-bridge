@@ -99,7 +99,7 @@ class WfxShareUrlRequest(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def normalize_connection_alias(cls, data: object) -> object:
-        return _normalize_provider_connection_alias(data)
+        return _normalize_connection_request_aliases(data)
 
 
 class WfxShareUrlBrowseRequest(BaseModel):
@@ -167,7 +167,7 @@ class WfxResponse(BaseModel):
     metadata: dict[str, Any] | None = None
 
 
-def _normalize_provider_connection_alias(data: object) -> object:
+def _normalize_connection_request_aliases(data: object) -> object:
     if not isinstance(data, dict):
         return data
     normalized = dict(data)
@@ -185,7 +185,7 @@ def _normalize_provider_connection_alias(data: object) -> object:
 
 
 def _normalize_share_url_aliases(data: object) -> object:
-    normalized = _normalize_provider_connection_alias(data)
+    normalized = _normalize_connection_request_aliases(data)
     if not isinstance(normalized, dict):
         return normalized
     return mirror_connection_path_override_aliases(normalized)

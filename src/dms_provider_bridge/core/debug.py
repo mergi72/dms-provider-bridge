@@ -58,7 +58,8 @@ def connection_debug_logger(connection_name: str, config: dict[str, Any]) -> log
 
 def provider_debug_logger(provider_name: str, config: dict[str, Any]) -> logging.Logger:
     """Backward-compatible alias for connection debug logging."""
-    return connection_debug_logger(provider_name, config)
+    connection_name = provider_name
+    return connection_debug_logger(connection_name, config)
 
 
 def log_connection_operation_start(
@@ -81,7 +82,8 @@ def log_provider_operation_start(
     **fields: object,
 ) -> float:
     """Backward-compatible alias for connection operation logging."""
-    return log_connection_operation_start(logger, provider_name, operation, path, **fields)
+    connection_name = provider_name
+    return log_connection_operation_start(logger, connection_name, operation, path, **fields)
 
 
 def log_connection_operation_done(
@@ -105,7 +107,8 @@ def log_provider_operation_done(
     **fields: object,
 ) -> None:
     """Backward-compatible alias for connection operation logging."""
-    log_connection_operation_done(logger, provider_name, operation, started, path, **fields)
+    connection_name = provider_name
+    log_connection_operation_done(logger, connection_name, operation, started, path, **fields)
 
 
 def log_connection_operation_failed(
@@ -134,7 +137,8 @@ def log_provider_operation_failed(
     **fields: object,
 ) -> None:
     """Backward-compatible alias for connection operation logging."""
-    log_connection_operation_failed(logger, provider_name, operation, started, path, error=error, **fields)
+    connection_name = provider_name
+    log_connection_operation_failed(logger, connection_name, operation, started, path, error=error, **fields)
 
 
 def debug_connection_operation(
@@ -162,14 +166,8 @@ def debug_operation(
     func: Callable[[], Any],
 ) -> Any:
     """Backward-compatible alias for connection operation debug wrapping."""
-    started = log_connection_operation_start(logger, provider_name, operation, path)
-    try:
-        result = func()
-    except Exception as exc:
-        log_connection_operation_failed(logger, provider_name, operation, started, path, error=exc)
-        raise
-    log_connection_operation_done(logger, provider_name, operation, started, path)
-    return result
+    connection_name = provider_name
+    return debug_connection_operation(logger, connection_name, operation, path, func)
 
 
 def _log_connection_operation(
