@@ -47,8 +47,8 @@ def copy_connection_item(
     if destination_connection and source_connection is None:
         raise ValueError("Source path connection is missing.")
 
-    provider = get_connection_runtime(effective_connection)
-    return provider.copy_item(source_path, destination_path)
+    connection_runtime = get_connection_runtime(effective_connection)
+    return connection_runtime.copy_item(source_path, destination_path)
 
 
 def copy_item(

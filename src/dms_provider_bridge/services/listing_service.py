@@ -35,8 +35,8 @@ def list_connection_items(path: str, connection_name: str | None = None) -> List
         except ValueError:
             pass
 
-    provider = get_connection_runtime(resolved_connection_name)
-    return provider.list_items(resolved_path)
+    connection_runtime = get_connection_runtime(resolved_connection_name)
+    return connection_runtime.list_items(resolved_path)
 
 
 def list_items(path: str, provider_name: str | None = None, *, connection_name: str | None = None) -> ListingResult:

@@ -47,8 +47,8 @@ def rename_connection_item(
     if destination_connection and source_connection is None:
         raise ValueError("Source path connection is missing.")
 
-    provider = get_connection_runtime(effective_connection)
-    return provider.rename_item(source_path, destination_path)
+    connection_runtime = get_connection_runtime(effective_connection)
+    return connection_runtime.rename_item(source_path, destination_path)
 
 
 def rename_item(
@@ -64,8 +64,8 @@ def rename_item(
 def delete_connection_item(target: str, connection_name: str | None = None) -> OperationResult:
     target_connection, target_path = split_optional_wfx_path(target)
     effective_connection = _effective_connection(connection_name, target_connection)
-    provider = get_connection_runtime(effective_connection)
-    return provider.delete_item(target_path)
+    connection_runtime = get_connection_runtime(effective_connection)
+    return connection_runtime.delete_item(target_path)
 
 
 def delete_item(target: str, provider_name: str | None = None, *, connection_name: str | None = None) -> OperationResult:

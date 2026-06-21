@@ -1,3 +1,9 @@
+## 0.8.5-beta - 2026-06-21
+
+- Continued runtime API naming cleanup by renaming internal bridge service variables from provider-era names to connection runtime names.
+- Updated legacy listing/edit/transfer service internals to use connection runtime terminology while keeping public compatibility aliases.
+- Release/version bump to `0.8.5-beta`.
+
 ## 0.8.4-beta - 2026-06-21
 
 - Renamed internal connection runtime cache variables away from provider-era naming.
