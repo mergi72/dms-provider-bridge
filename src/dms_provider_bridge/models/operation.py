@@ -2,14 +2,19 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class OperationResult(BaseModel):
     success: bool
     operation: str
-    provider: str
-    connection: str | None = None
+    provider: str = Field(
+        description="Legacy alias for connection. Kept for compatibility with WFX clients and older API consumers.",
+    )
+    connection: str | None = Field(
+        default=None,
+        description="Connection/mount name that handled the operation.",
+    )
     source: str | None = None
     destination: str | None = None
     message: str | None = None

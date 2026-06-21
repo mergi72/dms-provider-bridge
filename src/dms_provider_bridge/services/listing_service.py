@@ -8,6 +8,7 @@ from dms_provider_bridge.services.connection_runtime_service import get_connecti
 
 
 def list_connection_items(path: str, connection_name: str | None = None) -> ListingResult:
+    """List items through the connection-first runtime API."""
     resolved_path = path
     resolved_connection_name = normalize_connection_name(connection_name)
 
@@ -24,6 +25,11 @@ def list_connection_items(path: str, connection_name: str | None = None) -> List
 
 
 def list_items(path: str, provider_name: str | None = None, *, connection_name: str | None = None) -> ListingResult:
+    """Compatibility wrapper.
+
+    ``connection_name`` is the preferred argument. ``provider_name`` remains a
+    legacy alias for older API adapters and tests during the 0.9.x transition.
+    """
     return list_connection_items(
         path,
         resolve_connection_alias(provider_name, connection_name, connection_driver_name_fn=connection_driver_name),

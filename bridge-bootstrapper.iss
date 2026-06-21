@@ -1,7 +1,7 @@
 [Setup]
 AppId={{7E6B6817-B0C2-48B6-AF5D-B7F891E4B0AD}
 AppName=DMS Provider Bridge Setup
-AppVersion=0.9.3-beta
+AppVersion=0.9.4-beta
 AppPublisher=mergi72
 CreateAppDir=no
 DisableDirPage=yes
@@ -10,13 +10,13 @@ PrivilegesRequired=lowest
 Uninstallable=no
 DisableFinishedPage=yes
 OutputDir=artifacts\installer
-OutputBaseFilename=DmsProviderBridgeSetup-v0.9.3-beta
+OutputBaseFilename=DmsProviderBridgeSetup-v0.9.4-beta
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 
 [Files]
-Source: "artifacts\installer\DmsProviderBridgeSetupCore-v0.9.3-beta.exe"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
+Source: "artifacts\installer\DmsProviderBridgeSetupCore-v0.9.4-beta.exe"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
 
 [Code]
 function Quote(Value: String): String;
@@ -31,7 +31,7 @@ var
   Params: String;
 begin
   if CurStep = ssPostInstall then begin
-    CoreSetupPath := ExpandConstant('{tmp}\DmsProviderBridgeSetupCore-v0.9.3-beta.exe');
+    CoreSetupPath := ExpandConstant('{tmp}\DmsProviderBridgeSetupCore-v0.9.4-beta.exe');
     Params := '/SUPPRESSMSGBOXES /NORESTART /USERAPPDATA=' + Quote(ExpandConstant('{userappdata}'));
 
     WizardForm.StatusLabel.Caption := 'Starting elevated DMS Provider Bridge setup...';

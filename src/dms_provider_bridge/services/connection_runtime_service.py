@@ -25,6 +25,10 @@ _CONNECTION_RUNTIME_CACHE: dict[str, TcVfsContract] = {}
 
 # Backward-compatible fallback for older provider-style config without explicit connections.
 list_legacy_driver_config_names = list_driver_config_names
+
+# Legacy provider-era export. New code should call list_driver_config_names()
+# or list_connection_config_names(), depending on whether it needs driver
+# templates or WFX-visible connections.
 list_provider_config_names = list_driver_config_names
 
 

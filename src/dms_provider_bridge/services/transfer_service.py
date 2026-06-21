@@ -11,6 +11,7 @@ def copy_connection_item(
     destination: str,
     connection_name: str | None = None,
 ) -> OperationResult:
+    """Copy an item through the connection-first runtime API."""
     source_connection, source_path = split_optional_wfx_path(source)
     destination_connection, destination_path = split_optional_wfx_path(destination)
     effective_connection = resolve_path_connection(connection_name, source_connection)
@@ -32,5 +33,10 @@ def copy_item(
     *,
     connection_name: str | None = None,
 ) -> OperationResult:
+    """Compatibility wrapper for older provider-named callers.
+
+    ``connection_name`` is preferred. ``provider_name`` remains a legacy alias
+    during the 0.9.x transition.
+    """
     return copy_connection_item(source, destination, resolve_connection_alias(provider_name, connection_name))
 

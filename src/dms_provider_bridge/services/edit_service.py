@@ -11,6 +11,7 @@ def rename_connection_item(
     destination: str,
     connection_name: str | None = None,
 ) -> OperationResult:
+    """Rename an item through the connection-first runtime API."""
     source_connection, source_path = split_optional_wfx_path(source)
     destination_connection, destination_path = split_optional_wfx_path(destination)
     effective_connection = resolve_path_connection(connection_name, source_connection)
@@ -32,10 +33,16 @@ def rename_item(
     *,
     connection_name: str | None = None,
 ) -> OperationResult:
+    """Compatibility wrapper for older provider-named callers.
+
+    ``connection_name`` is preferred. ``provider_name`` remains a legacy alias
+    during the 0.9.x transition.
+    """
     return rename_connection_item(source, destination, resolve_connection_alias(provider_name, connection_name))
 
 
 def delete_connection_item(target: str, connection_name: str | None = None) -> OperationResult:
+    """Delete an item through the connection-first runtime API."""
     target_connection, target_path = split_optional_wfx_path(target)
     effective_connection = resolve_path_connection(connection_name, target_connection)
     connection_runtime = get_connection_runtime(effective_connection)
@@ -43,5 +50,6 @@ def delete_connection_item(target: str, connection_name: str | None = None) -> O
 
 
 def delete_item(target: str, provider_name: str | None = None, *, connection_name: str | None = None) -> OperationResult:
+    """Compatibility wrapper for older provider-named callers."""
     return delete_connection_item(target, resolve_connection_alias(provider_name, connection_name))
 
