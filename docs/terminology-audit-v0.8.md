@@ -192,6 +192,17 @@ Implementation status:
 - Legacy provider service wrapper is covered by regression tests.
 - Public `provider_name`, `provider`, and `provider_path_override` aliases are
   intentionally still accepted.
+- Debug/log helpers now use `connection_debug_logger()` and
+  `log_connection_operation_*()` as the primary API. Legacy
+  `provider_debug_logger()` and `log_provider_operation_*()` remain as
+  compatibility aliases and write connection operation events.
+- `models.connection.ConnectionConfig` is the primary lightweight connection
+  config model. `models.provider.ProviderConfig` remains as a compatibility
+  alias.
+- Legacy request alias resolution now lives in
+  `services.connection_aliases`. Listing can still accept a legacy
+  `provider` value as a driver alias for a concrete connection, while edit and
+  transfer use strict connection matching.
 
 ### 0.8.3-beta: move implementation modules
 

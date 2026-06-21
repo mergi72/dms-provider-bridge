@@ -8,10 +8,10 @@ from urllib.error import HTTPError
 from dms_provider_bridge.clients.alfresco_client import AlfrescoClient
 from dms_provider_bridge.core.config_loader import load_driver_config
 from dms_provider_bridge.core.debug import (
-    log_provider_operation_done,
-    log_provider_operation_failed,
-    log_provider_operation_start,
-    provider_debug_logger,
+    connection_debug_logger,
+    log_connection_operation_done,
+    log_connection_operation_failed,
+    log_connection_operation_start,
 )
 from dms_provider_bridge.core.errors import AuthenticationError, ProviderOperationError, VersionRequiredError
 from dms_provider_bridge.models.bridge import BridgeAuthContext
@@ -31,7 +31,7 @@ class AlfrescoProvider(TcVfsContract):
         self.name = name or self.name
         self.config = config or load_driver_config("alfresco")
         self.client = AlfrescoClient.from_config(self.config)
-        self.debug_logger = provider_debug_logger(self.name, self.config)
+        self.debug_logger = connection_debug_logger(self.name, self.config)
 
     def _runtime_credentials(self, auth: BridgeAuthContext | None) -> tuple[str | None, str | None, str | None]:
         credentials = resolve_effective_auth(
@@ -84,32 +84,32 @@ class AlfrescoProvider(TcVfsContract):
             return None
 
     def _run_with_ticket_retry(self, auth: BridgeAuthContext | None, operation: str, fn: Callable[[str], object]):
-        started = log_provider_operation_start(self.debug_logger, self.name, operation)
+        started = log_connection_operation_start(self.debug_logger, self.name, operation)
         ticket = self._ticket(auth)
         try:
             result = fn(ticket)
-            log_provider_operation_done(self.debug_logger, self.name, operation, started)
+            log_connection_operation_done(self.debug_logger, self.name, operation, started)
             return result
         except HTTPError as exc:
             if exc.code not in {401, 403}:
-                log_provider_operation_failed(self.debug_logger, self.name, operation, started, error=f"HTTP {exc.code}")
+                log_connection_operation_failed(self.debug_logger, self.name, operation, started, error=f"HTTP {exc.code}")
                 raise
             refreshed = self._refresh_ticket(auth)
             if not refreshed:
-                log_provider_operation_failed(self.debug_logger, self.name, operation, started, error=f"HTTP {exc.code}")
+                log_connection_operation_failed(self.debug_logger, self.name, operation, started, error=f"HTTP {exc.code}")
                 raise AuthenticationError(f"Alfresco access denied for {operation}: HTTP {exc.code}.") from exc
             try:
                 result = fn(refreshed)
-                log_provider_operation_done(self.debug_logger, self.name, operation, started, retry=True)
+                log_connection_operation_done(self.debug_logger, self.name, operation, started, retry=True)
                 return result
             except HTTPError as retry_exc:
                 if retry_exc.code in {401, 403}:
-                    log_provider_operation_failed(self.debug_logger, self.name, operation, started, error=f"HTTP {retry_exc.code}", retry=True)
+                    log_connection_operation_failed(self.debug_logger, self.name, operation, started, error=f"HTTP {retry_exc.code}", retry=True)
                     raise AuthenticationError(f"Alfresco access denied for {operation}: HTTP {retry_exc.code}.") from retry_exc
-                log_provider_operation_failed(self.debug_logger, self.name, operation, started, error=f"HTTP {retry_exc.code}", retry=True)
+                log_connection_operation_failed(self.debug_logger, self.name, operation, started, error=f"HTTP {retry_exc.code}", retry=True)
                 raise
         except Exception as exc:
-            log_provider_operation_failed(self.debug_logger, self.name, operation, started, error=exc)
+            log_connection_operation_failed(self.debug_logger, self.name, operation, started, error=exc)
             raise
 
     def _live_node(self, path: str, auth: BridgeAuthContext | None, ticket: str | None = None) -> dict:

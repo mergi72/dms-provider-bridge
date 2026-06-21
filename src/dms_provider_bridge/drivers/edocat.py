@@ -7,10 +7,10 @@ from urllib.parse import quote
 
 from dms_provider_bridge.clients.alfresco_client import AlfrescoClient
 from dms_provider_bridge.core.debug import (
-    log_provider_operation_done,
-    log_provider_operation_failed,
-    log_provider_operation_start,
-    provider_debug_logger,
+    connection_debug_logger,
+    log_connection_operation_done,
+    log_connection_operation_failed,
+    log_connection_operation_start,
 )
 from dms_provider_bridge.core.errors import AuthenticationError, ProviderOperationError
 from dms_provider_bridge.clients.edocat_client import EdocatClient
@@ -33,7 +33,7 @@ class EdocatProvider(TcVfsContract):
         self.name = name or self.name
         self.config = config or load_driver_config("edocat")
         self.client = EdocatClient.from_config(self.config)
-        self.debug_logger = provider_debug_logger(self.name, self.config)
+        self.debug_logger = connection_debug_logger(self.name, self.config)
         self._alfresco_version_client: AlfrescoClient | None = None
         self._alfresco_version_cache: dict[str, dict[str, str | None]] = {}
 
@@ -177,7 +177,7 @@ class EdocatProvider(TcVfsContract):
     def _query_nodes(self, path: str, auth: BridgeAuthContext | None, include_content: bool = False) -> list[dict]:
         query_path = self._resolve_path(path).lstrip("/")
         username, password = self._runtime_credentials(auth)
-        started = log_provider_operation_start(
+        started = log_connection_operation_start(
             self.debug_logger,
             self.name,
             "query_nodes",
@@ -187,7 +187,7 @@ class EdocatProvider(TcVfsContract):
         try:
             response = self.client.query_nodes(query_path, username=username, password=password, include_content=include_content)
         except HTTPError as exc:
-            log_provider_operation_failed(
+            log_connection_operation_failed(
                 self.debug_logger,
                 self.name,
                 "query_nodes",
@@ -200,7 +200,7 @@ class EdocatProvider(TcVfsContract):
                 raise AuthenticationError(f"eDoCat access denied for {path}: HTTP {exc.code}.", status_code=exc.code) from exc
             raise ProviderOperationError(f"eDoCat query failed for {path}: HTTP {exc.code}.", status_code=exc.code) from exc
         except ProviderOperationError as exc:
-            log_provider_operation_failed(
+            log_connection_operation_failed(
                 self.debug_logger,
                 self.name,
                 "query_nodes",
@@ -211,7 +211,7 @@ class EdocatProvider(TcVfsContract):
             )
             raise
         except Exception as exc:
-            log_provider_operation_failed(
+            log_connection_operation_failed(
                 self.debug_logger,
                 self.name,
                 "query_nodes",
@@ -224,7 +224,7 @@ class EdocatProvider(TcVfsContract):
 
         nodes = response.get("nodes", [])
         if not isinstance(nodes, list):
-            log_provider_operation_failed(
+            log_connection_operation_failed(
                 self.debug_logger,
                 self.name,
                 "query_nodes",
@@ -235,7 +235,7 @@ class EdocatProvider(TcVfsContract):
             )
             raise ProviderOperationError("eDoCat query response has invalid 'nodes' payload.")
         result_nodes = [node for node in nodes if isinstance(node, dict)]
-        log_provider_operation_done(
+        log_connection_operation_done(
             self.debug_logger,
             self.name,
             "query_nodes",
@@ -249,7 +249,7 @@ class EdocatProvider(TcVfsContract):
 
     def _query_node_by_uuid(self, uuid: str, auth: BridgeAuthContext | None, include_content: bool = False) -> dict | None:
         username, password = self._runtime_credentials(auth)
-        started = log_provider_operation_start(
+        started = log_connection_operation_start(
             self.debug_logger,
             self.name,
             "query_node_by_uuid",
@@ -259,7 +259,7 @@ class EdocatProvider(TcVfsContract):
         try:
             response = self.client.query_nodes_by_uuids([uuid], username=username, password=password, include_content=include_content)
         except HTTPError as exc:
-            log_provider_operation_failed(
+            log_connection_operation_failed(
                 self.debug_logger,
                 self.name,
                 "query_node_by_uuid",
@@ -272,7 +272,7 @@ class EdocatProvider(TcVfsContract):
                 raise AuthenticationError(f"eDoCat access denied for uuid {uuid}: HTTP {exc.code}.", status_code=exc.code) from exc
             raise ProviderOperationError(f"eDoCat query failed for uuid {uuid}: HTTP {exc.code}.", status_code=exc.code) from exc
         except Exception as exc:
-            log_provider_operation_failed(
+            log_connection_operation_failed(
                 self.debug_logger,
                 self.name,
                 "query_node_by_uuid",
@@ -285,7 +285,7 @@ class EdocatProvider(TcVfsContract):
 
         nodes = response.get("nodes", [])
         if not isinstance(nodes, list):
-            log_provider_operation_failed(
+            log_connection_operation_failed(
                 self.debug_logger,
                 self.name,
                 "query_node_by_uuid",
@@ -296,7 +296,7 @@ class EdocatProvider(TcVfsContract):
             )
             raise ProviderOperationError("eDoCat query-by-uuid response has invalid 'nodes' payload.")
         result_nodes = [node for node in nodes if isinstance(node, dict)]
-        log_provider_operation_done(
+        log_connection_operation_done(
             self.debug_logger,
             self.name,
             "query_node_by_uuid",

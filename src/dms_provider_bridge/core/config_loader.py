@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from dms_provider_bridge.core.debug import debug_enabled, provider_debug_logger
+from dms_provider_bridge.core.debug import connection_debug_logger, debug_enabled
 from dms_provider_bridge.core.logging import get_logger
 from dms_provider_bridge.core.paths import MACHINE_CONFIG_DIR, USER_CONFIG_DIR
 
@@ -120,7 +120,7 @@ def _log_bridge_config(config: dict[str, Any], machine_path: Path, user_path: Pa
         rendered = json.dumps(sanitized_config, ensure_ascii=False, indent=2, sort_keys=True)
     except TypeError:
         rendered = repr(sanitized_config)
-    debug_logger = provider_debug_logger("bridge", config)
+    debug_logger = connection_debug_logger("bridge", config)
     debug_logger.debug(
         "bridge_config_loaded machine_path=%s user_path=%s config=%s",
         machine_path,
@@ -143,7 +143,7 @@ def _log_driver_config(
         rendered = json.dumps(sanitized_config, ensure_ascii=False, indent=2, sort_keys=True)
     except TypeError:
         rendered = repr(sanitized_config)
-    debug_logger = provider_debug_logger(driver_name, config)
+    debug_logger = connection_debug_logger(driver_name, config)
     debug_logger.debug(
         "driver_config_loaded driver=%s machine_path=%s user_path=%s config=%s",
         driver_name,

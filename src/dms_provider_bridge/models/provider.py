@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel
+from dms_provider_bridge.models.connection import ConnectionConfig
 
 
-class ProviderConfig(BaseModel):
-    name: str
-    enabled: bool = True
-    endpoint: str | None = None
+ProviderConfig = ConnectionConfig

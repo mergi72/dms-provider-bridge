@@ -25,9 +25,9 @@ def test_debug_enabled_accepts_nested_enable_and_legacy_boolean() -> None:
     assert debug_module.debug_enabled({}) is False
 
 
-def test_provider_debug_logger_writes_provider_specific_file(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_connection_debug_logger_writes_connection_specific_file(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(debug_module, "_DEBUG_FILE_LOGGERS", set())
-    logger = debug_module.provider_debug_logger(
+    logger = debug_module.connection_debug_logger(
         "sharepoint",
         {
             "debug": {
@@ -38,18 +38,18 @@ def test_provider_debug_logger_writes_provider_specific_file(tmp_path, monkeypat
     )
 
     try:
-        logger.debug("sharepoint provider boot")
+        logger.debug("sharepoint connection boot")
 
         log_path = tmp_path / "sharepoint-debug.log"
         assert log_path.exists()
-        assert "sharepoint provider boot" in log_path.read_text(encoding="utf-8")
+        assert "sharepoint connection boot" in log_path.read_text(encoding="utf-8")
     finally:
         _close_logger_handlers(logger)
 
 
-def test_provider_debug_logger_without_enable_does_not_create_file(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_connection_debug_logger_without_enable_does_not_create_file(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(debug_module, "_DEBUG_FILE_LOGGERS", set())
-    logger = debug_module.provider_debug_logger(
+    logger = debug_module.connection_debug_logger(
         "sharepoint_disabled",
         {
             "debug": {
@@ -59,30 +59,12 @@ def test_provider_debug_logger_without_enable_does_not_create_file(tmp_path, mon
         },
     )
 
-    logger.debug("ignored provider debug")
+    logger.debug("ignored connection debug")
 
     assert not (tmp_path / "sharepoint_disabled-debug.log").exists()
 
 
-def test_provider_operation_helpers_log_start_done_and_failed(caplog: pytest.LogCaptureFixture) -> None:
-    logger = logging.getLogger("dms_provider_bridge.providers.test")
-    logger.setLevel(logging.DEBUG)
-
-    with caplog.at_level(logging.DEBUG, logger=logger.name):
-        started = debug_module.log_provider_operation_start(logger, "test", "list", "/A")
-        debug_module.log_provider_operation_done(logger, "test", "list", started, "/A", items=2)
-        started = time.perf_counter()
-        debug_module.log_provider_operation_failed(logger, "test", "download", started, "/B", error="boom")
-
-    logged = "\n".join(record.getMessage() for record in caplog.records)
-    assert "provider_operation_start provider=test operation=list path=/A" in logged
-    assert "provider_operation_done provider=test operation=list path=/A status=ok" in logged
-    assert "items=2" in logged
-    assert "provider_operation_failed provider=test operation=download path=/B status=failed" in logged
-    assert "error=boom" in logged
-
-
-def test_connection_operation_helpers_log_connection_and_provider_alias(caplog: pytest.LogCaptureFixture) -> None:
+def test_connection_operation_helpers_log_start_done_and_failed(caplog: pytest.LogCaptureFixture) -> None:
     logger = logging.getLogger("dms_provider_bridge.connections.test")
     logger.setLevel(logging.DEBUG)
 
@@ -91,6 +73,26 @@ def test_connection_operation_helpers_log_connection_and_provider_alias(caplog: 
         debug_module.log_connection_operation_done(logger, "test", "list", started, "/A", items=2)
         started = time.perf_counter()
         debug_module.log_connection_operation_failed(logger, "test", "download", started, "/B", error="boom")
+
+    logged = "\n".join(record.getMessage() for record in caplog.records)
+    assert "connection_operation_start connection=test provider=test operation=list path=/A" in logged
+    assert "connection_operation_done connection=test provider=test operation=list path=/A status=ok" in logged
+    assert "items=2" in logged
+    assert "connection_operation_failed connection=test provider=test operation=download path=/B status=failed" in logged
+    assert "error=boom" in logged
+
+
+def test_provider_debug_aliases_use_connection_logging(caplog: pytest.LogCaptureFixture) -> None:
+    logger = logging.getLogger("dms_provider_bridge.connections.test")
+    logger.setLevel(logging.DEBUG)
+
+    assert debug_module.provider_debug_logger is not debug_module.connection_debug_logger
+
+    with caplog.at_level(logging.DEBUG, logger=logger.name):
+        started = debug_module.log_provider_operation_start(logger, "test", "list", "/A")
+        debug_module.log_provider_operation_done(logger, "test", "list", started, "/A", items=2)
+        started = time.perf_counter()
+        debug_module.log_provider_operation_failed(logger, "test", "download", started, "/B", error="boom")
 
     logged = "\n".join(record.getMessage() for record in caplog.records)
     assert "connection_operation_start connection=test provider=test operation=list path=/A" in logged

@@ -1,3 +1,11 @@
+## 0.8.8-beta - 2026-06-21
+
+- Switched concrete drivers and config logging to the connection-first debug API.
+- Kept provider-named debug helpers as compatibility aliases that write connection operation events.
+- Added `ConnectionConfig` as the primary lightweight connection model and kept `ProviderConfig` as an alias.
+- Extracted legacy `provider`/`provider_name` request alias resolution into a shared connection alias helper.
+- Release/version bump to `0.8.8-beta`.
+
 ## 0.8.7-beta - 2026-06-21
 
 - Renamed config loader internals from provider-era helpers to keyed section, driver config path and driver config logging helpers.

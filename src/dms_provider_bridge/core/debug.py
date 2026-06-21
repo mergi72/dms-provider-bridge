@@ -80,9 +80,8 @@ def log_provider_operation_start(
     path: str | None = None,
     **fields: object,
 ) -> float:
-    started = time.perf_counter()
-    _log_connection_operation(logger, "provider_operation_start", provider_name, operation, path, None, None, fields)
-    return started
+    """Backward-compatible alias for connection operation logging."""
+    return log_connection_operation_start(logger, provider_name, operation, path, **fields)
 
 
 def log_connection_operation_done(
@@ -105,8 +104,8 @@ def log_provider_operation_done(
     path: str | None = None,
     **fields: object,
 ) -> None:
-    elapsed_ms = int((time.perf_counter() - started) * 1000)
-    _log_connection_operation(logger, "provider_operation_done", provider_name, operation, path, "ok", elapsed_ms, fields)
+    """Backward-compatible alias for connection operation logging."""
+    log_connection_operation_done(logger, provider_name, operation, started, path, **fields)
 
 
 def log_connection_operation_failed(
@@ -134,11 +133,8 @@ def log_provider_operation_failed(
     error: BaseException | str | None = None,
     **fields: object,
 ) -> None:
-    elapsed_ms = int((time.perf_counter() - started) * 1000)
-    if error is not None:
-        fields = dict(fields)
-        fields["error"] = str(error)
-    _log_connection_operation(logger, "provider_operation_failed", provider_name, operation, path, "failed", elapsed_ms, fields)
+    """Backward-compatible alias for connection operation logging."""
+    log_connection_operation_failed(logger, provider_name, operation, started, path, error=error, **fields)
 
 
 def debug_connection_operation(
@@ -165,13 +161,14 @@ def debug_operation(
     path: str | None,
     func: Callable[[], Any],
 ) -> Any:
-    started = log_provider_operation_start(logger, provider_name, operation, path)
+    """Backward-compatible alias for connection operation debug wrapping."""
+    started = log_connection_operation_start(logger, provider_name, operation, path)
     try:
         result = func()
     except Exception as exc:
-        log_provider_operation_failed(logger, provider_name, operation, started, path, error=exc)
+        log_connection_operation_failed(logger, provider_name, operation, started, path, error=exc)
         raise
-    log_provider_operation_done(logger, provider_name, operation, started, path)
+    log_connection_operation_done(logger, provider_name, operation, started, path)
     return result
 
 
@@ -189,19 +186,13 @@ def _log_connection_operation(
         return
 
     parts: list[str] = [event]
-    include_connection_alias_late = event.startswith("provider_operation_")
-    if include_connection_alias_late:
-        parts.extend([f"provider={connection_name}", f"operation={operation}"])
-    else:
-        parts.extend([f"connection={connection_name}", f"provider={connection_name}", f"operation={operation}"])
+    parts.extend([f"connection={connection_name}", f"provider={connection_name}", f"operation={operation}"])
     if path is not None:
         parts.append(f"path={path}")
     if status is not None:
         parts.append(f"status={status}")
     if elapsed_ms is not None:
         parts.append(f"elapsed_ms={elapsed_ms}")
-    if include_connection_alias_late:
-        parts.append(f"connection={connection_name}")
     for key, value in fields.items():
         if value is not None:
             parts.append(f"{key}={value}")
