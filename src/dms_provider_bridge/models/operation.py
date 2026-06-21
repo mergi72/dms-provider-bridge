@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from dms_provider_bridge.core.connection_aliases import mirror_connection_result_aliases
 
 
 class OperationResult(BaseModel):
@@ -22,6 +24,13 @@ class OperationResult(BaseModel):
     mime_type: str | None = None
     size: int | None = None
     metadata: dict[str, Any] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_connection_alias(cls, data: object) -> object:
+        if isinstance(data, dict):
+            return mirror_connection_result_aliases(data)
+        return data
 
     def model_post_init(self, __context: object) -> None:
         if self.connection is None:

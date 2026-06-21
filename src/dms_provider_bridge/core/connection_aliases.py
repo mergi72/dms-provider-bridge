@@ -59,6 +59,17 @@ def mirror_connection_path_override_aliases(payload: dict) -> dict:
     return normalized
 
 
+def mirror_connection_result_aliases(payload: dict) -> dict:
+    normalized = dict(payload)
+    provider = normalized.get("provider")
+    connection = normalized.get("connection")
+    if provider and not connection:
+        normalized["connection"] = provider
+    if connection and not provider:
+        normalized["provider"] = connection
+    return normalized
+
+
 def _normalize_path_override(value: object) -> str | None:
     if value is None:
         return None

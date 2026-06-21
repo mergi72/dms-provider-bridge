@@ -158,6 +158,7 @@ class EdocatProvider(TcVfsContract):
             success=True,
             operation="download",
             provider=self.name,
+            connection=self.name,
             source=resolved_path,
             message=f"endpoint={request_url};content=zip;mode=live",
             content_base64=base64.b64encode(raw_zip).decode("ascii"),
@@ -521,7 +522,7 @@ class EdocatProvider(TcVfsContract):
         resolved_path = self._resolve_path(path)
         nodes = self._direct_child_nodes(resolved_path, auth, include_content=False)
         items = [self._item_from_node(node, resolved_path, auth) for node in nodes if isinstance(node, dict)]
-        return ListingResult(provider=self.name, path=self._public_path(resolved_path), total=len(items), items=items)
+        return ListingResult(provider=self.name, connection=self.name, path=self._public_path(resolved_path), total=len(items), items=items)
 
     def bridge_endpoint_for(self, operation: str) -> str | None:
         mapping = {
@@ -591,6 +592,7 @@ class EdocatProvider(TcVfsContract):
             success=True,
             operation="copy",
             provider=self.name,
+            connection=self.name,
             source=self._public_path(source_path),
             destination=self._public_path(destination_path),
             message=f"endpoint={self.bridge_endpoint_for('copy')};uuid={target_uuid};mode=live",
@@ -642,6 +644,7 @@ class EdocatProvider(TcVfsContract):
             success=True,
             operation="rename",
             provider=self.name,
+            connection=self.name,
             source=self._public_path(source_path),
             destination=self._public_path(destination_path),
             message=f"endpoint={self.bridge_endpoint_for('rename')};uuid={target_uuid};mode=live",
@@ -680,6 +683,7 @@ class EdocatProvider(TcVfsContract):
             success=True,
             operation="delete",
             provider=self.name,
+            connection=self.name,
             source=self._public_path(target_path),
             message=f"endpoint={self.bridge_endpoint_for('delete')};uuid={uuid};mode=live",
         )
@@ -710,6 +714,7 @@ class EdocatProvider(TcVfsContract):
             success=True,
             operation="mkdir",
             provider=self.name,
+            connection=self.name,
             source=self._public_path(resolved_path),
             message=f"endpoint={self.bridge_endpoint_for('mkdir')};uuid={target_uuid};mode=live",
         )
@@ -781,6 +786,7 @@ class EdocatProvider(TcVfsContract):
             success=True,
             operation="download",
             provider=self.name,
+            connection=self.name,
             source=self._public_path(resolved_path),
             message=f"endpoint={self.client.endpoint_url('query')};content=live",
             content_base64=content,
@@ -853,6 +859,7 @@ class EdocatProvider(TcVfsContract):
                 success=True,
                 operation="upload",
                 provider=self.name,
+                connection=self.name,
                 source=file_name,
                 destination=self._public_path(target),
                 message=f"endpoint={self._alfresco_version_client.node_content_url(target_uuid)};uuid={target_uuid};mode=version",
@@ -878,6 +885,7 @@ class EdocatProvider(TcVfsContract):
             success=True,
             operation="upload",
             provider=self.name,
+            connection=self.name,
             source=file_name,
             destination=self._public_path(target),
             message=f"endpoint={self.client.endpoint_url('node')};uuid={target_uuid};mode=live",

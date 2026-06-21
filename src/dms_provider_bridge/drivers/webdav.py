@@ -232,7 +232,7 @@ class WebdavProvider(TcVfsContract):
         items = [self._response_to_item(response) for response in self._propfind(normalized, auth, "1", directory=True)]
         children = [item for item in items if item.path.rstrip("/") != current.rstrip("/")]
         children.sort(key=lambda item: (not item.is_folder, item.name.casefold()))
-        return ListingResult(provider=self.name, path=normalized, total=len(children), items=children)
+        return ListingResult(provider=self.name, connection=self.name, path=normalized, total=len(children), items=children)
 
     def stat_item(self, path: str, auth: BridgeAuthContext | None = None) -> DmsItem | None:
         try:
@@ -255,7 +255,7 @@ class WebdavProvider(TcVfsContract):
                 "Overwrite": "F",
             },
         )
-        return OperationResult(success=True, operation="copy", provider=self.name, source=source, destination=destination)
+        return OperationResult(success=True, operation="copy", provider=self.name, connection=self.name, source=source, destination=destination)
 
     def rename_item(self, source: str, destination: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         source_url = self._path_url(source)
@@ -269,15 +269,15 @@ class WebdavProvider(TcVfsContract):
                 "Overwrite": "F",
             },
         )
-        return OperationResult(success=True, operation="move", provider=self.name, source=source, destination=destination)
+        return OperationResult(success=True, operation="move", provider=self.name, connection=self.name, source=source, destination=destination)
 
     def delete_item(self, target: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         self._request_no_content("DELETE", self._path_url(target), auth)
-        return OperationResult(success=True, operation="delete", provider=self.name, source=target)
+        return OperationResult(success=True, operation="delete", provider=self.name, connection=self.name, source=target)
 
     def make_dir(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         self._request_no_content("MKCOL", self._path_url(path, directory=True), auth)
-        return OperationResult(success=True, operation="mkdir", provider=self.name, destination=path)
+        return OperationResult(success=True, operation="mkdir", provider=self.name, connection=self.name, destination=path)
 
     def download_item(self, path: str, auth: BridgeAuthContext | None = None) -> OperationResult:
         content, _status, headers = self._request_bytes("GET", self._path_url(path), auth)
@@ -286,6 +286,7 @@ class WebdavProvider(TcVfsContract):
             success=True,
             operation="download",
             provider=self.name,
+            connection=self.name,
             source=path,
             content_base64=base64.b64encode(content).decode("ascii"),
             mime_type=content_type,
@@ -328,6 +329,7 @@ class WebdavProvider(TcVfsContract):
             success=True,
             operation="upload",
             provider=self.name,
+            connection=self.name,
             destination=target_path,
             size=len(payload),
             mime_type=content_type,

@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 
 from dms_provider_bridge.core.connection_aliases import mirror_connection_path_override_aliases
+from dms_provider_bridge.core.connection_aliases import mirror_connection_result_aliases
 
 
 class BridgeAuthContext(BaseModel):
@@ -189,6 +190,17 @@ class WfxResponse(BaseModel):
     message: str | None = None
     data: Any = None
     metadata: dict[str, Any] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_result_aliases(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+        normalized = dict(data)
+        payload = normalized.get("data")
+        if isinstance(payload, dict):
+            normalized["data"] = mirror_connection_result_aliases(payload)
+        return normalized
 
 
 def _normalize_connection_request_aliases(data: object) -> object:

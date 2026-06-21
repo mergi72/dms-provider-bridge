@@ -220,7 +220,7 @@ class AlfrescoProvider(TcVfsContract):
                     len(entries) if isinstance(entries, list) else "invalid",
                     len(items),
                 )
-                return ListingResult(provider=self.name, path=resolved["path"], total=len(items), items=items)
+                return ListingResult(provider=self.name, connection=self.name, path=resolved["path"], total=len(items), items=items)
 
             return self._run_with_ticket_retry(auth, f"list {self.client.normalize_path(path)}", _run)
         except AuthenticationError:
@@ -288,6 +288,7 @@ class AlfrescoProvider(TcVfsContract):
             success=True,
             operation="copy",
             provider=self.name,
+            connection=self.name,
             source=source,
             destination=destination_path,
             message=f"endpoint={self.client.node_copy_url(resolved['node_id'])};mode=live",
@@ -317,6 +318,7 @@ class AlfrescoProvider(TcVfsContract):
             success=True,
             operation="rename",
             provider=self.name,
+            connection=self.name,
             source=source,
             destination=destination_path,
             message=f"endpoint={self.client.node_move_url(resolved['node_id'])};mode=live",
@@ -338,6 +340,7 @@ class AlfrescoProvider(TcVfsContract):
             success=True,
             operation="delete",
             provider=self.name,
+            connection=self.name,
             source=target,
             message=f"endpoint={self.client.node_delete_url(resolved['node_id'])};mode=live",
         )
@@ -364,6 +367,7 @@ class AlfrescoProvider(TcVfsContract):
                     success=True,
                     operation="mkdir",
                     provider=self.name,
+                    connection=self.name,
                     source=path,
                     message=f"endpoint={endpoint};mode=live;status=exists",
                 )
@@ -374,6 +378,7 @@ class AlfrescoProvider(TcVfsContract):
             success=True,
             operation="mkdir",
             provider=self.name,
+            connection=self.name,
             source=path,
             message=f"endpoint={endpoint};mode=live",
         )
@@ -404,6 +409,7 @@ class AlfrescoProvider(TcVfsContract):
             success=True,
             operation="download",
             provider=self.name,
+            connection=self.name,
             source=resolved["path"],
             message=f"endpoint={self.client.node_content_url(resolved['node_id'])};mode=live",
             content_base64=encoded,
@@ -434,6 +440,7 @@ class AlfrescoProvider(TcVfsContract):
             "success": True,
             "operation": "download",
             "provider": self.name,
+            "connection": self.name,
             "source": resolved["path"],
             "stream": stream,
             "size": content_length,
@@ -499,6 +506,7 @@ class AlfrescoProvider(TcVfsContract):
             success=True,
             operation="upload",
             provider=self.name,
+            connection=self.name,
             source=file_name,
             destination=target_destination,
             message=f"endpoint={endpoint};content={content_state};mode=live;action={metadata.get('action') if isinstance(metadata, dict) else 'upload'}",
