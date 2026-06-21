@@ -37,6 +37,7 @@ def test_legacy_provider_service_exports_connection_runtime() -> None:
     assert legacy_runtime_module.get_connection_runtime is connection_runtime_module.get_connection_runtime
     assert legacy_runtime_module.reload_connection_runtime_cache is connection_runtime_module.reload_connection_runtime_cache
     assert legacy_runtime_module.reload_provider_cache is connection_runtime_module.reload_provider_cache
+    assert connection_runtime_module.list_provider_config_names is connection_runtime_module.list_legacy_driver_config_names
 
 
 def test_list_registered_connections_contains_known() -> None:
@@ -69,7 +70,7 @@ def test_runtime_registry_snapshot_maps_wfx_connections(monkeypatch: pytest.Monk
 
 def test_list_registered_connections_uses_configured_machine_drivers_when_connections_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(connection_runtime_module, "list_connection_config_names", lambda: [])
-    monkeypatch.setattr(connection_runtime_module, "list_provider_config_names", lambda: ["alfresco", "unknown"])
+    monkeypatch.setattr(connection_runtime_module, "list_legacy_driver_config_names", lambda: ["alfresco", "unknown"])
 
     connections = connection_runtime_module.list_registered_connections()
 
@@ -87,7 +88,7 @@ def test_reload_connection_runtime_cache_clears_cached_instances(monkeypatch: py
     connection_runtime_module.reload_connection_runtime_cache()
     monkeypatch.setattr(connection_runtime_module, "_DRIVER_FACTORIES", {"dummy": _DummyProvider})
     monkeypatch.setattr(connection_runtime_module, "list_connection_config_names", lambda: [])
-    monkeypatch.setattr(connection_runtime_module, "list_provider_config_names", lambda: ["dummy"])
+    monkeypatch.setattr(connection_runtime_module, "list_legacy_driver_config_names", lambda: ["dummy"])
 
     first = connection_runtime_module.get_connection_runtime("dummy")
     second = connection_runtime_module.get_connection_runtime("dummy")

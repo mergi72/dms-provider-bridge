@@ -157,6 +157,12 @@ Implementation status:
   `reload_provider_cache()` as a compatibility alias.
 - `ConnectionNotFoundError` is the preferred runtime exception name.
   `ProviderNotFoundError` remains as a compatibility alias.
+- `core/config_loader.py` uses keyed section, driver config path and driver
+  config logging helpers internally. Provider-named helpers remain only as
+  compatibility aliases.
+- Auth code uses `AuthCredentials` as the primary credentials container.
+  `ProviderCredentials` remains as a compatibility alias for older tests and
+  imports.
 
 ### 0.8.2-beta: runtime API cleanup
 

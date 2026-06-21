@@ -1,3 +1,11 @@
+## 0.8.7-beta - 2026-06-21
+
+- Renamed config loader internals from provider-era helpers to keyed section, driver config path and driver config logging helpers.
+- Kept provider-named config loader helpers as compatibility aliases for older imports and tests.
+- Introduced `AuthCredentials` as the primary credentials container and kept `ProviderCredentials` as a compatibility alias.
+- Renamed Alfresco credential resolution config input to `effective_config` while keeping `provider_config` as a compatibility keyword.
+- Release/version bump to `0.8.7-beta`.
+
 ## 0.8.6-beta - 2026-06-21
 
 - Renamed the internal bridge contract terminology from Provider ABC to TC VFS Contract in UI, config templates and documentation.

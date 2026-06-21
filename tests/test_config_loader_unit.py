@@ -466,7 +466,7 @@ def test_load_provider_config_does_not_log_config_when_debug_is_disabled(
 
     assert config["password"] == "machine-pass"
     logged = "\n".join(record.getMessage() for record in caplog.records)
-    assert "provider_config_loaded" not in logged
+    assert "driver_config_loaded" not in logged
     assert "machine-pass" not in logged
 
 
@@ -490,7 +490,7 @@ def test_load_provider_config_ignores_bridge_debug_for_provider_dump(
 
     assert config["password"] == "machine-pass"
     logged = "\n".join(record.getMessage() for record in caplog.records)
-    assert "provider_config_loaded" not in logged
+    assert "driver_config_loaded" not in logged
     assert "machine-pass" not in logged
 
 
@@ -524,7 +524,7 @@ def test_load_provider_config_writes_provider_debug_file_without_bridge_debug(
     debug_log = debug_dir / "alfresco-debug.log"
     assert debug_log.exists()
     logged = debug_log.read_text(encoding="utf-8")
-    assert "provider_config_loaded provider=alfresco" in logged
+    assert "driver_config_loaded driver=alfresco" in logged
     assert "machine-pass" not in logged
     assert '"password": "***"' in logged
 

@@ -23,7 +23,8 @@ from dms_provider_bridge.drivers.tc_vfs_contract import TcVfsContract
 _DRIVER_FACTORIES: dict[str, Callable[[], TcVfsContract]] | None = None
 _CONNECTION_RUNTIME_CACHE: dict[str, TcVfsContract] = {}
 
-# Backward-compatible module attribute for tests and older integrations.
+# Backward-compatible fallback for older provider-style config without explicit connections.
+list_legacy_driver_config_names = list_driver_config_names
 list_provider_config_names = list_driver_config_names
 
 
@@ -143,7 +144,7 @@ def list_registered_connections() -> list[str]:
     ]
     if connections:
         return connections
-    configured = [name for name in list_provider_config_names() if name in factories]
+    configured = [name for name in list_legacy_driver_config_names() if name in factories]
     if configured:
         return configured
     return sorted(factories.keys())

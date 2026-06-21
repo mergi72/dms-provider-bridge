@@ -7,7 +7,7 @@ import pytest
 import dms_provider_bridge.core.credentials as credentials_module  # type: ignore[import-untyped]
 import dms_provider_bridge.services.auth_resolver as auth_resolver_module  # type: ignore[import-untyped]
 import dms_provider_bridge.services.auth_service as auth_service_module  # type: ignore[import-untyped]
-from dms_provider_bridge.core.credentials import ProviderCredentials  # type: ignore[import-untyped]
+from dms_provider_bridge.core.credentials import AuthCredentials  # type: ignore[import-untyped]
 from dms_provider_bridge.core.errors import AuthenticationError  # type: ignore[import-untyped]
 from dms_provider_bridge.models.bridge import BridgeAuthContext  # type: ignore[import-untyped]
 
@@ -15,11 +15,15 @@ from dms_provider_bridge.models.bridge import BridgeAuthContext  # type: ignore[
 pytestmark = pytest.mark.unit
 
 
+def test_provider_credentials_alias_keeps_legacy_imports() -> None:
+    assert credentials_module.ProviderCredentials is AuthCredentials
+
+
 def test_validate_bridge_auth_loads_windows_credential(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         auth_service_module,
         "load_windows_credential",
-        lambda credential_id: ProviderCredentials(base_url="", username="vault-user", password="vault-pass"),
+        lambda credential_id: AuthCredentials(base_url="", username="vault-user", password="vault-pass"),
     )
 
     auth = BridgeAuthContext(mode="credentials", credential_id="edocat-prod")
@@ -46,7 +50,7 @@ def test_windows_auth_payload_maps_target_to_credential_id() -> None:
 
 
 def test_validate_bridge_auth_prefers_inline_credentials_over_credential_id(monkeypatch: pytest.MonkeyPatch) -> None:
-    def _should_not_load(_credential_id: str) -> ProviderCredentials:
+    def _should_not_load(_credential_id: str) -> AuthCredentials:
         raise AssertionError("inline credentials must not trigger Windows Credential Manager lookup")
 
     monkeypatch.setattr(auth_service_module, "load_windows_credential", _should_not_load)
@@ -70,18 +74,18 @@ def test_validate_bridge_auth_requires_credentials_or_credential_id() -> None:
         auth_service_module.validate_bridge_auth(auth)
 
 
-def test_resolve_alfresco_credentials_uses_provider_windows_target(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_alfresco_credentials_uses_effective_windows_target(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         credentials_module,
         "load_windows_credential",
-        lambda credential_id: ProviderCredentials(base_url="", username="vault-user", password="vault-pass"),
+        lambda credential_id: AuthCredentials(base_url="", username="vault-user", password="vault-pass"),
     )
 
     auth = BridgeAuthContext(mode="winuser", win_user="DOMAIN\\tester")
     result = credentials_module.resolve_alfresco_credentials(
         auth,
         "https://example.test/alfresco",
-        provider_config={"credentials": {"mode": "windows", "target": "alfresco-prod"}},
+        effective_config={"credentials": {"mode": "windows", "target": "alfresco-prod"}},
     )
 
     assert result.username == "vault-user"
@@ -89,7 +93,7 @@ def test_resolve_alfresco_credentials_uses_provider_windows_target(monkeypatch: 
 
 
 def test_resolve_alfresco_credentials_falls_back_when_windows_target_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:
-    def _raise_missing(credential_id: str) -> ProviderCredentials:
+    def _raise_missing(credential_id: str) -> AuthCredentials:
         raise AuthenticationError(f"missing {credential_id}")
 
     monkeypatch.setattr(credentials_module, "load_windows_credential", _raise_missing)
@@ -110,10 +114,10 @@ def test_resolve_alfresco_credentials_falls_back_when_windows_target_is_missing(
 def test_resolve_alfresco_credentials_tries_user_specific_target_variants(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []
 
-    def _load(credential_id: str) -> ProviderCredentials:
+    def _load(credential_id: str) -> AuthCredentials:
         calls.append(credential_id)
         if credential_id == "tc-wfx/bridge/tester":
-            return ProviderCredentials(base_url="", username="vault-user", password="vault-pass")
+            return AuthCredentials(base_url="", username="vault-user", password="vault-pass")
         raise AuthenticationError(f"missing {credential_id}")
 
     monkeypatch.setattr(credentials_module, "load_windows_credential", _load)
@@ -136,7 +140,7 @@ def test_effective_auth_resolver_uses_connection_credential_id(monkeypatch: pyte
     monkeypatch.setattr(
         auth_resolver_module,
         "load_windows_credential",
-        lambda credential_id: ProviderCredentials(base_url="", username="vault-user", password=f"{credential_id}-pass"),
+        lambda credential_id: AuthCredentials(base_url="", username="vault-user", password=f"{credential_id}-pass"),
     )
 
     result = auth_resolver_module.resolve_effective_auth(
@@ -165,9 +169,9 @@ def test_effective_auth_resolver_caches_windows_credentials(monkeypatch: pytest.
     auth_resolver_module.clear_credential_cache()
     calls: list[str] = []
 
-    def _load(credential_id: str) -> ProviderCredentials:
+    def _load(credential_id: str) -> AuthCredentials:
         calls.append(credential_id)
-        return ProviderCredentials(base_url="", username="vault-user", password="vault-pass")
+        return AuthCredentials(base_url="", username="vault-user", password="vault-pass")
 
     monkeypatch.setattr(auth_resolver_module, "load_windows_credential", _load)
 
@@ -190,10 +194,10 @@ def test_effective_auth_resolver_supports_shared_target_base_user_variant(monkey
     auth_resolver_module.clear_credential_cache()
     calls: list[str] = []
 
-    def _load(credential_id: str) -> ProviderCredentials:
+    def _load(credential_id: str) -> AuthCredentials:
         calls.append(credential_id)
         if credential_id == "tc-wfx/company-dms/tester":
-            return ProviderCredentials(base_url="", username="tester", password="secret")
+            return AuthCredentials(base_url="", username="tester", password="secret")
         raise AuthenticationError(f"missing {credential_id}")
 
     monkeypatch.setattr(auth_resolver_module, "load_windows_credential", _load)
@@ -213,10 +217,10 @@ def test_effective_auth_resolver_ignores_empty_auth_template_over_legacy_credent
     auth_resolver_module.clear_credential_cache()
     calls: list[str] = []
 
-    def _load(credential_id: str) -> ProviderCredentials:
+    def _load(credential_id: str) -> AuthCredentials:
         calls.append(credential_id)
         if credential_id == "merhautr@cheminvest/eDoCat_Helper":
-            return ProviderCredentials(base_url="", username="edocat-user", password="edocat-pass")
+            return AuthCredentials(base_url="", username="edocat-user", password="edocat-pass")
         raise AuthenticationError(f"missing {credential_id}")
 
     monkeypatch.setattr(auth_resolver_module, "load_windows_credential", _load)

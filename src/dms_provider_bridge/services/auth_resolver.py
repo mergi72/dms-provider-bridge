@@ -5,13 +5,13 @@ from dataclasses import dataclass
 from threading import RLock
 from typing import Any
 
-from dms_provider_bridge.core.credentials import ProviderCredentials, load_windows_credential
+from dms_provider_bridge.core.credentials import AuthCredentials, load_windows_credential
 from dms_provider_bridge.core.errors import AuthenticationError
 from dms_provider_bridge.models.bridge import BridgeAuthContext
 
 
 _CREDENTIAL_MODES = {"credentials", "windows"}
-_CREDENTIAL_CACHE: dict[str, ProviderCredentials] = {}
+_CREDENTIAL_CACHE: dict[str, AuthCredentials] = {}
 _CREDENTIAL_CACHE_LOCK = RLock()
 
 
@@ -31,8 +31,8 @@ class EffectiveAuth:
     def has_secret(self) -> bool:
         return bool(self.username and (self.password or self.token)) or bool(self.token)
 
-    def as_credentials(self, base_url: str = "") -> ProviderCredentials:
-        return ProviderCredentials(
+    def as_credentials(self, base_url: str = "") -> AuthCredentials:
+        return AuthCredentials(
             base_url=base_url,
             username=self.username,
             password=self.password,
@@ -162,8 +162,8 @@ def _credential_target_candidates(base_target: str | None, auth: BridgeAuthConte
     return deduped
 
 
-def _copy_credentials(credentials: ProviderCredentials) -> ProviderCredentials:
-    return ProviderCredentials(
+def _copy_credentials(credentials: AuthCredentials) -> AuthCredentials:
+    return AuthCredentials(
         base_url=credentials.base_url,
         username=credentials.username,
         password=credentials.password,
@@ -176,7 +176,7 @@ def clear_credential_cache() -> None:
         _CREDENTIAL_CACHE.clear()
 
 
-def _load_cached_windows_credential(candidate: str) -> ProviderCredentials:
+def _load_cached_windows_credential(candidate: str) -> AuthCredentials:
     with _CREDENTIAL_CACHE_LOCK:
         cached = _CREDENTIAL_CACHE.get(candidate)
         if cached is not None:
@@ -190,7 +190,7 @@ def _load_cached_windows_credential(candidate: str) -> ProviderCredentials:
     return _copy_credentials(loaded)
 
 
-def _load_first_available_credential(candidates: list[str]) -> ProviderCredentials | None:
+def _load_first_available_credential(candidates: list[str]) -> AuthCredentials | None:
     last_error: AuthenticationError | None = None
     for candidate in candidates:
         try:

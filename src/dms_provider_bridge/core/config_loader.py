@@ -32,7 +32,7 @@ def _merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str, An
     return merged
 
 
-def _extract_provider_section(payload: dict[str, Any], provider_name: str) -> dict[str, Any]:
+def _extract_keyed_section(payload: dict[str, Any], section_name: str) -> dict[str, Any]:
     if not payload:
         return {}
 
@@ -45,12 +45,12 @@ def _extract_provider_section(payload: dict[str, Any], provider_name: str) -> di
         }
         return _merge_dicts(root_values, payload[key])
 
-    section = payload.get(provider_name)
+    section = payload.get(section_name)
     if isinstance(section, dict):
         root_values = {
             name: value
             for name, value in payload.items()
-            if name not in _CONFIG_METADATA_KEYS and name != provider_name
+            if name not in _CONFIG_METADATA_KEYS and name != section_name
         }
         return _merge_dicts(root_values, section)
 
@@ -59,6 +59,11 @@ def _extract_provider_section(payload: dict[str, Any], provider_name: str) -> di
         return direct_payload
 
     return {}
+
+
+def _extract_provider_section(payload: dict[str, Any], provider_name: str) -> dict[str, Any]:
+    """Backward-compatible alias for keyed driver/connection config sections."""
+    return _extract_keyed_section(payload, provider_name)
 
 
 def _strip_empty_overrides(value: Any) -> Any:
@@ -124,8 +129,8 @@ def _log_bridge_config(config: dict[str, Any], machine_path: Path, user_path: Pa
     )
 
 
-def _log_provider_config(
-    provider_name: str,
+def _log_driver_config(
+    driver_name: str,
     config: dict[str, Any],
     machine_path: Path,
     user_path: Path | None,
@@ -138,14 +143,24 @@ def _log_provider_config(
         rendered = json.dumps(sanitized_config, ensure_ascii=False, indent=2, sort_keys=True)
     except TypeError:
         rendered = repr(sanitized_config)
-    debug_logger = provider_debug_logger(provider_name, config)
+    debug_logger = provider_debug_logger(driver_name, config)
     debug_logger.debug(
-        "provider_config_loaded provider=%s machine_path=%s user_path=%s config=%s",
-        provider_name,
+        "driver_config_loaded driver=%s machine_path=%s user_path=%s config=%s",
+        driver_name,
         machine_path,
         user_path or "",
         rendered,
     )
+
+
+def _log_provider_config(
+    provider_name: str,
+    config: dict[str, Any],
+    machine_path: Path,
+    user_path: Path | None,
+) -> None:
+    """Backward-compatible alias for driver config logging."""
+    _log_driver_config(provider_name, config, machine_path, user_path)
 
 
 def _config_dirs() -> tuple[Path, Path | None]:
@@ -170,19 +185,24 @@ def _configured_registry_paths(machine_dir: Path) -> dict[str, Path]:
     }
 
 
-def _provider_config_paths(machine_dir: Path, user_dir: Path | None, provider_name: str) -> tuple[Path, Path | None]:
-    legacy_base_path = machine_dir / f"{provider_name}.json"
-    legacy_user_path = user_dir / f"{provider_name}.local.json" if user_dir is not None else None
+def _driver_config_paths(machine_dir: Path, user_dir: Path | None, driver_name: str) -> tuple[Path, Path | None]:
+    legacy_base_path = machine_dir / f"{driver_name}.json"
+    legacy_user_path = user_dir / f"{driver_name}.local.json" if user_dir is not None else None
     if legacy_base_path.exists():
         return legacy_base_path, legacy_user_path
 
     drivers_dir = _configured_registry_paths(machine_dir)["drivers"]
-    driver_base_path = drivers_dir / f"{provider_name}.json"
+    driver_base_path = drivers_dir / f"{driver_name}.json"
     driver_user_path = None
     if user_dir is not None:
-        structured_user_path = user_dir / "drivers" / f"{provider_name}.local.json"
+        structured_user_path = user_dir / "drivers" / f"{driver_name}.local.json"
         driver_user_path = structured_user_path if structured_user_path.exists() else legacy_user_path
     return driver_base_path, driver_user_path
+
+
+def _provider_config_paths(machine_dir: Path, user_dir: Path | None, provider_name: str) -> tuple[Path, Path | None]:
+    """Backward-compatible alias for driver config paths."""
+    return _driver_config_paths(machine_dir, user_dir, provider_name)
 
 
 def _connection_config_paths(machine_dir: Path, user_dir: Path | None, connection_name: str) -> tuple[Path, Path | None]:
@@ -257,28 +277,28 @@ def load_config() -> dict[str, Any]:
 def load_driver_config(driver_name: str) -> dict[str, Any]:
     machine_dir, user_dir = _config_dirs()
 
-    base_path, user_path = _provider_config_paths(machine_dir, user_dir, driver_name)
+    base_path, user_path = _driver_config_paths(machine_dir, user_dir, driver_name)
     base_payload = _read_json(base_path)
 
     if base_payload is None:
-        _log_provider_config(driver_name, {}, base_path, user_path)
+        _log_driver_config(driver_name, {}, base_path, user_path)
         return {}
 
-    base_section = _extract_provider_section(base_payload, driver_name)
+    base_section = _extract_keyed_section(base_payload, driver_name)
 
     if user_dir is None:
-        _log_provider_config(driver_name, base_section, base_path, user_path)
+        _log_driver_config(driver_name, base_section, base_path, user_path)
         return base_section
 
     user_payload = _read_json(user_path)
     if user_payload is None:
-        _log_provider_config(driver_name, base_section, base_path, user_path)
+        _log_driver_config(driver_name, base_section, base_path, user_path)
         return base_section
 
-    local_section = _extract_provider_section(user_payload, driver_name)
+    local_section = _extract_keyed_section(user_payload, driver_name)
 
     merged = _merge_dicts(base_section, local_section)
-    _log_provider_config(driver_name, merged, base_path, user_path)
+    _log_driver_config(driver_name, merged, base_path, user_path)
     return merged
 
 
@@ -293,27 +313,27 @@ def load_connection_config(connection_name: str) -> dict[str, Any]:
     base_path, user_path = _connection_config_paths(machine_dir, user_dir, connection_name)
     base_payload = _read_json(base_path)
     if base_payload is None:
-        _log_provider_config(connection_name, {}, base_path, user_path)
+        _log_driver_config(connection_name, {}, base_path, user_path)
         return {}
 
-    connection_section = _extract_provider_section(base_payload, connection_name)
+    connection_section = _extract_keyed_section(base_payload, connection_name)
     if user_dir is not None:
         user_payload = _read_json(user_path)
         if user_payload is not None:
             connection_section = _merge_dicts(
                 connection_section,
-                _extract_provider_section(user_payload, connection_name),
+                _extract_keyed_section(user_payload, connection_name),
             )
 
     driver_name = connection_section.get("driver")
     if not isinstance(driver_name, str) or not driver_name.strip():
-        _log_provider_config(connection_name, connection_section, base_path, user_path)
+        _log_driver_config(connection_name, connection_section, base_path, user_path)
         return connection_section
 
     driver_config = load_driver_config(driver_name.strip())
     connection_overrides = _strip_empty_overrides(connection_section)
     merged = _merge_dicts(driver_config, connection_overrides)
-    _log_provider_config(connection_name, merged, base_path, user_path)
+    _log_driver_config(connection_name, merged, base_path, user_path)
     return merged
 
 
@@ -323,11 +343,11 @@ def connection_driver_name(connection_name: str) -> str | None:
     payload = _read_json(base_path)
     if payload is None:
         return None
-    section = _extract_provider_section(payload, connection_name)
+    section = _extract_keyed_section(payload, connection_name)
     if user_dir is not None:
         user_payload = _read_json(user_path)
         if user_payload is not None:
-            section = _merge_dicts(section, _extract_provider_section(user_payload, connection_name))
+            section = _merge_dicts(section, _extract_keyed_section(user_payload, connection_name))
     driver_name = section.get("driver")
     return driver_name.strip().lower() if isinstance(driver_name, str) and driver_name.strip() else None
 
@@ -345,11 +365,11 @@ def load_connection_metadata(connection_name: str) -> dict[str, str | None]:
             "display_name": None,
             "description": None,
         }
-    section = _extract_provider_section(payload, connection_name)
+    section = _extract_keyed_section(payload, connection_name)
     if user_dir is not None:
         user_payload = _read_json(user_path)
         if user_payload is not None:
-            section = _merge_dicts(section, _extract_provider_section(user_payload, connection_name))
+            section = _merge_dicts(section, _extract_keyed_section(user_payload, connection_name))
     return {
         "name": connection_name,
         "kind": "connection",

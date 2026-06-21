@@ -14,11 +14,15 @@ from dms_provider_bridge.models.bridge import BridgeAuthContext
 
 
 @dataclass(slots=True)
-class ProviderCredentials:
+class AuthCredentials:
     base_url: str
     username: str | None = None
     password: str | None = None
     token: str | None = None
+
+
+# Backward-compatible alias for provider-era imports.
+ProviderCredentials = AuthCredentials
 
 
 class _CREDENTIAL_ATTRIBUTEW(ctypes.Structure):
@@ -59,7 +63,7 @@ def _decode_credential_blob(blob: bytes) -> str:
     return blob.decode("latin-1", errors="ignore").strip("\x00").strip()
 
 
-def _load_windows_generic_credential(credential_id: str) -> ProviderCredentials:
+def _load_windows_generic_credential(credential_id: str) -> AuthCredentials:
     if platform.system().lower() != "windows":
         raise AuthenticationError("Windows Credential Manager is available only on Windows.")
 
@@ -93,34 +97,34 @@ def _load_windows_generic_credential(credential_id: str) -> ProviderCredentials:
             except json.JSONDecodeError:
                 parsed = None
             if isinstance(parsed, dict):
-                return ProviderCredentials(
+                return AuthCredentials(
                     base_url=str(parsed.get("base_url") or ""),
                     username=str(parsed.get("username") or username) if (parsed.get("username") or username) else None,
                     password=str(parsed.get("password")) if parsed.get("password") is not None else None,
                     token=str(parsed.get("token")) if parsed.get("token") is not None else None,
                 )
 
-        return ProviderCredentials(base_url="", username=username, password=secret)
+        return AuthCredentials(base_url="", username=username, password=secret)
     finally:
         cred_free(cred_ptr)
 
 
-def load_alfresco_credentials() -> ProviderCredentials:
-    return ProviderCredentials(
+def load_alfresco_credentials() -> AuthCredentials:
+    return AuthCredentials(
         base_url=os.getenv("ALFRESCO_URL", ""),
         username=os.getenv("ALFRESCO_USER"),
         password=os.getenv("ALFRESCO_PASSWORD"),
     )
 
 
-def load_edocat_credentials() -> ProviderCredentials:
-    return ProviderCredentials(
+def load_edocat_credentials() -> AuthCredentials:
+    return AuthCredentials(
         base_url=os.getenv("EDOCAT_URL", ""),
         token=os.getenv("EDOCAT_TOKEN"),
     )
 
 
-def load_windows_credential(credential_id: str) -> ProviderCredentials:
+def load_windows_credential(credential_id: str) -> AuthCredentials:
     credential = _load_windows_generic_credential(credential_id)
     credential.base_url = credential.base_url or ""
     return credential
@@ -175,7 +179,7 @@ def _credential_target_candidates(base_target: str, auth: BridgeAuthContext | No
 def _load_windows_credential_with_fallback(
     base_target: str,
     auth: BridgeAuthContext | None,
-) -> ProviderCredentials | None:
+) -> AuthCredentials | None:
     last_error: AuthenticationError | None = None
     for target in _credential_target_candidates(base_target, auth):
         try:
@@ -191,14 +195,18 @@ def _load_windows_credential_with_fallback(
 def resolve_alfresco_credentials(
     auth: BridgeAuthContext | None,
     base_url: str,
+    effective_config: dict | None = None,
+    *,
     provider_config: dict | None = None,
-) -> ProviderCredentials:
-    credentials_cfg = provider_config.get("credentials") if isinstance(provider_config, dict) else None
+) -> AuthCredentials:
+    if effective_config is None:
+        effective_config = provider_config
+    credentials_cfg = effective_config.get("credentials") if isinstance(effective_config, dict) else None
     credential_target = None
     if isinstance(credentials_cfg, dict):
         credential_target = credentials_cfg.get("target") or credentials_cfg.get("credential_id")
 
-    resolved_windows: ProviderCredentials | None = None
+    resolved_windows: AuthCredentials | None = None
     if isinstance(credentials_cfg, dict) and credentials_cfg.get("mode") == "windows" and credential_target:
         try:
             resolved_windows = _load_windows_credential_with_fallback(str(credential_target), auth)
@@ -206,7 +214,7 @@ def resolve_alfresco_credentials(
             resolved_windows = None
 
     if resolved_windows is not None:
-        return ProviderCredentials(
+        return AuthCredentials(
             base_url=base_url or os.getenv("ALFRESCO_URL", ""),
             username=resolved_windows.username or (auth.username if auth else None) or os.getenv("ALFRESCO_USER") or (auth.win_user if auth else None),
             password=(auth.password if auth else None) or resolved_windows.password or os.getenv("ALFRESCO_PASSWORD"),
@@ -214,7 +222,7 @@ def resolve_alfresco_credentials(
         )
 
     if auth is None:
-        return ProviderCredentials(
+        return AuthCredentials(
             base_url=base_url or os.getenv("ALFRESCO_URL", ""),
             username=os.getenv("ALFRESCO_USER"),
             password=os.getenv("ALFRESCO_PASSWORD"),
@@ -224,7 +232,7 @@ def resolve_alfresco_credentials(
     username = auth.username or os.getenv("ALFRESCO_USER") or auth.win_user
     password = auth.password or os.getenv("ALFRESCO_PASSWORD")
     token = auth.token or os.getenv("ALFRESCO_TICKET")
-    return ProviderCredentials(
+    return AuthCredentials(
         base_url=base_url or os.getenv("ALFRESCO_URL", ""),
         username=username,
         password=password,
