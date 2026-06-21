@@ -17,7 +17,7 @@ from dms_provider_bridge.core.config_loader import (
     load_connection_config,
 )
 from dms_provider_bridge.core.errors import ConfigurationError, ConnectionNotFoundError
-from dms_provider_bridge.providers.base import Provider
+from dms_provider_bridge.drivers.base import Provider
 
 
 _DRIVER_FACTORIES: dict[str, Callable[[], Provider]] | None = None

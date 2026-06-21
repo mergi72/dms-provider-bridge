@@ -1,3 +1,11 @@
+## 0.8.2-beta - 2026-06-21
+
+- Moved concrete driver implementations from `dms_provider_bridge.providers` to `dms_provider_bridge.drivers`.
+- Kept `dms_provider_bridge.providers.*` modules as backward-compatible wrappers.
+- Updated PyInstaller hidden imports to use driver modules.
+- Updated driver unit tests to import `drivers.*` and added provider-wrapper compatibility coverage.
+- Release/version bump to `0.8.2-beta`.
+
 ## 0.8.1-beta - 2026-06-21
 
 - Added `connection_runtime_service.py` as the connection-first runtime registry service.

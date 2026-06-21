@@ -7,9 +7,9 @@ from urllib.error import HTTPError
 
 import pytest
 
-import dms_provider_bridge.providers.alfresco as alfresco_provider_module  # type: ignore[import-untyped]
+import dms_provider_bridge.drivers.alfresco as alfresco_provider_module  # type: ignore[import-untyped]
 from dms_provider_bridge.models.bridge import BridgeAuthContext  # type: ignore[import-untyped]
-from dms_provider_bridge.providers.alfresco import AlfrescoProvider  # type: ignore[import-untyped]
+from dms_provider_bridge.drivers.alfresco import AlfrescoProvider  # type: ignore[import-untyped]
 from dms_provider_bridge.core.errors import AuthenticationError  # type: ignore[import-untyped]
 
 

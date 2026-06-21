@@ -12,12 +12,12 @@ from unittest.mock import Mock
 import pytest
 
 import dms_provider_bridge.clients.edocat_client as edocat_client_module  # type: ignore[import-untyped]
-import dms_provider_bridge.providers.edocat as edocat_provider_module  # type: ignore[import-untyped]
+import dms_provider_bridge.drivers.edocat as edocat_provider_module  # type: ignore[import-untyped]
 from dms_provider_bridge.clients.edocat_client import EdocatClient  # type: ignore[import-untyped]
 from dms_provider_bridge.core.errors import AuthenticationError, ProviderOperationError  # type: ignore[import-untyped]
 from dms_provider_bridge.models.bridge import BridgeAuthContext  # type: ignore[import-untyped]
 from dms_provider_bridge.models.operation import OperationResult  # type: ignore[import-untyped]
-from dms_provider_bridge.providers.edocat import EdocatProvider  # type: ignore[import-untyped]
+from dms_provider_bridge.drivers.edocat import EdocatProvider  # type: ignore[import-untyped]
 
 
 pytestmark = pytest.mark.unit

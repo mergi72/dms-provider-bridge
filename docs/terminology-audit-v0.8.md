@@ -199,6 +199,14 @@ Rules:
   driver imports are stable.
 - Update package discovery to scan `dms_provider_bridge.drivers` directly.
 
+Implementation status:
+
+- Concrete implementations now live in `src/dms_provider_bridge/drivers`.
+- `src/dms_provider_bridge/providers` contains compatibility wrappers for old
+  imports.
+- Runtime discovery scans `dms_provider_bridge.drivers` directly.
+- Build hidden imports use driver module names.
+
 ### 0.8.4-beta: WFX/client naming cleanup
 
 Clean remaining client-facing internal names:

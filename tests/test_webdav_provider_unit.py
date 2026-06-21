@@ -5,9 +5,9 @@ from urllib.error import HTTPError
 
 import pytest
 
-import dms_provider_bridge.providers.webdav as webdav_provider_module
+import dms_provider_bridge.drivers.webdav as webdav_provider_module
 from dms_provider_bridge.models.bridge import BridgeAuthContext
-from dms_provider_bridge.providers.webdav import WebdavProvider
+from dms_provider_bridge.drivers.webdav import WebdavProvider
 
 
 pytestmark = pytest.mark.unit

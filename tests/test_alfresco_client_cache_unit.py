@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from dms_provider_bridge.clients.alfresco_client import AlfrescoClient
-from dms_provider_bridge.providers.alfresco import AlfrescoProvider
+from dms_provider_bridge.drivers.alfresco import AlfrescoProvider
 
 
 pytestmark = pytest.mark.unit
