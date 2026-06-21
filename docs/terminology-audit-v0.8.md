@@ -200,9 +200,16 @@ Implementation status:
   config model. `models.provider.ProviderConfig` remains as a compatibility
   alias.
 - Legacy request alias resolution now lives in
-  `services.connection_aliases`. Listing can still accept a legacy
+  `core.connection_aliases`. `services.connection_aliases` remains as a
+  compatibility wrapper. Listing can still accept a legacy
   `provider` value as a driver alias for a concrete connection, while edit and
   transfer use strict connection matching.
+- Legacy `provider_path_override` handling for Share URL requests is resolved
+  through the same core alias helper as `connection_path_override`.
+- Share URL service internals and routes now pass `connection` as the primary
+  name. Legacy `provider` request fields are mirrored into `connection` by the
+  request model, and responses include both `connection` and legacy `provider`
+  metadata during the transition.
 
 ### 0.8.3-beta: move implementation modules
 

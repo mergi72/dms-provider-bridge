@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from dms_provider_bridge.core.connection_aliases import mirror_connection_path_override_aliases
+
 
 class BridgeAuthContext(BaseModel):
     mode: Literal["credentials", "winuser", "windows"]
@@ -177,6 +179,8 @@ def _normalize_provider_connection_alias(data: object) -> object:
         raise ValueError("Either connection or provider must be provided.")
     if not provider and connection:
         normalized["provider"] = connection
+    if provider and not connection:
+        normalized["connection"] = provider
     return normalized
 
 
@@ -184,12 +188,4 @@ def _normalize_share_url_aliases(data: object) -> object:
     normalized = _normalize_provider_connection_alias(data)
     if not isinstance(normalized, dict):
         return normalized
-    provider_override = normalized.get("provider_path_override")
-    connection_override = normalized.get("connection_path_override")
-    if provider_override and connection_override and str(provider_override).strip() != str(connection_override).strip():
-        raise ValueError("Connection mismatch: provider_path_override does not match connection_path_override.")
-    if not connection_override and provider_override:
-        normalized["connection_path_override"] = provider_override
-    if not provider_override and connection_override:
-        normalized["provider_path_override"] = connection_override
-    return normalized
+    return mirror_connection_path_override_aliases(normalized)

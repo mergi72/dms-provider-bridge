@@ -286,6 +286,8 @@ def test_resolve_share_url() -> None:
     body = response.json()
     assert body["ok"] is True
     assert body["data"]["path"].startswith("alfresco:/")
+    assert body["data"]["connection"] == "alfresco"
+    assert body["metadata"]["connection"] == "alfresco"
 
 
 def test_resolve_share_url_accepts_connection_alias() -> None:
@@ -297,6 +299,8 @@ def test_resolve_share_url_accepts_connection_alias() -> None:
     body = response.json()
     assert body["ok"] is True
     assert body["data"]["path"].startswith("alfresco:/")
+    assert body["data"]["connection"] == "alfresco"
+    assert body["metadata"]["connection"] == "alfresco"
 
 
 def test_resolve_share_url_rejects_connection_provider_mismatch() -> None:

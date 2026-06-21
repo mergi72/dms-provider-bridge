@@ -333,7 +333,7 @@ def bridge_connection_detail(connection_name: str) -> dict:
     summary="Resolve Share URL",
 )
 def bridge_resolve_share_url(payload: WfxShareUrlRequest) -> dict:
-    return resolve_share_url(payload.share_url, payload.provider).model_dump()
+    return resolve_share_url(payload.share_url, payload.connection).model_dump()
 
 
 @share_url_router.post(
@@ -345,7 +345,7 @@ def bridge_browse_share_url(payload: WfxShareUrlBrowseRequest) -> dict:
     return browse_share_url(
         payload.share_url,
         payload.auth,
-        payload.provider,
+        payload.connection,
         payload.operation,
         payload.execute,
         payload.connection_path_override,
@@ -368,7 +368,7 @@ def bridge_browse_share_url_validate(payload: WfxShareUrlValidateRequest) -> dic
     return browse_share_url(
         payload.share_url,
         None,
-        payload.provider,
+        payload.connection,
         payload.operation,
         False,
         payload.connection_path_override,

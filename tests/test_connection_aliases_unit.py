@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from dms_provider_bridge.services.connection_aliases import (
+from dms_provider_bridge.core.connection_aliases import (
+    mirror_connection_path_override_aliases,
     normalize_connection_name,
     resolve_connection_alias,
+    resolve_connection_path_override,
     resolve_path_connection,
 )
+from dms_provider_bridge.services import connection_aliases as legacy_connection_aliases
 
 
 pytestmark = pytest.mark.unit
@@ -43,3 +46,26 @@ def test_resolve_connection_alias_accepts_driver_alias_when_resolver_allows_it()
 def test_resolve_path_connection_rejects_mismatch() -> None:
     with pytest.raises(ValueError, match="Connection mismatch"):
         resolve_path_connection("alfresco", "edocat")
+
+
+def test_resolve_connection_path_override_accepts_connection_alias() -> None:
+    assert resolve_connection_path_override("/source", None) == "/source"
+    assert resolve_connection_path_override(None, "/source") == "/source"
+    assert resolve_connection_path_override("/source", "/source") == "/source"
+
+
+def test_resolve_connection_path_override_rejects_mismatch() -> None:
+    with pytest.raises(ValueError, match="provider_path_override"):
+        resolve_connection_path_override("/source", "/other")
+
+
+def test_mirror_connection_path_override_aliases_keeps_legacy_payloads_symmetric() -> None:
+    mirrored = mirror_connection_path_override_aliases({"provider_path_override": "/source"})
+
+    assert mirrored["connection_path_override"] == "/source"
+    assert mirrored["provider_path_override"] == "/source"
+
+
+def test_service_connection_aliases_remains_compatibility_wrapper() -> None:
+    assert legacy_connection_aliases.resolve_connection_alias is resolve_connection_alias
+    assert legacy_connection_aliases.resolve_connection_path_override is resolve_connection_path_override

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dms_provider_bridge.adapters.commander_api import split_optional_wfx_path
 from dms_provider_bridge.models.operation import OperationResult
-from dms_provider_bridge.services.connection_aliases import resolve_connection_alias, resolve_path_connection
+from dms_provider_bridge.core.connection_aliases import resolve_connection_alias, resolve_path_connection
 from dms_provider_bridge.services.connection_runtime_service import get_connection_runtime
 
 

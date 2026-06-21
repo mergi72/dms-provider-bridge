@@ -3,6 +3,7 @@ from __future__ import annotations
 from urllib.parse import unquote
 
 from dms_provider_bridge.adapters.commander_api import WfxErrorCode, build_wfx_path
+from dms_provider_bridge.core.connection_aliases import resolve_connection_path_override
 from dms_provider_bridge.models.bridge import BridgeAuthContext, WfxResponse
 from dms_provider_bridge.services.bridge_errors import map_exception
 from dms_provider_bridge.services.connection_runtime_service import get_connection_runtime
@@ -30,22 +31,33 @@ def _normalize_connection_path(path: str, empty_message: str) -> str | WfxRespon
     return normalized
 
 
-def resolve_share_url(share_url: str, provider: str) -> WfxResponse:
+def _resolve_source_path_override(
+    connection_path_override: str | None,
+    provider_path_override: str | None,
+) -> str | WfxResponse | None:
     try:
-        provider_instance = get_connection_runtime(provider)
-        if not provider_instance.supports_share_url():
-            return _failure(WfxErrorCode.NOT_SUPPORTED, f"Provider does not support share URL resolution: {provider}")
+        return resolve_connection_path_override(connection_path_override, provider_path_override)
+    except ValueError as exc:
+        return _failure(WfxErrorCode.BAD_PATH, str(exc))
 
-        normalized = provider_instance.share_url_to_path(share_url)
-        wfx_path = build_wfx_path(provider_instance.name, normalized)
+
+def resolve_share_url(share_url: str, connection_name: str) -> WfxResponse:
+    try:
+        connection_runtime = get_connection_runtime(connection_name)
+        if not connection_runtime.supports_share_url():
+            return _failure(WfxErrorCode.NOT_SUPPORTED, f"Connection does not support share URL resolution: {connection_name}")
+
+        normalized = connection_runtime.share_url_to_path(share_url)
+        wfx_path = build_wfx_path(connection_runtime.name, normalized)
         return _success(
             data={
-                "provider": provider_instance.name,
+                "connection": connection_runtime.name,
+                "provider": connection_runtime.name,
                 "path": wfx_path,
                 "share_path": normalized,
                 "source_url": share_url,
             },
-            metadata={"provider": provider_instance.name, "operation": "resolve-share-url"},
+            metadata={"connection": connection_runtime.name, "provider": connection_runtime.name, "operation": "resolve-share-url"},
         )
     except Exception as exc:
         return _failure_from_exception(exc)
@@ -54,7 +66,7 @@ def resolve_share_url(share_url: str, provider: str) -> WfxResponse:
 def browse_share_url(
     share_url: str,
     auth: BridgeAuthContext | None,
-    provider: str,
+    connection_name: str,
     operation: str = "list",
     execute: bool = True,
     connection_path_override: str | None = None,
@@ -68,14 +80,14 @@ def browse_share_url(
 ) -> WfxResponse:
     from dms_provider_bridge.services import bridge_service
 
-    if provider_path_override and connection_path_override and provider_path_override.strip() != connection_path_override.strip():
-        return _failure(WfxErrorCode.BAD_PATH, "provider_path_override does not match connection_path_override.")
-    source_path_override = connection_path_override or provider_path_override
+    source_path_override = _resolve_source_path_override(connection_path_override, provider_path_override)
+    if isinstance(source_path_override, WfxResponse):
+        return source_path_override
 
     if not execute:
         validated = validate_browse_share_url(
             share_url,
-            provider,
+            connection_name,
             operation,
             source_path_override,
             destination_share_url,
@@ -90,7 +102,7 @@ def browse_share_url(
         payload["executed"] = False
         return _success(data=payload, metadata=metadata)
 
-    resolved = resolve_share_url(share_url, provider)
+    resolved = resolve_share_url(share_url, connection_name)
     if not resolved.ok:
         return resolved
 
@@ -104,7 +116,7 @@ def browse_share_url(
         normalized_override = _normalize_connection_path(source_path_override, "connection_path_override is empty.")
         if isinstance(normalized_override, WfxResponse):
             return normalized_override
-        path = build_wfx_path(provider, normalized_override)
+        path = build_wfx_path(connection_name, normalized_override)
         resolved_payload["path"] = path
         resolved_payload["share_path"] = normalized_override
         path_source = "connection_path_override"
@@ -134,10 +146,10 @@ def browse_share_url(
             normalized_destination = _normalize_connection_path(destination_path_override, "destination_path_override is empty.")
             if isinstance(normalized_destination, WfxResponse):
                 return normalized_destination
-            destination_path = build_wfx_path(provider, normalized_destination)
+            destination_path = build_wfx_path(connection_name, normalized_destination)
             destination_source = "destination_path_override"
         elif destination_share_url:
-            destination_resolved = resolve_share_url(destination_share_url, provider)
+            destination_resolved = resolve_share_url(destination_share_url, connection_name)
             if not destination_resolved.ok:
                 return destination_resolved
             if not isinstance(destination_resolved.data, dict):
@@ -161,10 +173,10 @@ def browse_share_url(
             normalized_destination = _normalize_connection_path(destination_path_override, "destination_path_override is empty.")
             if isinstance(normalized_destination, WfxResponse):
                 return normalized_destination
-            upload_destination_path = build_wfx_path(provider, normalized_destination)
+            upload_destination_path = build_wfx_path(connection_name, normalized_destination)
             upload_destination_source = "destination_path_override"
         elif destination_share_url:
-            destination_resolved = resolve_share_url(destination_share_url, provider)
+            destination_resolved = resolve_share_url(destination_share_url, connection_name)
             if not destination_resolved.ok:
                 return destination_resolved
             if not isinstance(destination_resolved.data, dict):
@@ -208,7 +220,7 @@ def browse_share_url(
 
 def validate_browse_share_url(
     share_url: str,
-    provider: str,
+    connection_name: str,
     operation: str = "list",
     connection_path_override: str | None = None,
     destination_share_url: str | None = None,
@@ -216,11 +228,11 @@ def validate_browse_share_url(
     file_name: str | None = None,
     provider_path_override: str | None = None,
 ) -> WfxResponse:
-    if provider_path_override and connection_path_override and provider_path_override.strip() != connection_path_override.strip():
-        return _failure(WfxErrorCode.BAD_PATH, "provider_path_override does not match connection_path_override.")
-    source_path_override = connection_path_override or provider_path_override
+    source_path_override = _resolve_source_path_override(connection_path_override, provider_path_override)
+    if isinstance(source_path_override, WfxResponse):
+        return source_path_override
 
-    resolved = resolve_share_url(share_url, provider)
+    resolved = resolve_share_url(share_url, connection_name)
     if not resolved.ok:
         return resolved
 
@@ -234,7 +246,7 @@ def validate_browse_share_url(
         normalized_override = _normalize_connection_path(source_path_override, "connection_path_override is empty.")
         if isinstance(normalized_override, WfxResponse):
             return normalized_override
-        source_path = build_wfx_path(provider, normalized_override)
+        source_path = build_wfx_path(connection_name, normalized_override)
         source_path_source = "connection_path_override"
         resolved_payload["path"] = source_path
         resolved_payload["share_path"] = normalized_override
@@ -253,10 +265,10 @@ def validate_browse_share_url(
             normalized_destination = _normalize_connection_path(destination_path_override, "destination_path_override is empty.")
             if isinstance(normalized_destination, WfxResponse):
                 return normalized_destination
-            destination_path = build_wfx_path(provider, normalized_destination)
+            destination_path = build_wfx_path(connection_name, normalized_destination)
             destination_path_source = "destination_path_override"
         elif destination_share_url:
-            destination_resolved = resolve_share_url(destination_share_url, provider)
+            destination_resolved = resolve_share_url(destination_share_url, connection_name)
             if not destination_resolved.ok:
                 return destination_resolved
             if not isinstance(destination_resolved.data, dict):
@@ -298,7 +310,8 @@ def validate_browse_share_url(
     return _success(
         data=payload,
         metadata={
-            "provider": provider,
+            "connection": connection_name,
+            "provider": connection_name,
             "operation": f"browse-share-url-validate:{operation}",
         },
     )

@@ -1,3 +1,11 @@
+## 0.8.9-beta - 2026-06-21
+
+- Moved connection/provider alias helpers from service glue into `core.connection_aliases`.
+- Kept `services.connection_aliases` as a compatibility wrapper for older imports.
+- Centralized legacy `provider_path_override` handling with `connection_path_override`.
+- Switched Share URL routes and service internals to use `connection` as the primary name while preserving legacy `provider` request and response metadata.
+- Release/version bump to `0.8.9-beta`.
+
 ## 0.8.8-beta - 2026-06-21
 
 - Switched concrete drivers and config logging to the connection-first debug API.

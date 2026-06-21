@@ -3,7 +3,7 @@ from __future__ import annotations
 from dms_provider_bridge.adapters.commander_api import parse_wfx_path
 from dms_provider_bridge.models.listing import ListingResult
 from dms_provider_bridge.core.config_loader import connection_driver_name
-from dms_provider_bridge.services.connection_aliases import normalize_connection_name, resolve_connection_alias
+from dms_provider_bridge.core.connection_aliases import normalize_connection_name, resolve_connection_alias
 from dms_provider_bridge.services.connection_runtime_service import get_connection_runtime
 
 
