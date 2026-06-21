@@ -28,7 +28,6 @@
         "description": "Generic WebDAV filesystem driver.",
 
         "tc_vfs_contract": "provider",
-        "provider_abc": "provider",
 
         "api": {
             "base": "",

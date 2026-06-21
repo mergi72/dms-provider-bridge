@@ -22,7 +22,6 @@ from dms_provider_bridge.services.connection_runtime_service import (
 )
 
 router = APIRouter()
-reload_provider_cache = reload_connection_runtime_cache
 
 
 _SECTION_TITLES = {
@@ -70,6 +69,23 @@ _NEW_KEYS = {
     "connections": "new_connection",
 }
 
+_SECTION_ALIASES = {
+    "tc-vfs-contract": "providers",
+}
+
+_SECTION_URLS = {
+    "providers": "tc-vfs-contract",
+}
+
+
+def _normalize_section(section: str) -> str:
+    return _SECTION_ALIASES.get(section, section)
+
+
+def _section_url(section: str) -> str:
+    section = _normalize_section(section)
+    return _SECTION_URLS.get(section, section)
+
 
 def _machine_config_dir() -> Path:
     return Path(os.environ.get("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(MACHINE_CONFIG_DIR)))
@@ -94,6 +110,7 @@ def _registry_paths() -> dict[str, Path]:
 
 
 def _section_dir(section: str) -> Path:
+    section = _normalize_section(section)
     paths = _registry_paths()
     try:
         return paths[section]
@@ -102,6 +119,7 @@ def _section_dir(section: str) -> Path:
 
 
 def _json_files(section: str) -> list[Path]:
+    section = _normalize_section(section)
     directory = _section_dir(section)
     files = []
     if directory.exists():
@@ -126,14 +144,17 @@ def _read_json_file(path: Path) -> dict[str, Any]:
 
 
 def _file_read_only(section: str, file_name: str) -> bool:
+    section = _normalize_section(section)
     return section in {"providers", "auth"} or _TEMPLATE_FILES.get(section) == file_name
 
 
 def _section_can_create(section: str) -> bool:
+    section = _normalize_section(section)
     return section in _TEMPLATE_FILES
 
 
 def _file_can_delete(section: str, file_name: str) -> bool:
+    section = _normalize_section(section)
     return _section_can_create(section) and not _file_read_only(section, file_name)
 
 
@@ -162,6 +183,7 @@ def _payload_section(payload: dict[str, Any], key: str) -> dict[str, Any]:
 
 
 def _extra_table_headers(section: str) -> list[str]:
+    section = _normalize_section(section)
     if section == "connections":
         return ["Driver", "Mount"]
     if section == "drivers":
@@ -170,6 +192,7 @@ def _extra_table_headers(section: str) -> list[str]:
 
 
 def _extra_table_cells(section: str, payload: dict[str, Any], key: str) -> list[str]:
+    section = _normalize_section(section)
     payload_section = _payload_section(payload, key)
     if section == "connections":
         return [
@@ -187,6 +210,7 @@ def _string_cell(value: Any) -> str:
 
 
 def _file_mode(section: str, file_name: str) -> str:
+    section = _normalize_section(section)
     if section == "providers":
         return "read-only contract"
     if section == "auth":
@@ -241,9 +265,13 @@ def _runtime_summary_html(snapshot: dict[str, Any]) -> str:
 
 
 def _file_links(section: str, active_file: str) -> str:
+    section = _normalize_section(section)
+    section_url = _section_url(section)
     links = []
     if _section_can_create(section):
-        links.append(f'<a class="new" href="/config/{html.escape(section)}/new">New {_SECTION_TITLES[section][:-1]}</a>')
+        links.append(
+            f'<a class="new" href="/config/{html.escape(section_url)}/new">New {_SECTION_TITLES[section][:-1]}</a>'
+        )
     for path in _json_files(section):
         class_name = "active" if path.name == active_file else ""
         mode = _file_mode(section, path.name)
@@ -251,13 +279,14 @@ def _file_links(section: str, active_file: str) -> str:
         if mode.startswith("template"):
             label = f"{path.name} - TEMPLATE READ ONLY"
         links.append(
-            f'<a class="{class_name}" href="/config/{html.escape(section)}/{html.escape(path.name)}">'
+            f'<a class="{class_name}" href="/config/{html.escape(section_url)}/{html.escape(path.name)}">'
             f"{html.escape(label)}</a>"
         )
     return "\n".join(links) or '<span class="muted">No JSON files found.</span>'
 
 
 def _template_path(section: str) -> Path:
+    section = _normalize_section(section)
     template_file = _TEMPLATE_FILES.get(section)
     if not template_file:
         raise HTTPException(status_code=400, detail=f"Section cannot create files: {section}")
@@ -270,10 +299,12 @@ def _template_path(section: str) -> Path:
 
 
 def _fallback_template_path(section: str, template_file: str) -> Path:
+    section = _normalize_section(section)
     return PROJECT_ROOT / "config" / section / template_file
 
 
 def _config_file_path(section: str, file_name: str) -> Path:
+    section = _normalize_section(section)
     path = _section_dir(section) / file_name
     if path.exists() and path.is_file():
         return path
@@ -330,6 +361,7 @@ def _validate_config_payload(
     target_file_name: str,
     original_file_name: str = "",
 ) -> list[str]:
+    section = _normalize_section(section)
     errors = []
     key = payload.get("key")
     if not isinstance(key, str) or not key.strip():
@@ -350,9 +382,9 @@ def _validate_config_payload(
         tc_vfs_contract = section_payload.get("tc_vfs_contract")
         if tc_vfs_contract is not None and not isinstance(tc_vfs_contract, str):
             errors.append("Driver field 'tc_vfs_contract' must be a string when present.")
-        provider_abc = section_payload.get("provider_abc")
-        if provider_abc is not None and not isinstance(provider_abc, str):
-            errors.append("Driver field 'provider_abc' must be a string when present.")
+        legacy_provider_abc = section_payload.get("provider_abc")
+        if legacy_provider_abc is not None and not isinstance(legacy_provider_abc, str):
+            errors.append("Legacy driver field 'provider_abc' must be a string when present.")
         for object_key in ("api", "endpoints", "capabilities", "limits"):
             value = section_payload.get(object_key)
             if value is not None and not isinstance(value, dict):
@@ -398,6 +430,7 @@ def _parse_json_payload(raw_json: str) -> dict[str, Any]:
 
 
 def _new_payload_from_template(section: str, payload: dict[str, Any]) -> dict[str, Any]:
+    section = _normalize_section(section)
     old_key = payload.get("key")
     new_key = _NEW_KEYS.get(section, "new_config")
     if not isinstance(old_key, str) or not old_key:
@@ -424,12 +457,15 @@ def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
 
 
 def _render_nav(active: str | None = None) -> str:
+    active = _normalize_section(active) if active else active
     links = ['<a class="button button-muted home" href="/config">Config</a>']
     bridge_class = "active" if active == "bridge" else ""
     links.append(f'<a class="button button-muted {bridge_class}" href="/config/bridge">Bridge</a>')
     for section, title in _SECTION_TITLES.items():
         class_name = "active" if section == active else ""
-        links.append(f'<a class="button button-muted {class_name}" href="/config/{section}">{html.escape(title)}</a>')
+        links.append(
+            f'<a class="button button-muted {class_name}" href="/config/{_section_url(section)}">{html.escape(title)}</a>'
+        )
     utility = (
         '<span class="utility">'
         '<a class="button button-muted" href="/config/reload">Reload</a>'
@@ -538,7 +574,7 @@ def config_home() -> HTMLResponse:
       <p>Local service configuration for server, runtime paths and bridge behavior.</p>
     </div>
   </a>
-  <a class="section-card" href="/config/providers">
+  <a class="section-card" href="/config/tc-vfs-contract">
     <h2>TC VFS Contract</h2>
     <div>
       <p><span class="badge badge-read-only">READ ONLY</span></p>
@@ -717,12 +753,14 @@ def config_audit() -> HTMLResponse:
 
 @router.get("/{section}", response_class=HTMLResponse)
 def config_section(section: str) -> HTMLResponse:
+    section = _normalize_section(section)
+    section_url = _section_url(section)
     directory = _section_dir(section)
     files = _json_files(section)
     new_link = ""
     if _section_can_create(section):
         new_link = (
-            f'<p><a class="button button-success" href="/config/{html.escape(section)}/new">'
+            f'<p><a class="button button-success" href="/config/{html.escape(section_url)}/new">'
             f"New {_SECTION_TITLES[section][:-1]}</a></p>"
         )
     rows = []
@@ -741,13 +779,13 @@ def config_section(section: str) -> HTMLResponse:
             delete_link = ""
             if _file_can_delete(section, path.name):
                 delete_link = (
-                    f'<a class="link-button table-action button-danger" href="/config/{html.escape(section)}/{html.escape(path.name)}/delete">'
+                    f'<a class="link-button table-action button-danger" href="/config/{html.escape(section_url)}/{html.escape(path.name)}/delete">'
                     "Delete</a>"
                 )
             actions = f"<td>{delete_link}</td>"
         rows.append(
             "<tr>"
-            f'<td><a href="/config/{html.escape(section)}/{html.escape(path.name)}">{html.escape(path.name)}</a></td>'
+            f'<td><a href="/config/{html.escape(section_url)}/{html.escape(path.name)}">{html.escape(path.name)}</a></td>'
             f"<td>{html.escape(key)}</td>"
             f"<td>{html.escape(display_name)}</td>"
             f"{extra_cells}"
@@ -773,11 +811,12 @@ def config_section(section: str) -> HTMLResponse:
   </div>
 </section>
 """
-    return _render_layout(f"Config {section}", body, section)
+    return _render_layout(f"Config {_SECTION_TITLES[section]}", body, section)
 
 
 @router.get("/{section}/new", response_class=HTMLResponse)
 def config_new(section: str) -> HTMLResponse:
+    section = _normalize_section(section)
     template = _template_path(section)
     payload = _new_payload_from_template(section, _read_json_file(template))
     rendered = json.dumps(payload, ensure_ascii=False, indent=4)
@@ -794,6 +833,7 @@ def config_new(section: str) -> HTMLResponse:
 
 @router.get("/{section}/{file_name}", response_class=HTMLResponse)
 def config_file(section: str, file_name: str) -> HTMLResponse:
+    section = _normalize_section(section)
     _validate_config_file_name(file_name)
     path = _config_file_path(section, file_name)
     if not path.exists() or not path.is_file():
@@ -806,6 +846,8 @@ def config_file(section: str, file_name: str) -> HTMLResponse:
 
 @router.get("/{section}/{file_name}/test", response_class=HTMLResponse)
 def config_test(section: str, file_name: str) -> HTMLResponse:
+    section = _normalize_section(section)
+    section_url = _section_url(section)
     if section != "connections":
         raise HTTPException(status_code=400, detail="Only connections can be tested.")
     _validate_config_file_name(file_name)
@@ -816,8 +858,8 @@ def config_test(section: str, file_name: str) -> HTMLResponse:
     key = _payload_key(payload, path.stem)
     try:
         reload_connection_runtime_cache()
-        provider = get_connection_runtime(key)
-        config = getattr(provider, "config", {})
+        connection_runtime = get_connection_runtime(key)
+        config = getattr(connection_runtime, "config", {})
         auth_config = {}
         if isinstance(config, dict):
             credentials = config.get("credentials")
@@ -831,7 +873,7 @@ def config_test(section: str, file_name: str) -> HTMLResponse:
         auth_target = auth_config.get("target") or auth_config.get("credential_id") or auth_config.get("targetBase")
         rows = [
             ("Status", "Connection OK"),
-            ("Name", getattr(provider, "name", key)),
+            ("Name", getattr(connection_runtime, "name", key)),
             ("Driver", _string_value(config.get("driver") if isinstance(config, dict) else None)),
             ("Mount", _string_value(config.get("mount") if isinstance(config, dict) else None)),
             ("Display name", _string_value(config.get("display_name") if isinstance(config, dict) else None)),
@@ -839,7 +881,7 @@ def config_test(section: str, file_name: str) -> HTMLResponse:
             ("Auth mode", _string_value(auth_mode)),
             ("Auth scheme", _string_value(auth_scheme)),
             ("Auth target", _string_value(auth_target)),
-            ("List endpoint", _string_value(provider.bridge_endpoint_for("list"))),
+            ("List endpoint", _string_value(connection_runtime.bridge_endpoint_for("list"))),
         ]
         body_rows = "".join(
             f"<tr><th>{html.escape(label)}</th><td>{html.escape(value)}</td></tr>"
@@ -863,7 +905,7 @@ def config_test(section: str, file_name: str) -> HTMLResponse:
     <table>{body_rows}</table>
     <h2>Live List Root</h2>
     <p class="help">Optional live test. Auth JSON is used only for this request and is not saved.</p>
-    <form method="post" action="/config/{html.escape(section)}/{html.escape(file_name)}/test/live">
+    <form method="post" action="/config/{html.escape(section_url)}/{html.escape(file_name)}/test/live">
       <input type="hidden" name="mount" value="{html.escape(mount)}">
       <textarea name="auth_json" style="min-height: 150px;">{html.escape(auth_example)}</textarea>
       <div class="actions">
@@ -871,7 +913,7 @@ def config_test(section: str, file_name: str) -> HTMLResponse:
         <span class="muted">Target: {html.escape(mount)}</span>
       </div>
     </form>
-    <p><a class="button button-muted" href="/config/{html.escape(section)}/{html.escape(file_name)}">Back to connection</a></p>
+    <p><a class="button button-muted" href="/config/{html.escape(section_url)}/{html.escape(file_name)}">Back to connection</a></p>
   </div>
 </section>
 """
@@ -881,7 +923,7 @@ def config_test(section: str, file_name: str) -> HTMLResponse:
   <h2>Test {html.escape(file_name)}</h2>
   <div class="panel-content">
     <p class="read-only-warning">Connection test failed: {html.escape(str(exc))}</p>
-    <p><a class="button button-muted" href="/config/{html.escape(section)}/{html.escape(file_name)}">Back to connection</a></p>
+    <p><a class="button button-muted" href="/config/{html.escape(section_url)}/{html.escape(file_name)}">Back to connection</a></p>
   </div>
 </section>
 """
@@ -890,6 +932,8 @@ def config_test(section: str, file_name: str) -> HTMLResponse:
 
 @router.post("/{section}/{file_name}/test/live", response_class=HTMLResponse)
 def config_live_test(section: str, file_name: str, auth_json: str = Form(...), mount: str = Form(default="")) -> HTMLResponse:
+    section = _normalize_section(section)
+    section_url = _section_url(section)
     if section != "connections":
         raise HTTPException(status_code=400, detail="Only connections can be tested.")
     _validate_config_file_name(file_name)
@@ -936,7 +980,7 @@ def config_live_test(section: str, file_name: str, auth_json: str = Form(...), m
   <div class="panel-content">
     <p class="{status_class}">{html.escape(rows[0][1])}</p>
     <table>{body_rows}</table>
-    <p><a class="button button-muted" href="/config/{html.escape(section)}/{html.escape(file_name)}/test">Back to test</a></p>
+    <p><a class="button button-muted" href="/config/{html.escape(section_url)}/{html.escape(file_name)}/test">Back to test</a></p>
   </div>
 </section>
 """
@@ -945,6 +989,8 @@ def config_live_test(section: str, file_name: str, auth_json: str = Form(...), m
 
 @router.get("/{section}/{file_name}/delete", response_class=HTMLResponse)
 def config_delete_confirm(section: str, file_name: str) -> HTMLResponse:
+    section = _normalize_section(section)
+    section_url = _section_url(section)
     _validate_config_file_name(file_name)
     if not _file_can_delete(section, file_name):
         raise HTTPException(status_code=403, detail=f"Config file is read-only: {file_name}")
@@ -957,10 +1003,10 @@ def config_delete_confirm(section: str, file_name: str) -> HTMLResponse:
   <div class="panel-content">
     <p class="read-only-warning">Delete config file {html.escape(file_name)}?</p>
     <p class="muted file-path" title="{html.escape(str(path))}">{html.escape(str(path))}</p>
-    <form method="post" action="/config/{html.escape(section)}/{html.escape(file_name)}/delete">
+    <form method="post" action="/config/{html.escape(section_url)}/{html.escape(file_name)}/delete">
       <div class="actions">
         <button class="button-danger" type="submit">Delete</button>
-        <a class="button button-muted" href="/config/{html.escape(section)}/{html.escape(file_name)}">Cancel</a>
+        <a class="button button-muted" href="/config/{html.escape(section_url)}/{html.escape(file_name)}">Cancel</a>
       </div>
     </form>
   </div>
@@ -971,6 +1017,8 @@ def config_delete_confirm(section: str, file_name: str) -> HTMLResponse:
 
 @router.post("/{section}/{file_name}/delete", response_class=HTMLResponse)
 def config_delete(section: str, file_name: str) -> HTMLResponse:
+    section = _normalize_section(section)
+    section_url = _section_url(section)
     _validate_config_file_name(file_name)
     if not _file_can_delete(section, file_name):
         raise HTTPException(status_code=403, detail=f"Config file is read-only: {file_name}")
@@ -985,7 +1033,7 @@ def config_delete(section: str, file_name: str) -> HTMLResponse:
   <div class="panel-content">
     <p class="notice">Deleted {html.escape(file_name)}.</p>
     <p class="notice">Runtime cache was reloaded.</p>
-    <p><a class="button button-muted" href="/config/{html.escape(section)}">Back to {html.escape(_SECTION_TITLES[section])}</a></p>
+    <p><a class="button button-muted" href="/config/{html.escape(section_url)}">Back to {html.escape(_SECTION_TITLES[section])}</a></p>
   </div>
 </section>
 """
@@ -1008,6 +1056,8 @@ def _render_editor(
     target_file_name: str = "",
     validation_errors: list[str] | None = None,
 ) -> str:
+    section = _normalize_section(section)
+    section_url = _section_url(section)
     readonly_attr = "readonly" if _file_read_only(section, file_name) else ""
     disabled_attr = "disabled" if readonly_attr else ""
     mode = _file_mode(section, file_name)
@@ -1037,19 +1087,19 @@ def _render_editor(
             f"<ul>{items}</ul>"
             "</div>"
         )
-    form_open = f'<form method="post" action="/config/{html.escape(section)}/save">'
+    form_open = f'<form method="post" action="/config/{html.escape(section_url)}/save">'
     form_close = "</form>"
     test_link = ""
     if section == "connections" and not is_new and not _file_read_only(section, file_name):
         test_link = (
             f'<a class="button button-secondary" '
-            f'href="/config/{html.escape(section)}/{html.escape(file_name)}/test">Test</a>'
+            f'href="/config/{html.escape(section_url)}/{html.escape(file_name)}/test">Test</a>'
         )
     delete_link = ""
     if not is_new and _file_can_delete(section, file_name):
         delete_link = (
             f'<a class="button button-danger" '
-            f'href="/config/{html.escape(section)}/{html.escape(file_name)}/delete">Delete</a>'
+            f'href="/config/{html.escape(section_url)}/{html.escape(file_name)}/delete">Delete</a>'
         )
     section_path = _section_dir(section) / file_name
     return f"""
@@ -1089,7 +1139,7 @@ def _render_editor(
           {test_link}
           {delete_link}
           <a class="button button-muted" href="/config/reload">Reload</a>
-          <a class="button button-muted" href="/config/{html.escape(section)}">Cancel</a>
+          <a class="button button-muted" href="/config/{html.escape(section_url)}">Cancel</a>
           <span class="muted">Templates and TC VFS Contract are read-only.</span>
         </div>
       {form_close}
@@ -1106,6 +1156,7 @@ def config_save(
     payload: str = Form(...),
     overwrite: str = Form(default="false"),
 ) -> HTMLResponse:
+    section = _normalize_section(section)
     if not _section_can_create(section):
         raise HTTPException(status_code=403, detail=f"Section is read-only: {section}")
     original_file = file_name.strip()
@@ -1164,6 +1215,7 @@ def config_save(
 
 @router.get("/{section}/{file_name}/json")
 def config_file_json(section: str, file_name: str) -> dict[str, Any]:
+    section = _normalize_section(section)
     _validate_config_file_name(file_name)
     path = _config_file_path(section, file_name)
     if not path.exists() or not path.is_file():

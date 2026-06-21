@@ -175,7 +175,6 @@ def runtime_registry_snapshot() -> dict[str, object]:
         )
     return {
         "tc_vfs_contract": "provider",
-        "provider_abc": "provider",
         "available_drivers": sorted(factories.keys()),
         "connections": [connection.as_dict() for connection in connections],
         "wfx_connections": sorted(registered),

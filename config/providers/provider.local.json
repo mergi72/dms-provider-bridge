@@ -1,5 +1,5 @@
 {
-    "_comment": "Template for user provider overrides. Copy or install as <provider>.local.json and replace provider_name with the provider key.",
+    "_comment": "Template for TC VFS Contract local overrides. This is an advanced internal contract file; most user-specific DMS settings belong to driver or connection config.",
 
     "key": "provider_name",
 

@@ -58,7 +58,6 @@
         "display_name": "eDoCat",
         "description": "eDoCat repository driver.",
         "tc_vfs_contract": "provider",
-        "provider_abc": "provider",
 
         "base_url": "https://example.com",
         "api": "/edocat/api/v1",

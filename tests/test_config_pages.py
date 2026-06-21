@@ -33,12 +33,12 @@ def test_config_home_links_sections() -> None:
     assert "/docs" in response.text
     assert "/config/reload" in response.text
     assert "/config/bridge" in response.text
-    assert "/config/providers" in response.text
+    assert "/config/tc-vfs-contract" in response.text
     assert "/config/drivers" in response.text
     assert "/config/connections" in response.text
 
 
-def test_config_reload_clears_provider_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_config_reload_clears_connection_runtime_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = []
     monkeypatch.setattr(config_routes, "reload_connection_runtime_cache", lambda: calls.append("reload"))
     client = TestClient(create_app())
@@ -105,14 +105,19 @@ def test_docs_openapi_links_config() -> None:
     assert 'href="/config"' in docs_response.text
 
 
-def test_config_providers_is_read_only() -> None:
+def test_config_tc_vfs_contract_is_read_only() -> None:
     client = TestClient(create_app())
 
-    response = client.get("/config/providers/provider.json")
+    response = client.get("/config/tc-vfs-contract/provider.json")
 
     assert response.status_code == 200
     assert "readonly" in response.text
     assert "TC VFS Contract" in response.text
+
+    legacy_response = client.get("/config/providers/provider.json")
+
+    assert legacy_response.status_code == 200
+    assert "TC VFS Contract" in legacy_response.text
 
 
 def test_config_bridge_is_read_only() -> None:
@@ -320,7 +325,7 @@ def test_config_save_new_connection_creates_file(tmp_path: Path, monkeypatch: py
     assert "Saved test_connection.json" in response.text
 
 
-def test_config_save_reloads_provider_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_config_save_reloads_connection_runtime_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     repo_config = Path(__file__).resolve().parents[1] / "config"
     config_dir = tmp_path / "config"
     shutil.copytree(repo_config, config_dir)
@@ -472,12 +477,16 @@ def test_config_delete_rejects_read_only_template() -> None:
     assert response.status_code == 403
 
 
-def test_config_delete_rejects_provider_abc() -> None:
+def test_config_delete_rejects_tc_vfs_contract() -> None:
     client = TestClient(create_app())
 
-    response = client.post("/config/providers/provider.json/delete")
+    response = client.post("/config/tc-vfs-contract/provider.json/delete")
 
     assert response.status_code == 403
+
+    legacy_response = client.post("/config/providers/provider.json/delete")
+
+    assert legacy_response.status_code == 403
 
 
 def test_config_save_connection_rejects_unknown_driver(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
