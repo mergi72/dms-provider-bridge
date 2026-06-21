@@ -738,7 +738,7 @@ def config_audit() -> HTMLResponse:
   <h2>Runtime Audit</h2>
   <div class="panel-content">
     <p class="{status_class}">{html.escape(status_text)}</p>
-    <p class="help">Checks the ABC -> driver -> connection runtime registry. WFX exposes connection/mount names.</p>
+    <p class="help">Checks the TC VFS Contract -> Auth -> Drivers -> Connections runtime registry. WFX exposes connection/mount names.</p>
     <p class="muted">WFX connections: {html.escape(registered)}</p>
     <p class="muted">Available drivers: {html.escape(drivers)}</p>
     <table>

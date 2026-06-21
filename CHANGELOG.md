@@ -1,3 +1,11 @@
+## 0.9.3-beta - 2026-06-21
+
+- Removed remaining user-facing Provider ABC wording from README and Config UI.
+- Standardized documentation/UI terminology on TC VFS Contract, Auth, Drivers and Connections.
+- Renamed the TC VFS Contract screenshot asset away from the old provider-abc filename.
+- Added regression coverage for the Config UI audit terminology.
+- Release/version bump to `0.9.3-beta`.
+
 ## 0.9.2-beta - 2026-06-21
 
 - Updated route/OpenAPI terminology so `connection` is the primary request parameter.

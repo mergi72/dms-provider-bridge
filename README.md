@@ -8,12 +8,12 @@
 Current development branch: `develop`  
 Stable release branch: `main`
 
-`dms-provider-bridge` is a base bridge service skeleton for integrating multiple DMS providers such as Alfresco and other document repositories.
+`dms-provider-bridge` is a local TC VFS bridge for connecting Total Commander and API clients to DMS repositories through Auth, Drivers and Connections.
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.9.2-beta`
-- Latest bridge-only release: `v0.9.2-beta`
+- Bridge repository latest changelog version: `0.9.3-beta`
+- Latest bridge-only release: `v0.9.3-beta`
 
 ## 0.8.x Naming Refactor Strategy
 
@@ -73,7 +73,7 @@ Connection detail:
 
 TC VFS Contract view:
 
-![Bridge Configurator TC VFS Contract](docs/images/bridge-config-provider-abc.png)
+![Bridge Configurator TC VFS Contract](docs/images/bridge-config-tc-vfs-contract.png)
 
 Bridge API / Swagger:
 
@@ -158,7 +158,7 @@ Bridge can be run in two different Windows runtime models. Keep them separate:
   - Current setup installs the bridge service and preserves the installing user AppData path for configuration and logs.
   - `LocalSystem` cannot see credentials stored in an interactive user's Windows Credential Manager.
 
-Current setup release `v0.9.2-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
+Current setup release `v0.9.3-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
 
 ## Connection Operations
 
@@ -217,7 +217,7 @@ Initial scope:
 - Add a generic WebDAV driver implementation behind the existing TC VFS Contract.
 - Support `list`, `stat`, `download`, `upload`, `mkdir` and `delete` first.
 - Add `copy` and `move` after the basic operations are stable.
-- Keep versioning, WebDAV locks, `PROPPATCH`, WebDAV Sync and provider-specific extensions out of the first implementation.
+- Keep versioning, WebDAV locks, `PROPPATCH`, WebDAV Sync and driver-specific extensions out of the first implementation.
 
 Configuration shape:
 
@@ -689,8 +689,9 @@ Invoke-RestMethod -Method Get -Uri http://127.0.0.1:8765/health | ConvertTo-Json
 Diagnostics when the same file keeps appearing (typically "welcome.pdf"):
 
 - Verify you are calling `POST /bridge/wfx/list` (not legacy `GET /listing`).
-- Verify provider format is `provider=alfresco`, not `provider=alfresco:`.
-- Verify payload sends correct provider-prefixed `path` (`alfresco:/...`) and `auth`.
+- Prefer the `connection` parameter or a connection-prefixed path such as `alfresco:/...`.
+- If an older client still sends `provider`, treat it only as a legacy alias for `connection`.
+- Verify payload sends the correct connection-prefixed `path` (`alfresco:/...`) and `auth`.
 - For Alfresco, first call may be slower; repeated call should be faster (warm cache).
 
 ## Structure

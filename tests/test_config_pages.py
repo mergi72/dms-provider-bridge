@@ -89,6 +89,11 @@ def test_config_audit_shows_connection_runtime_status() -> None:
     assert "edocat:/" in response.text
     assert "Runtime Driver" in response.text
     assert "WFX connections" in response.text
+    assert "TC VFS Contract" in response.text
+    assert "Auth" in response.text
+    assert "Drivers" in response.text
+    assert "Connections" in response.text
+    assert "ABC -&gt; driver -&gt; connection" not in response.text
 
 
 def test_docs_openapi_links_config() -> None:
