@@ -12,8 +12,21 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.7.20-beta`
-- Latest bridge-only release: `v0.7.20-beta`
+- Bridge repository latest changelog version: `0.8.0-beta`
+- Latest bridge-only release: `v0.8.0-beta`
+
+## 0.8.x Naming Refactor Strategy
+
+The 0.8.x line is planned as a terminology cleanup, not a behavior rewrite.
+The first step is an audit that separates the old overloaded `provider` word
+into its current meanings:
+
+- `Provider ABC` for the internal bridge contract.
+- `Driver` for concrete DMS implementations such as Alfresco, eDoCat and WebDAV.
+- `Connection` for named mounts exposed to clients and Total Commander.
+- Legacy `provider` aliases for backward compatibility.
+
+See [docs/terminology-audit-v0.8.md](docs/terminology-audit-v0.8.md).
 
 ## Configuration Model
 
@@ -142,7 +155,7 @@ Bridge can be run in two different Windows runtime models. Keep them separate:
   - Current setup installs the bridge service and preserves the installing user AppData path for configuration and logs.
   - `LocalSystem` cannot see credentials stored in an interactive user's Windows Credential Manager.
 
-Current setup release `v0.7.20-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
+Current setup release `v0.8.0-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
 
 ## Connection Operations
 

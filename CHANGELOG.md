@@ -1,3 +1,11 @@
+## 0.8.0-beta - 2026-06-21
+
+- Added the 0.8.x terminology audit for the provider/driver/connection naming cleanup.
+- Documented that `Provider ABC` remains the internal contract name for now.
+- Documented the staged 0.8.x plan: service naming, runtime API cleanup, driver module move, and WFX/client naming cleanup.
+- No runtime behavior changes in this release.
+- Release/version bump to `0.8.0-beta`.
+
 ## 0.7.20-beta - 2026-06-20
 
 - Unified bridge runtime auth resolution so operations use connection/driver credential settings consistently.
