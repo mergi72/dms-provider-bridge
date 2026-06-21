@@ -221,7 +221,7 @@ def list_driver_config_names() -> list[str]:
 
 
 def list_provider_config_names() -> list[str]:
-    """Backward-compatible alias for the driver registry name list."""
+    """Deprecated compatibility alias for the driver registry name list."""
     return list_driver_config_names()
 
 
@@ -283,7 +283,7 @@ def load_driver_config(driver_name: str) -> dict[str, Any]:
 
 
 def load_provider_config(provider_name: str) -> dict[str, Any]:
-    """Backward-compatible alias for loading driver configuration."""
+    """Deprecated compatibility alias for loading driver configuration."""
     return load_driver_config(provider_name)
 
 

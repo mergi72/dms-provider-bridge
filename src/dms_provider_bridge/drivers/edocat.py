@@ -12,7 +12,7 @@ from dms_provider_bridge.core.debug import (
     log_connection_operation_failed,
     log_connection_operation_start,
 )
-from dms_provider_bridge.core.errors import AuthenticationError, ProviderOperationError
+from dms_provider_bridge.core.errors import AuthenticationError, ConnectionOperationError
 from dms_provider_bridge.clients.edocat_client import EdocatClient
 from dms_provider_bridge.core.config_loader import load_driver_config
 from dms_provider_bridge.models.bridge import BridgeAuthContext
@@ -128,7 +128,7 @@ class EdocatProvider(TcVfsContract):
     def _download_zip_for_node(self, node_uuid: str, resolved_path: str, auth: BridgeAuthContext | None) -> OperationResult:
         endpoint = self._download_zip_endpoint()
         if not endpoint:
-            raise ProviderOperationError(
+            raise ConnectionOperationError(
                 "eDoCat folder download is not supported by the documented node/query includeContent API. "
                 "Set download.zipEndpoint to enable server-side ZIP download."
             )
@@ -148,10 +148,10 @@ class EdocatProvider(TcVfsContract):
         try:
             raw_zip, content_type = self.client.request_bytes(method, request_url, username=username, password=password, payload=payload)
         except Exception as exc:
-            raise ProviderOperationError(f"eDoCat ZIP download failed for {resolved_path}: {exc}") from exc
+            raise ConnectionOperationError(f"eDoCat ZIP download failed for {resolved_path}: {exc}") from exc
 
         if not raw_zip:
-            raise ProviderOperationError(f"eDoCat ZIP download failed for {resolved_path}: empty ZIP payload.")
+            raise ConnectionOperationError(f"eDoCat ZIP download failed for {resolved_path}: empty ZIP payload.")
 
         mime_type = content_type or self._download_zip_content_type()
         return OperationResult(
@@ -199,8 +199,8 @@ class EdocatProvider(TcVfsContract):
             )
             if exc.code in {401, 403}:
                 raise AuthenticationError(f"eDoCat access denied for {path}: HTTP {exc.code}.", status_code=exc.code) from exc
-            raise ProviderOperationError(f"eDoCat query failed for {path}: HTTP {exc.code}.", status_code=exc.code) from exc
-        except ProviderOperationError as exc:
+            raise ConnectionOperationError(f"eDoCat query failed for {path}: HTTP {exc.code}.", status_code=exc.code) from exc
+        except ConnectionOperationError as exc:
             log_connection_operation_failed(
                 self.debug_logger,
                 self.name,
@@ -221,7 +221,7 @@ class EdocatProvider(TcVfsContract):
                 error=exc,
                 include_content=include_content,
             )
-            raise ProviderOperationError(f"eDoCat query failed for {path}: {exc}") from exc
+            raise ConnectionOperationError(f"eDoCat query failed for {path}: {exc}") from exc
 
         nodes = response.get("nodes", [])
         if not isinstance(nodes, list):
@@ -234,7 +234,7 @@ class EdocatProvider(TcVfsContract):
                 error="invalid nodes payload",
                 include_content=include_content,
             )
-            raise ProviderOperationError("eDoCat query response has invalid 'nodes' payload.")
+            raise ConnectionOperationError("eDoCat query response has invalid 'nodes' payload.")
         result_nodes = [node for node in nodes if isinstance(node, dict)]
         log_connection_operation_done(
             self.debug_logger,
@@ -271,7 +271,7 @@ class EdocatProvider(TcVfsContract):
             )
             if exc.code in {401, 403}:
                 raise AuthenticationError(f"eDoCat access denied for uuid {uuid}: HTTP {exc.code}.", status_code=exc.code) from exc
-            raise ProviderOperationError(f"eDoCat query failed for uuid {uuid}: HTTP {exc.code}.", status_code=exc.code) from exc
+            raise ConnectionOperationError(f"eDoCat query failed for uuid {uuid}: HTTP {exc.code}.", status_code=exc.code) from exc
         except Exception as exc:
             log_connection_operation_failed(
                 self.debug_logger,
@@ -282,7 +282,7 @@ class EdocatProvider(TcVfsContract):
                 error=str(exc),
                 include_content=include_content,
             )
-            raise ProviderOperationError(f"eDoCat query failed for uuid {uuid}: {exc}") from exc
+            raise ConnectionOperationError(f"eDoCat query failed for uuid {uuid}: {exc}") from exc
 
         nodes = response.get("nodes", [])
         if not isinstance(nodes, list):
@@ -295,7 +295,7 @@ class EdocatProvider(TcVfsContract):
                 error="invalid nodes payload",
                 include_content=include_content,
             )
-            raise ProviderOperationError("eDoCat query-by-uuid response has invalid 'nodes' payload.")
+            raise ConnectionOperationError("eDoCat query-by-uuid response has invalid 'nodes' payload.")
         result_nodes = [node for node in nodes if isinstance(node, dict)]
         log_connection_operation_done(
             self.debug_logger,
@@ -313,7 +313,7 @@ class EdocatProvider(TcVfsContract):
         resolved_path = self._resolve_path(path)
         try:
             nodes = self._query_nodes(path, auth, include_content=include_content)
-        except ProviderOperationError as exc:
+        except ConnectionOperationError as exc:
             if exc.status_code not in {400, 404}:
                 raise
             parent_path = resolved_path.rsplit("/", 1)[0] or "/"
@@ -504,11 +504,11 @@ class EdocatProvider(TcVfsContract):
 
             full_child_node = self._query_single_node(child_source_path, auth, include_content=True)
             if full_child_node is None:
-                raise ProviderOperationError(f"eDoCat copy failed: source child not found: {child_source_path}")
+                raise ConnectionOperationError(f"eDoCat copy failed: source child not found: {child_source_path}")
 
             full_child_path = self._normalize_node_path(full_child_node)
             if full_child_path != child_source_path:
-                raise ProviderOperationError(
+                raise ConnectionOperationError(
                     f"eDoCat copy failed: source child path mismatch (requested={child_source_path}, resolved={full_child_path or 'none'})"
                 )
 
@@ -553,11 +553,11 @@ class EdocatProvider(TcVfsContract):
         destination_path = self._resolve_path(destination)
         source_node = self._query_single_node(source_path, auth, include_content=True)
         if source_node is None:
-            raise ProviderOperationError(f"eDoCat copy failed: source not found: {source_path}")
+            raise ConnectionOperationError(f"eDoCat copy failed: source not found: {source_path}")
 
         source_node_path = self._normalize_node_path(source_node)
         if source_node_path != source_path:
-            raise ProviderOperationError(
+            raise ConnectionOperationError(
                 f"eDoCat copy failed: source path mismatch (requested={source_path}, resolved={source_node_path or 'none'})"
             )
 
@@ -566,14 +566,14 @@ class EdocatProvider(TcVfsContract):
                 total_nodes = self._count_folder_tree_nodes(source_path, auth)
                 max_nodes = self._copy_max_nodes()
                 if total_nodes > max_nodes:
-                    raise ProviderOperationError(
+                    raise ConnectionOperationError(
                         f"eDoCat copy failed: folder tree has {total_nodes} nodes, safety limit is {max_nodes}."
                     )
             else:
                 total_nodes = 1
                 max_nodes = self._copy_max_nodes()
             if total_nodes > max_nodes:
-                raise ProviderOperationError(
+                raise ConnectionOperationError(
                     f"eDoCat copy failed: folder tree has {total_nodes} nodes, safety limit is {max_nodes}."
                 )
             response = self.client.create_node(
@@ -584,7 +584,7 @@ class EdocatProvider(TcVfsContract):
             if self._is_folder_node(source_node):
                 self._copy_folder_contents(source_path, destination_path, auth, username, password)
         except Exception as exc:
-            raise ProviderOperationError(f"eDoCat copy failed for {source_path} -> {destination_path}: {exc}") from exc
+            raise ConnectionOperationError(f"eDoCat copy failed for {source_path} -> {destination_path}: {exc}") from exc
 
         copied = response if isinstance(response, dict) else {}
         target_uuid = str(copied.get("uuid") or copied.get("id") or copied.get("name") or source_node.get("name") or "")
@@ -605,28 +605,28 @@ class EdocatProvider(TcVfsContract):
         # 1) Read source node attributes (identity is UUID, path/name are metadata)
         source_node = self._query_single_node(source_path, auth, include_content=False)
         if source_node is None:
-            raise ProviderOperationError(f"eDoCat rename failed: source not found: {source_path}")
+            raise ConnectionOperationError(f"eDoCat rename failed: source not found: {source_path}")
 
         source_node_path = self._normalize_node_path(source_node)
         if source_node_path != source_path:
-            raise ProviderOperationError(
+            raise ConnectionOperationError(
                 f"eDoCat rename failed: source path mismatch (requested={source_path}, resolved={source_node_path or 'none'})"
             )
 
         source_uuid = str(source_node.get("uuid") or source_node.get("id") or "")
         if not source_uuid:
-            raise ProviderOperationError(f"eDoCat rename failed: source has no uuid/id: {source_path}")
+            raise ConnectionOperationError(f"eDoCat rename failed: source has no uuid/id: {source_path}")
 
         parent, name = self._parent_and_name(destination_path)
         source_parent, _ = self._parent_and_name(source_path)
         if parent != source_parent:
-            raise ProviderOperationError(
+            raise ConnectionOperationError(
                 f"eDoCat rename supports only name/metadata changes in the same parent "
                 f"(source_parent={source_parent}, destination_parent={parent})"
             )
 
         # 2) Update node description metadata (name) on the same UUID
-        # NOTE: do NOT include "path" â€“ eDoCat interprets path in updateNode as
+        # NOTE: do NOT include "path" Ă˘â‚¬â€ś eDoCat interprets path in updateNode as
         # a move/copy operation, not a metadata-only update.
         payload: dict[str, object] = {
             "uuid": source_uuid,
@@ -636,7 +636,7 @@ class EdocatProvider(TcVfsContract):
         try:
             response = self.client.update_node(payload, username=username, password=password)
         except Exception as exc:
-            raise ProviderOperationError(f"eDoCat rename failed for {source_path} -> {destination_path}: {exc}") from exc
+            raise ConnectionOperationError(f"eDoCat rename failed for {source_path} -> {destination_path}: {exc}") from exc
 
         renamed = response if isinstance(response, dict) else {}
         target_uuid = str(renamed.get("uuid") or source_node.get("uuid") or source_node.get("id"))
@@ -655,11 +655,11 @@ class EdocatProvider(TcVfsContract):
         target_path = self._resolve_path(target)
         target_node = self._query_single_node(target_path, auth, include_content=False)
         if target_node is None:
-            raise ProviderOperationError(f"eDoCat delete failed: target not found: {target_path}")
+            raise ConnectionOperationError(f"eDoCat delete failed: target not found: {target_path}")
 
         target_node_path = self._normalize_node_path(target_node)
         if target_node_path != target_path:
-            raise ProviderOperationError(
+            raise ConnectionOperationError(
                 f"eDoCat delete failed: target path mismatch (requested={target_path}, resolved={target_node_path or 'none'})"
             )
 
@@ -669,16 +669,16 @@ class EdocatProvider(TcVfsContract):
                 total_nodes = self._count_folder_tree_nodes(target_path, auth)
                 max_nodes = self._delete_max_nodes()
                 if total_nodes > max_nodes:
-                    raise ProviderOperationError(
+                    raise ConnectionOperationError(
                         f"eDoCat delete failed: folder tree has {total_nodes} nodes, safety limit is {max_nodes}."
                     )
                 self._delete_folder_tree(target_path, auth, username, password)
             else:
                 if not uuid:
-                    raise ProviderOperationError(f"eDoCat delete failed: target has no uuid/id: {target_path}")
+                    raise ConnectionOperationError(f"eDoCat delete failed: target has no uuid/id: {target_path}")
                 self.client.delete_nodes([uuid], username=username, password=password)
         except Exception as exc:
-            raise ProviderOperationError(f"eDoCat delete failed for {target_path}: {exc}") from exc
+            raise ConnectionOperationError(f"eDoCat delete failed for {target_path}: {exc}") from exc
         return OperationResult(
             success=True,
             operation="delete",
@@ -706,7 +706,7 @@ class EdocatProvider(TcVfsContract):
         try:
             response = self.client.create_node(payload, username=username, password=password)
         except Exception as exc:
-            raise ProviderOperationError(f"eDoCat mkdir failed for {resolved_path}: {exc}") from exc
+            raise ConnectionOperationError(f"eDoCat mkdir failed for {resolved_path}: {exc}") from exc
 
         created = response if isinstance(response, dict) else {}
         target_uuid = str(created.get("uuid") or created.get("id") or created.get("name") or name)
@@ -723,11 +723,11 @@ class EdocatProvider(TcVfsContract):
         resolved_path = self._resolve_path(path)
         node = self._query_single_node(resolved_path, auth, include_content=False)
         if node is None:
-            raise ProviderOperationError(f"eDoCat download found no document for {resolved_path}.")
+            raise ConnectionOperationError(f"eDoCat download found no document for {resolved_path}.")
 
         node_path = self._normalize_node_path(node)
         if node_path != resolved_path:
-            raise ProviderOperationError(
+            raise ConnectionOperationError(
                 f"eDoCat download failed: path mismatch (requested={resolved_path}, resolved={node_path or 'none'})"
             )
 
@@ -735,41 +735,41 @@ class EdocatProvider(TcVfsContract):
             total_nodes = self._count_folder_tree_nodes(resolved_path, auth)
             max_nodes = self._download_max_nodes()
             if total_nodes > max_nodes:
-                raise ProviderOperationError(
+                raise ConnectionOperationError(
                     f"eDoCat download blocked: folder tree has {total_nodes} nodes, safety limit is {max_nodes}."
                 )
             uuid = self._node_uuid(node)
             if not uuid:
-                raise ProviderOperationError(f"eDoCat download failed: target has no uuid/id: {resolved_path}")
+                raise ConnectionOperationError(f"eDoCat download failed: target has no uuid/id: {resolved_path}")
             return self._download_zip_for_node(uuid, resolved_path, auth)
 
         uuid = self._node_uuid(node)
         if not uuid:
-            raise ProviderOperationError(f"eDoCat download failed: target has no uuid/id: {resolved_path}")
+            raise ConnectionOperationError(f"eDoCat download failed: target has no uuid/id: {resolved_path}")
 
         content_node = self._query_node_by_uuid(uuid, auth, include_content=True)
         if content_node is None:
-            raise ProviderOperationError(f"eDoCat download found no content node for {resolved_path}.")
+            raise ConnectionOperationError(f"eDoCat download found no content node for {resolved_path}.")
 
         content_node_path = self._normalize_node_path(content_node)
         if content_node_path and content_node_path != resolved_path:
-            raise ProviderOperationError(
+            raise ConnectionOperationError(
                 f"eDoCat download failed: content path mismatch (requested={resolved_path}, resolved={content_node_path})"
             )
 
         content = content_node.get("content")
         if not isinstance(content, str):
-            raise ProviderOperationError(f"eDoCat download returned no content for {resolved_path}.")
+            raise ConnectionOperationError(f"eDoCat download returned no content for {resolved_path}.")
 
         try:
             binary_content = base64.b64decode(content, validate=True)
         except Exception as exc:
-            raise ProviderOperationError(f"eDoCat download returned invalid base64 content for {resolved_path}: {exc}") from exc
+            raise ConnectionOperationError(f"eDoCat download returned invalid base64 content for {resolved_path}: {exc}") from exc
 
         size = len(binary_content)
         max_bytes = self._download_max_bytes()
         if size > max_bytes:
-            raise ProviderOperationError(
+            raise ConnectionOperationError(
                 f"eDoCat download blocked: payload size {size} B exceeds limit {max_bytes} B."
             )
 
@@ -804,15 +804,15 @@ class EdocatProvider(TcVfsContract):
                 file_size = os.path.getsize(source_path)
                 max_bytes = self._upload_max_bytes()
                 if file_size > max_bytes:
-                    raise ProviderOperationError(
+                    raise ConnectionOperationError(
                         f"eDoCat upload blocked: payload size {file_size} B exceeds limit {max_bytes} B."
                     )
                 with open(source_path, "rb") as handle:
                     encoded_content = base64.b64encode(handle.read()).decode("ascii")
-            except ProviderOperationError:
+            except ConnectionOperationError:
                 raise
             except Exception as exc:
-                raise ProviderOperationError(f"eDoCat upload failed: source file is not accessible: {source_path}") from exc
+                raise ConnectionOperationError(f"eDoCat upload failed: source file is not accessible: {source_path}") from exc
         else:
             encoded_content = self._encode_if_needed(content_base64)
         payload: dict[str, object] = {
@@ -825,16 +825,16 @@ class EdocatProvider(TcVfsContract):
         if version_choice is not None:
             existing_node = self._query_single_node(target, auth, include_content=False)
             if existing_node is None:
-                raise ProviderOperationError(f"eDoCat version upload failed: target does not exist: {target}")
+                raise ConnectionOperationError(f"eDoCat version upload failed: target does not exist: {target}")
             existing_uuid = self._node_uuid(existing_node)
             if not existing_uuid:
-                raise ProviderOperationError(f"eDoCat version upload failed: existing node uuid is missing for {target}")
+                raise ConnectionOperationError(f"eDoCat version upload failed: existing node uuid is missing for {target}")
             major_version, comment = version_choice
             try:
                 if self._alfresco_version_client is None:
                     self._alfresco_version_client = AlfrescoClient.from_config(self._alfresco_version_config())
                 if not (username and password):
-                    raise ProviderOperationError("eDoCat version upload failed: credentials are missing.")
+                    raise ConnectionOperationError("eDoCat version upload failed: credentials are missing.")
                 ticket = self._alfresco_version_client.basic_auth_token(username, password)
                 response = self._alfresco_version_client.update_node_content(
                     ticket,
@@ -846,7 +846,7 @@ class EdocatProvider(TcVfsContract):
                     comment=comment,
                 )
             except Exception as exc:
-                raise ProviderOperationError(f"eDoCat version upload failed for {target}: {exc}") from exc
+                raise ConnectionOperationError(f"eDoCat version upload failed for {target}: {exc}") from exc
 
             updated = response if isinstance(response, dict) else {}
             entry = updated.get("entry") if isinstance(updated.get("entry"), dict) else updated
@@ -877,7 +877,7 @@ class EdocatProvider(TcVfsContract):
         try:
             response = self.client.create_node(payload, username=username, password=password)
         except Exception as exc:
-            raise ProviderOperationError(f"eDoCat upload failed for {target}: {exc}") from exc
+            raise ConnectionOperationError(f"eDoCat upload failed for {target}: {exc}") from exc
 
         created = response if isinstance(response, dict) else {}
         target_uuid = str(created.get("uuid") or created.get("id") or created.get("name") or name)
@@ -890,4 +890,5 @@ class EdocatProvider(TcVfsContract):
             destination=self._public_path(target),
             message=f"endpoint={self.client.endpoint_url('node')};uuid={target_uuid};mode=live",
         )
+
 

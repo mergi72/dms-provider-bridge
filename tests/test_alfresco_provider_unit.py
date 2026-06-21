@@ -10,7 +10,7 @@ import pytest
 import dms_provider_bridge.drivers.alfresco as alfresco_provider_module  # type: ignore[import-untyped]
 from dms_provider_bridge.models.bridge import BridgeAuthContext  # type: ignore[import-untyped]
 from dms_provider_bridge.drivers.alfresco import AlfrescoProvider  # type: ignore[import-untyped]
-from dms_provider_bridge.core.errors import AuthenticationError  # type: ignore[import-untyped]
+from dms_provider_bridge.core.errors import AuthenticationError, ConnectionOperationError  # type: ignore[import-untyped]
 
 
 pytestmark = pytest.mark.unit
@@ -447,7 +447,7 @@ def test_download_item_over_limit_raises_provider_error(monkeypatch: pytest.Monk
         },
     )
 
-    with pytest.raises(alfresco_provider_module.ProviderOperationError, match="download failed"):
+    with pytest.raises(ConnectionOperationError, match="download failed"):
         provider.download_item(
             "/contracts/a.txt",
             auth=BridgeAuthContext(mode="credentials", username="user", password="pass"),

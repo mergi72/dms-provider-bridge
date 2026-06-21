@@ -11,7 +11,7 @@ from xml.etree import ElementTree
 
 from dms_provider_bridge.core.config_loader import load_driver_config
 from dms_provider_bridge.core.debug import connection_debug_logger
-from dms_provider_bridge.core.errors import ProviderOperationError
+from dms_provider_bridge.core.errors import ConnectionOperationError
 from dms_provider_bridge.models.bridge import BridgeAuthContext
 from dms_provider_bridge.models.item import DmsItem
 from dms_provider_bridge.models.listing import ListingResult
@@ -69,7 +69,7 @@ class WebdavProvider(TcVfsContract):
     def _base_url(self) -> str:
         base_url = str(self.config.get("base_url") or "").strip().rstrip("/")
         if not base_url:
-            raise ProviderOperationError("WebDAV base_url is not configured.")
+            raise ConnectionOperationError("WebDAV base_url is not configured.")
         return base_url
 
     def _path_url(self, path: str, *, directory: bool = False) -> str:
@@ -116,7 +116,7 @@ class WebdavProvider(TcVfsContract):
                 return response.read(), int(response.status), dict(response.headers)
         except HTTPError as exc:
             content = exc.read()
-            raise ProviderOperationError(
+            raise ConnectionOperationError(
                 f"WebDAV {method} failed for {url}: HTTP {exc.code}; {content[:200]!r}",
                 status_code=int(exc.code),
             ) from exc
@@ -165,7 +165,7 @@ class WebdavProvider(TcVfsContract):
         try:
             root = ElementTree.fromstring(content)
         except ElementTree.ParseError as exc:
-            raise ProviderOperationError(f"WebDAV PROPFIND returned invalid XML for {path}: {exc}") from exc
+            raise ConnectionOperationError(f"WebDAV PROPFIND returned invalid XML for {path}: {exc}") from exc
         return list(root.findall(f"{DAV_NS}response"))
 
     def _href_to_path(self, href: str) -> str:
@@ -223,8 +223,8 @@ class WebdavProvider(TcVfsContract):
             modified_at=modified_at,
         )
 
-    def _not_implemented(self, operation: str) -> ProviderOperationError:
-        return ProviderOperationError(f"WebDAV driver operation '{operation}' is not implemented yet.")
+    def _not_implemented(self, operation: str) -> ConnectionOperationError:
+        return ConnectionOperationError(f"WebDAV driver operation '{operation}' is not implemented yet.")
 
     def list_items(self, path: str, auth: BridgeAuthContext | None = None) -> ListingResult:
         normalized = path or "/"
@@ -237,7 +237,7 @@ class WebdavProvider(TcVfsContract):
     def stat_item(self, path: str, auth: BridgeAuthContext | None = None) -> DmsItem | None:
         try:
             items = [self._response_to_item(response) for response in self._propfind(path or "/", auth, "0")]
-        except ProviderOperationError as exc:
+        except ConnectionOperationError as exc:
             if getattr(exc, "status_code", None) == 404:
                 return None
             raise
@@ -334,3 +334,4 @@ class WebdavProvider(TcVfsContract):
             size=len(payload),
             mime_type=content_type,
         )
+

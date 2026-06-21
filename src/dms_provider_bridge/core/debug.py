@@ -57,7 +57,7 @@ def connection_debug_logger(connection_name: str, config: dict[str, Any]) -> log
 
 
 def provider_debug_logger(provider_name: str, config: dict[str, Any]) -> logging.Logger:
-    """Backward-compatible alias for connection debug logging."""
+    """Deprecated compatibility alias for connection debug logging."""
     connection_name = provider_name
     return connection_debug_logger(connection_name, config)
 
@@ -81,7 +81,7 @@ def log_provider_operation_start(
     path: str | None = None,
     **fields: object,
 ) -> float:
-    """Backward-compatible alias for connection operation logging."""
+    """Deprecated compatibility alias for connection operation logging."""
     connection_name = provider_name
     return log_connection_operation_start(logger, connection_name, operation, path, **fields)
 
@@ -106,7 +106,7 @@ def log_provider_operation_done(
     path: str | None = None,
     **fields: object,
 ) -> None:
-    """Backward-compatible alias for connection operation logging."""
+    """Deprecated compatibility alias for connection operation logging."""
     connection_name = provider_name
     log_connection_operation_done(logger, connection_name, operation, started, path, **fields)
 
@@ -136,7 +136,7 @@ def log_provider_operation_failed(
     error: BaseException | str | None = None,
     **fields: object,
 ) -> None:
-    """Backward-compatible alias for connection operation logging."""
+    """Deprecated compatibility alias for connection operation logging."""
     connection_name = provider_name
     log_connection_operation_failed(logger, connection_name, operation, started, path, error=error, **fields)
 
@@ -165,7 +165,7 @@ def debug_operation(
     path: str | None,
     func: Callable[[], Any],
 ) -> Any:
-    """Backward-compatible alias for connection operation debug wrapping."""
+    """Deprecated compatibility alias for connection operation debug wrapping."""
     connection_name = provider_name
     return debug_connection_operation(logger, connection_name, operation, path, func)
 

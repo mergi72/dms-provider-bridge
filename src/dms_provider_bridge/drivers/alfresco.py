@@ -13,7 +13,7 @@ from dms_provider_bridge.core.debug import (
     log_connection_operation_failed,
     log_connection_operation_start,
 )
-from dms_provider_bridge.core.errors import AuthenticationError, ProviderOperationError, VersionRequiredError
+from dms_provider_bridge.core.errors import AuthenticationError, ConnectionOperationError, VersionRequiredError
 from dms_provider_bridge.models.bridge import BridgeAuthContext
 from dms_provider_bridge.models.item import DmsItem
 from dms_provider_bridge.models.listing import ListingResult
@@ -69,7 +69,7 @@ class AlfrescoProvider(TcVfsContract):
             return normalized
         if username and password:
             return self.client.basic_auth_token(username, password)
-        raise ProviderOperationError("Alfresco credentials are missing; live operation cannot continue.")
+        raise ConnectionOperationError("Alfresco credentials are missing; live operation cannot continue.")
 
     def _refresh_ticket(self, auth: BridgeAuthContext | None) -> str | None:
         try:
@@ -118,7 +118,7 @@ class AlfrescoProvider(TcVfsContract):
         try:
             return self.client.get_node(ticket, resolved["node_id"])
         except Exception as exc:
-            raise ProviderOperationError(f"Alfresco node lookup failed for {resolved['path']}: {exc}") from exc
+            raise ConnectionOperationError(f"Alfresco node lookup failed for {resolved['path']}: {exc}") from exc
 
     def _target_parent_and_name(self, destination: str, ticket: str | None = None) -> tuple[str, str | None, str]:
         normalized = self.client.normalize_path(destination)
@@ -180,23 +180,23 @@ class AlfrescoProvider(TcVfsContract):
                 if live_node and live_node.get("id"):
                     node_id = str(live_node["id"])
                 elif strict:
-                    raise ProviderOperationError(f"Unable to resolve Alfresco path: {normalized}")
+                    raise ConnectionOperationError(f"Unable to resolve Alfresco path: {normalized}")
             except HTTPError:
                 raise
             except Exception:
                 if strict:
-                    raise ProviderOperationError(f"Unable to resolve Alfresco path: {normalized}")
+                    raise ConnectionOperationError(f"Unable to resolve Alfresco path: {normalized}")
             try:
                 live_parent = self.client.resolve_node_by_relative_path(ticket, parent_path)
                 if live_parent and live_parent.get("id"):
                     parent_id = str(live_parent["id"])
                 elif strict:
-                    raise ProviderOperationError(f"Unable to resolve Alfresco parent path: {parent_path}")
+                    raise ConnectionOperationError(f"Unable to resolve Alfresco parent path: {parent_path}")
             except HTTPError:
                 raise
             except Exception:
                 if strict:
-                    raise ProviderOperationError(f"Unable to resolve Alfresco parent path: {parent_path}")
+                    raise ConnectionOperationError(f"Unable to resolve Alfresco parent path: {parent_path}")
 
         return {
             "path": normalized,
@@ -226,7 +226,7 @@ class AlfrescoProvider(TcVfsContract):
         except AuthenticationError:
             raise
         except Exception as exc:
-            raise ProviderOperationError(f"Alfresco list failed for {self.client.normalize_path(path)}: {exc}") from exc
+            raise ConnectionOperationError(f"Alfresco list failed for {self.client.normalize_path(path)}: {exc}") from exc
 
     def bridge_endpoint_for(self, operation: str) -> str | None:
         mapping = {
@@ -245,7 +245,7 @@ class AlfrescoProvider(TcVfsContract):
         ticket = self._ticket(auth)
         try:
             live_node = self._live_node(path, auth, ticket)
-        except ProviderOperationError:
+        except ConnectionOperationError:
             live_node = None
 
         if live_node and isinstance(live_node.get("entry"), dict):
@@ -283,7 +283,7 @@ class AlfrescoProvider(TcVfsContract):
         except AuthenticationError:
             raise
         except Exception as exc:
-            raise ProviderOperationError(f"Alfresco copy failed for {source} -> {destination}: {exc}") from exc
+            raise ConnectionOperationError(f"Alfresco copy failed for {source} -> {destination}: {exc}") from exc
         return OperationResult(
             success=True,
             operation="copy",
@@ -303,7 +303,7 @@ class AlfrescoProvider(TcVfsContract):
                 target_name = destination_resolved["name"]
                 destination_path = destination_resolved["path"]
                 if not target_name or destination_path == "/":
-                    raise ProviderOperationError(
+                    raise ConnectionOperationError(
                         f"Alfresco rename failed for {resolved['path']} -> {destination_path}: destination name is missing."
                     )
                 self.client.move_node(ticket, resolved["node_id"], target_parent_id, target_name)
@@ -313,7 +313,7 @@ class AlfrescoProvider(TcVfsContract):
         except AuthenticationError:
             raise
         except Exception as exc:
-            raise ProviderOperationError(f"Alfresco rename failed for {source} -> {destination}: {exc}") from exc
+            raise ConnectionOperationError(f"Alfresco rename failed for {source} -> {destination}: {exc}") from exc
         return OperationResult(
             success=True,
             operation="rename",
@@ -335,7 +335,7 @@ class AlfrescoProvider(TcVfsContract):
         except AuthenticationError:
             raise
         except Exception as exc:
-            raise ProviderOperationError(f"Alfresco delete failed for {target}: {exc}") from exc
+            raise ConnectionOperationError(f"Alfresco delete failed for {target}: {exc}") from exc
         return OperationResult(
             success=True,
             operation="delete",
@@ -371,9 +371,9 @@ class AlfrescoProvider(TcVfsContract):
                     source=path,
                     message=f"endpoint={endpoint};mode=live;status=exists",
                 )
-            raise ProviderOperationError(f"Alfresco mkdir failed for {self.client.normalize_path(path)}: HTTP Error {exc.code}") from exc
+            raise ConnectionOperationError(f"Alfresco mkdir failed for {self.client.normalize_path(path)}: HTTP Error {exc.code}") from exc
         except Exception as exc:
-            raise ProviderOperationError(f"Alfresco mkdir failed for {self.client.normalize_path(path)}: {exc}") from exc
+            raise ConnectionOperationError(f"Alfresco mkdir failed for {self.client.normalize_path(path)}: {exc}") from exc
         return OperationResult(
             success=True,
             operation="mkdir",
@@ -395,7 +395,7 @@ class AlfrescoProvider(TcVfsContract):
         except AuthenticationError:
             raise
         except Exception as exc:
-            raise ProviderOperationError(f"Alfresco download failed for {self.client.normalize_path(path)}: {exc}") from exc
+            raise ConnectionOperationError(f"Alfresco download failed for {self.client.normalize_path(path)}: {exc}") from exc
         encoded = base64.b64encode(raw_content).decode("ascii")
         self.debug_logger.debug(
             "provider_download_payload provider=%s path=%s base64_chars=%s binary_bytes=%s mime_type=%s",
@@ -428,7 +428,7 @@ class AlfrescoProvider(TcVfsContract):
         except AuthenticationError:
             raise
         except Exception as exc:
-            raise ProviderOperationError(f"Alfresco stream failed for {self.client.normalize_path(path)}: {exc}") from exc
+            raise ConnectionOperationError(f"Alfresco stream failed for {self.client.normalize_path(path)}: {exc}") from exc
         self.debug_logger.debug(
             "provider_stream_payload provider=%s path=%s content_length=%s mime_type=%s",
             self.name,
@@ -461,7 +461,7 @@ class AlfrescoProvider(TcVfsContract):
                 if existing is not None:
                     existing_node_id = str(existing.get("id") or "")
                     if not existing_node_id:
-                        raise ProviderOperationError(f"Alfresco version upload failed: existing node id is missing for {target_destination}")
+                        raise ConnectionOperationError(f"Alfresco version upload failed: existing node id is missing for {target_destination}")
                     existing_detail = self._node_detail_entry(ticket, existing_node_id) or existing
                     metadata = self._existing_upload_metadata(target_destination, existing_detail)
                     choice = self._versioning_choice(versioning)
@@ -501,7 +501,7 @@ class AlfrescoProvider(TcVfsContract):
         except VersionRequiredError:
             raise
         except Exception as exc:
-            raise ProviderOperationError(f"Alfresco upload failed for {destination} -> {file_name}: {exc}") from exc
+            raise ConnectionOperationError(f"Alfresco upload failed for {destination} -> {file_name}: {exc}") from exc
         return OperationResult(
             success=True,
             operation="upload",
@@ -512,4 +512,5 @@ class AlfrescoProvider(TcVfsContract):
             message=f"endpoint={endpoint};content={content_state};mode=live;action={metadata.get('action') if isinstance(metadata, dict) else 'upload'}",
             metadata=metadata,
         )
+
 

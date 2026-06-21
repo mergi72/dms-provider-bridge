@@ -38,14 +38,17 @@ $specPath = Join-Path $targetRoot "spec"
 $configStageDir = Join-Path $targetRoot "config"
 $configTemplatePaths = @(
     "bridge.json",
+    "auth\auth.json",
     "providers\provider.json",
     "providers\provider.local.json",
     "drivers\driver.json",
     "drivers\alfresco.json",
     "drivers\edocat.json",
+    "drivers\webdav.json",
     "connections\connection.json",
     "connections\alfresco.json",
-    "connections\edocat.json"
+    "connections\edocat.json",
+    "connections\webdav.json"
 )
 
 if (-not (Test-Path $entryScript)) {
@@ -96,6 +99,7 @@ Write-Host "Building bridge executable (onedir)..."
     --hidden-import dms_provider_bridge.app.server `
     --hidden-import dms_provider_bridge.drivers.alfresco `
     --hidden-import dms_provider_bridge.drivers.edocat `
+    --hidden-import dms_provider_bridge.drivers.webdav `
     --add-data $addData `
     --distpath $distPath `
     --workpath $buildPath `

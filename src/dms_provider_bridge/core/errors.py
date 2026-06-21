@@ -22,7 +22,8 @@ class ConnectionOperationError(BridgeError):
         self.status_code = status_code
 
 
-# Backward-compatible alias for older provider-named call sites.
+# Deprecated compatibility alias for older provider-named call sites.
+# New runtime code should raise ConnectionOperationError.
 ProviderOperationError = ConnectionOperationError
 
 

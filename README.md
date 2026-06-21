@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.9.7-beta`
-- Latest bridge-only release: `v0.9.7-beta`
+- Bridge repository latest changelog version: `0.9.8-beta`
+- Latest bridge-only release: `v0.9.8-beta`
 
 ## 0.8.x Naming Refactor Strategy
 
@@ -94,6 +94,10 @@ Compatibility aliases:
 - Responses and logs may include both `connection` and `provider` keys during the 0.9 beta series. `connection` is the preferred key; `provider` is kept for compatibility with existing tools and logs.
 - Result models now expose `connection` next to legacy `provider`. When old driver code only sets `provider`, the bridge mirrors it into `connection`.
 - When both names are supplied, they must point to the same value. A mismatch is treated as a validation/configuration error.
+- `ProviderOperationError` is a compatibility alias for `ConnectionOperationError`.
+- `load_provider_config()` and `list_provider_config_names()` are compatibility aliases for driver config loading.
+- `provider_debug_logger()` and `log_provider_*()` are compatibility aliases for connection debug logging.
+- `provider_service` is kept as a temporary import alias for `connection_runtime_service`.
 
 Current UI rules:
 
@@ -158,7 +162,7 @@ Bridge can be run in two different Windows runtime models. Keep them separate:
   - Current setup installs the bridge service and preserves the installing user AppData path for configuration and logs.
   - `LocalSystem` cannot see credentials stored in an interactive user's Windows Credential Manager.
 
-Current setup release `v0.9.7-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
+Current setup release `v0.9.8-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
 
 ## Connection Operations
 
