@@ -61,11 +61,6 @@ def _extract_keyed_section(payload: dict[str, Any], section_name: str) -> dict[s
     return {}
 
 
-def _extract_provider_section(payload: dict[str, Any], provider_name: str) -> dict[str, Any]:
-    """Backward-compatible alias for keyed driver/connection config sections."""
-    return _extract_keyed_section(payload, provider_name)
-
-
 def _strip_empty_overrides(value: Any) -> Any:
     if isinstance(value, dict):
         cleaned = {}
@@ -153,16 +148,6 @@ def _log_driver_config(
     )
 
 
-def _log_provider_config(
-    provider_name: str,
-    config: dict[str, Any],
-    machine_path: Path,
-    user_path: Path | None,
-) -> None:
-    """Backward-compatible alias for driver config logging."""
-    _log_driver_config(provider_name, config, machine_path, user_path)
-
-
 def _config_dirs() -> tuple[Path, Path | None]:
     machine_dir = Path(os.environ.get("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(MACHINE_CONFIG_DIR)))
 
@@ -198,11 +183,6 @@ def _driver_config_paths(machine_dir: Path, user_dir: Path | None, driver_name: 
         structured_user_path = user_dir / "drivers" / f"{driver_name}.local.json"
         driver_user_path = structured_user_path if structured_user_path.exists() else legacy_user_path
     return driver_base_path, driver_user_path
-
-
-def _provider_config_paths(machine_dir: Path, user_dir: Path | None, provider_name: str) -> tuple[Path, Path | None]:
-    """Backward-compatible alias for driver config paths."""
-    return _driver_config_paths(machine_dir, user_dir, provider_name)
 
 
 def _connection_config_paths(machine_dir: Path, user_dir: Path | None, connection_name: str) -> tuple[Path, Path | None]:

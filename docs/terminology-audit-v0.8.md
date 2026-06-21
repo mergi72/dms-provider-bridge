@@ -216,6 +216,9 @@ Implementation status:
   primary name and keeps legacy `provider` for older clients.
 - Debug compatibility wrappers now delegate to the connection-first debug
   helpers instead of duplicating operation logging logic.
+- Dead private provider-named config loader helpers were removed. Public
+  `load_provider_config()` and `list_provider_config_names()` remain as
+  compatibility aliases for the driver registry.
 
 ### 0.8.3-beta: move implementation modules
 
