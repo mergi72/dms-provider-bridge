@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from dms_provider_bridge.core.errors import AuthenticationError, ProviderNotFoundError, ProviderOperationError
+from dms_provider_bridge.core.errors import AuthenticationError, ConnectionNotFoundError, ProviderOperationError
 from dms_provider_bridge.services.transfer_service import copy_item
 
 router = APIRouter()
@@ -23,6 +23,6 @@ def transfer_copy(payload: TransferRequest) -> dict:
         return result.model_dump()
     except (ValueError, ProviderOperationError, AuthenticationError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except ProviderNotFoundError as exc:
+    except ConnectionNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

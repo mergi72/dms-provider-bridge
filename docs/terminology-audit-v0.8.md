@@ -144,6 +144,16 @@ Rules:
 - Keep old imports working while internal code moves to the new module.
 - Keep `reload_provider_cache()` as an alias for `reload_connection_runtime_cache()`.
 
+Implementation status:
+
+- `services/connection_runtime_service.py` owns the runtime registry.
+- `services/provider_service.py` remains as a compatibility wrapper.
+- Internal bridge code imports `connection_runtime_service`.
+- Config UI uses `reload_connection_runtime_cache()` while keeping
+  `reload_provider_cache()` as a compatibility alias.
+- `ConnectionNotFoundError` is the preferred runtime exception name.
+  `ProviderNotFoundError` remains as a compatibility alias.
+
 ### 0.8.2-beta: runtime API cleanup
 
 Clean names inside runtime services and route glue.
@@ -165,6 +175,13 @@ Rules:
 - Runtime internals should stop using `provider` when the value is a connection.
 - Public payload aliases remain accepted.
 - Tests should explicitly cover mismatch validation.
+
+Implementation status:
+
+- Runtime service tests use `connection_runtime_module` naming.
+- Legacy provider service wrapper is covered by regression tests.
+- Public `provider_name`, `provider`, and `provider_path_override` aliases are
+  intentionally still accepted.
 
 ### 0.8.3-beta: move implementation modules
 

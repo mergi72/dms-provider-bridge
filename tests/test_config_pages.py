@@ -40,7 +40,7 @@ def test_config_home_links_sections() -> None:
 
 def test_config_reload_clears_provider_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = []
-    monkeypatch.setattr(config_routes, "reload_provider_cache", lambda: calls.append("reload"))
+    monkeypatch.setattr(config_routes, "reload_connection_runtime_cache", lambda: calls.append("reload"))
     client = TestClient(create_app())
 
     response = client.get("/config/reload")
@@ -52,7 +52,7 @@ def test_config_reload_clears_provider_cache(monkeypatch: pytest.MonkeyPatch) ->
 
 def test_config_reload_post_returns_audit_and_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = []
-    monkeypatch.setattr(config_routes, "reload_provider_cache", lambda: calls.append("reload"))
+    monkeypatch.setattr(config_routes, "reload_connection_runtime_cache", lambda: calls.append("reload"))
     monkeypatch.setattr(
         config_routes,
         "audit_connection_runtime",
@@ -326,7 +326,7 @@ def test_config_save_reloads_provider_cache(tmp_path: Path, monkeypatch: pytest.
     shutil.copytree(repo_config, config_dir)
     monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(config_dir))
     calls = []
-    monkeypatch.setattr(config_routes, "reload_provider_cache", lambda: calls.append("reload"))
+    monkeypatch.setattr(config_routes, "reload_connection_runtime_cache", lambda: calls.append("reload"))
     client = TestClient(create_app())
     payload = {
         "key": "reload_connection",
@@ -453,7 +453,7 @@ def test_config_delete_removes_editable_file_and_reloads_cache(
     target.write_text('{"key": "delete_me", "delete_me": {"driver": "alfresco", "mount": "delete_me:/"}}', encoding="utf-8")
     monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(config_dir))
     calls = []
-    monkeypatch.setattr(config_routes, "reload_provider_cache", lambda: calls.append("reload"))
+    monkeypatch.setattr(config_routes, "reload_connection_runtime_cache", lambda: calls.append("reload"))
     client = TestClient(create_app())
 
     response = client.post("/config/connections/delete_me.json/delete")

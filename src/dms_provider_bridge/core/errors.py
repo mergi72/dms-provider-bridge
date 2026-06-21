@@ -2,8 +2,12 @@ class BridgeError(Exception):
     """Base exception for dms-provider-bridge."""
 
 
-class ProviderNotFoundError(BridgeError):
-    """Raised when provider cannot be resolved."""
+class ConnectionNotFoundError(BridgeError):
+    """Raised when connection cannot be resolved."""
+
+
+# Backward-compatible alias for older provider-named call sites.
+ProviderNotFoundError = ConnectionNotFoundError
 
 
 class ConfigurationError(BridgeError):

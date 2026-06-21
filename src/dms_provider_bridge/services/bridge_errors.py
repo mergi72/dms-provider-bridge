@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from urllib.error import HTTPError
 
 from dms_provider_bridge.adapters.commander_api import WfxErrorCode
-from dms_provider_bridge.core.errors import AuthenticationError, ProviderNotFoundError, ProviderOperationError, VersionRequiredError
+from dms_provider_bridge.core.errors import AuthenticationError, ConnectionNotFoundError, ProviderOperationError, VersionRequiredError
 from dms_provider_bridge.services.bridge_transfer_ops import TransferPrecheckError
 
 
@@ -37,7 +37,7 @@ def _upstream_metadata(exc: Exception) -> dict | None:
 def map_exception(exc: Exception) -> BridgeError:
     if isinstance(exc, AuthenticationError):
         return BridgeError(WfxErrorCode.ACCESS_DENIED, str(exc), _upstream_metadata(exc))
-    if isinstance(exc, ProviderNotFoundError):
+    if isinstance(exc, ConnectionNotFoundError):
         return BridgeError(WfxErrorCode.NOT_SUPPORTED, str(exc))
     if isinstance(exc, VersionRequiredError):
         return BridgeError(WfxErrorCode.ACCESS_DENIED, str(exc), exc.metadata)

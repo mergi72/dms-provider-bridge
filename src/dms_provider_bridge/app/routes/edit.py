@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from dms_provider_bridge.core.errors import AuthenticationError, ProviderNotFoundError, ProviderOperationError
+from dms_provider_bridge.core.errors import AuthenticationError, ConnectionNotFoundError, ProviderOperationError
 from dms_provider_bridge.services.edit_service import delete_item, rename_item
 
 router = APIRouter()
@@ -29,7 +29,7 @@ def edit_rename(payload: RenameRequest) -> dict:
         return result.model_dump()
     except (ValueError, ProviderOperationError, AuthenticationError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except ProviderNotFoundError as exc:
+    except ConnectionNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
@@ -40,6 +40,6 @@ def edit_delete(payload: DeleteRequest) -> dict:
         return result.model_dump()
     except (ValueError, ProviderOperationError, AuthenticationError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except ProviderNotFoundError as exc:
+    except ConnectionNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

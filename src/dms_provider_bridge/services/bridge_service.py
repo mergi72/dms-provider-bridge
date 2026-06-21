@@ -8,14 +8,14 @@ import time
 from dms_provider_bridge.adapters.commander_api import WfxErrorCode, build_wfx_path, parse_wfx_path
 from dms_provider_bridge.core.config_loader import load_connection_metadata
 from dms_provider_bridge.core.logging import get_logger
-from dms_provider_bridge.core.errors import ProviderNotFoundError
+from dms_provider_bridge.core.errors import ConnectionNotFoundError
 from dms_provider_bridge.models.bridge import BridgeAuthContext, WfxResponse
 from dms_provider_bridge.models.item import DmsItem
 from dms_provider_bridge.models.listing import ListingResult
 from dms_provider_bridge.services.auth_service import validate_bridge_auth
 from dms_provider_bridge.services.auth_resolver import auth_requirements, resolve_effective_auth
 from dms_provider_bridge.services.bridge_errors import map_exception
-from dms_provider_bridge.services.provider_service import (
+from dms_provider_bridge.services.connection_runtime_service import (
     get_connection_runtime,
     get_default_connection_name,
     list_registered_connections,
@@ -446,7 +446,7 @@ def connection_detail_path(connection_name: str) -> WfxResponse:
             metadata={"operation": "connection_detail", "connection": provider.name},
         )
         return _log_and_return("connection_detail", provider.name, "/", started_at, response)
-    except ProviderNotFoundError as exc:
+    except ConnectionNotFoundError as exc:
         response = _failure_from_exception(exc)
         return _log_and_return("connection_detail", connection_name, "/", started_at, response, str(exc))
 

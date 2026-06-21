@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dms_provider_bridge.adapters.commander_api import split_optional_wfx_path
 from dms_provider_bridge.models.operation import OperationResult
-from dms_provider_bridge.services.provider_service import get_connection_runtime
+from dms_provider_bridge.services.connection_runtime_service import get_connection_runtime
 
 
 def _normalize_connection(value: str | None) -> str | None:

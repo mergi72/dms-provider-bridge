@@ -1,3 +1,13 @@
+## 0.8.1-beta - 2026-06-21
+
+- Added `connection_runtime_service.py` as the connection-first runtime registry service.
+- Kept `provider_service.py` as a backward-compatible wrapper for older imports.
+- Updated internal bridge imports to use connection runtime terminology.
+- Switched config UI reload calls to `reload_connection_runtime_cache()` while keeping the legacy cache alias.
+- Added `ConnectionNotFoundError` and kept `ProviderNotFoundError` as a compatibility alias.
+- Added regression coverage for the legacy provider service wrapper.
+- Release/version bump to `0.8.1-beta`.
+
 ## 0.8.0-beta - 2026-06-21
 
 - Added the 0.8.x terminology audit for the provider/driver/connection naming cleanup.

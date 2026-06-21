@@ -5,7 +5,7 @@ from urllib.parse import unquote
 from dms_provider_bridge.adapters.commander_api import WfxErrorCode, build_wfx_path
 from dms_provider_bridge.models.bridge import BridgeAuthContext, WfxResponse
 from dms_provider_bridge.services.bridge_errors import map_exception
-from dms_provider_bridge.services.provider_service import get_connection_runtime
+from dms_provider_bridge.services.connection_runtime_service import get_connection_runtime
 
 
 def _success(data: object = None, message: str | None = None, metadata: dict | None = None) -> WfxResponse:

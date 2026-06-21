@@ -14,14 +14,15 @@ from dms_provider_bridge.core.config_loader import driver_connection_names, load
 from dms_provider_bridge.core.paths import MACHINE_CONFIG_DIR, PROJECT_ROOT
 from dms_provider_bridge.models.bridge import BridgeAuthContext
 from dms_provider_bridge.services.bridge_service import list_path
-from dms_provider_bridge.services.provider_service import (
+from dms_provider_bridge.services.connection_runtime_service import (
     audit_connection_runtime,
     get_connection_runtime,
-    reload_provider_cache,
+    reload_connection_runtime_cache,
     runtime_registry_snapshot,
 )
 
 router = APIRouter()
+reload_provider_cache = reload_connection_runtime_cache
 
 
 _SECTION_TITLES = {
@@ -204,7 +205,7 @@ def _mode_badge_class(mode: str) -> str:
 
 
 def _reload_runtime_snapshot() -> dict[str, Any]:
-    reload_provider_cache()
+    reload_connection_runtime_cache()
     audit = audit_connection_runtime()
     registry = audit.get("runtime_registry") if isinstance(audit, dict) else None
     if not isinstance(registry, dict):
@@ -667,7 +668,7 @@ def config_reload_api() -> dict[str, Any]:
 
 @router.get("/audit", response_class=HTMLResponse)
 def config_audit() -> HTMLResponse:
-    reload_provider_cache()
+    reload_connection_runtime_cache()
     audit = audit_connection_runtime()
     rows = []
     for row in audit["connections"]:
@@ -811,7 +812,7 @@ def config_test(section: str, file_name: str) -> HTMLResponse:
     payload = _read_json_file(path)
     key = _payload_key(payload, path.stem)
     try:
-        reload_provider_cache()
+        reload_connection_runtime_cache()
         provider = get_connection_runtime(key)
         config = getattr(provider, "config", {})
         auth_config = {}
@@ -974,7 +975,7 @@ def config_delete(section: str, file_name: str) -> HTMLResponse:
     if not path.exists() or not path.is_file():
         raise HTTPException(status_code=404, detail=f"Config file not found: {file_name}")
     path.unlink()
-    reload_provider_cache()
+    reload_connection_runtime_cache()
     body = f"""
 <section class="panel">
   <h2>Deleted</h2>
@@ -1146,7 +1147,7 @@ def config_save(
         )
         return _render_layout(f"Overwrite {target_file}", body, section)
     _write_json_atomic(target_path, parsed)
-    reload_provider_cache()
+    reload_connection_runtime_cache()
     rendered = json.dumps(parsed, ensure_ascii=False, indent=4)
     body = _render_editor(
         section=section,
