@@ -3,13 +3,13 @@
         "name": "eDoCat Helper",
         "author": "DMS Provider Bridge contributors",
         "email": "",
-        "version": "0.9.9-beta",
+        "version": "0.9.10-beta",
         "description": "Alfresco Search configuration for eDoCat Helper",
         "license": "......"
     },
 
     "config.json": {
-        "version": "0.9.9-beta",
+        "version": "0.9.10-beta",
         "lastModified": "2025-12-22T09:30:00Z",
         "_comment": "Configuration for Alfresco Search API (used instead of eDoCat wrapper search)."
     },

@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "v0.9.9-beta",
+    [string]$Version = "v0.9.10-beta",
     [string]$BridgeExePath = "dist\dms-provider-bridge.exe",
     [string]$NssmExePath,
     [string]$InnoCompilerPath,
@@ -75,8 +75,8 @@ $userDriverConfigPayloadDir = Join-Path $userConfigPayloadDir "drivers"
 $machineConfigTemplatePaths = @(
     "bridge.json",
     "auth\auth.json",
-    "providers\provider.json",
-    "providers\provider.local.json",
+    "tc-vfs-contract\tc-vfs-contract.json",
+    "tc-vfs-contract\tc-vfs-contract.local.json",
     "drivers\driver.json",
     "drivers\alfresco.json",
     "drivers\edocat.json",
@@ -91,7 +91,7 @@ $userDriverLocalConfigNames = @(
     "edocat.local.json",
     "webdav.local.json"
 )
-$userDriverLocalTemplate = Join-Path $repoRoot "config\providers\provider.local.json"
+$userDriverLocalTemplate = Join-Path $repoRoot "config\templates\driver.local.json"
 
 if (-not (Test-Path $userDriverLocalTemplate)) {
     throw "Required user driver local config template missing: $userDriverLocalTemplate"

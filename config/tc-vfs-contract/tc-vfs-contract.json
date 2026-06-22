@@ -3,18 +3,18 @@
         "name": "DMS TC VFS Contract",
         "author": "DMS Provider Bridge contributors",
         "email": "",
-        "version": "0.9.9-beta",
+        "version": "0.9.10-beta",
         "description": "Generic Total Commander VFS contract used by the bridge runtime.",
         "license": ""
     },
 
     "config.json": {
-        "version": "0.9.9-beta",
+        "version": "0.9.10-beta",
         "lastModified": "",
         "_comment": "TC VFS contract. Driver and mount specific values belong to driver.json and connection.json."
     },
 
-    "_comment": "Unix/VFS mapping: provider.json = TC VFS contract. It defines common request/response shapes, capabilities and transfer limits. It does not define concrete DMS endpoints or mount values.",
+    "_comment": "Unix/VFS mapping: tc-vfs-contract.json = TC VFS contract. It defines common request/response shapes, capabilities and transfer limits. It does not define concrete DMS endpoints or mount values.",
 
     "path": {
         "format": "connection:/path"

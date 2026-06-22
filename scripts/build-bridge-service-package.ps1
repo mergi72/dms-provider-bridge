@@ -85,20 +85,24 @@ $userConfigTarget = Join-Path $staging "user-config"
 $zipPath = Join-Path $OutputDir "DmsProviderBridgeService-$Version.zip"
 $configTemplatePaths = @(
     "bridge.json",
-    "providers\provider.json",
-    "providers\provider.local.json",
+    "auth\auth.json",
+    "tc-vfs-contract\tc-vfs-contract.json",
+    "tc-vfs-contract\tc-vfs-contract.local.json",
     "drivers\driver.json",
     "drivers\alfresco.json",
     "drivers\edocat.json",
+    "drivers\webdav.json",
     "connections\connection.json",
     "connections\alfresco.json",
-    "connections\edocat.json"
+    "connections\edocat.json",
+    "connections\webdav.json"
 )
 $userProviderLocalConfigNames = @(
     "alfresco.local.json",
-    "edocat.local.json"
+    "edocat.local.json",
+    "webdav.local.json"
 )
-$userProviderLocalTemplate = Join-Path $repoRoot "config\providers\provider.local.json"
+$userProviderLocalTemplate = Join-Path $repoRoot "config\templates\driver.local.json"
 
 if (-not (Test-Path $userProviderLocalTemplate)) {
     throw "Required user provider local config template missing: $userProviderLocalTemplate"

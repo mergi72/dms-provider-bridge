@@ -1,7 +1,7 @@
 [Setup]
 AppId={{CFD8BDCC-B59A-4CB3-93D7-530BB5283773}
 AppName=DMS Provider Bridge Setup
-AppVersion=0.9.9-beta
+AppVersion=0.9.10-beta
 AppPublisher=mergi72
 DefaultDirName={commonpf}\DMS Provider
 DefaultGroupName=DMS Provider Bridge
@@ -11,7 +11,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=artifacts\installer
-OutputBaseFilename=DmsProviderBridgeSetupCore-v0.9.9-beta
+OutputBaseFilename=DmsProviderBridgeSetupCore-v0.9.10-beta
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -24,7 +24,7 @@ Source: "artifacts\bridge-installer-payload\install-bridge-service.ps1"; DestDir
 Source: "artifacts\bridge-installer-payload\uninstall-bridge-service.ps1"; DestDir: "{tmp}\dms-provider-payload\app"; Flags: ignoreversion deleteafterinstall
 Source: "artifacts\bridge-installer-payload\config\bridge.json"; DestDir: "{tmp}\dms-provider-payload\config"; Flags: ignoreversion deleteafterinstall
 Source: "artifacts\bridge-installer-payload\config\auth\*"; DestDir: "{tmp}\dms-provider-payload\config\auth"; Flags: ignoreversion recursesubdirs createallsubdirs deleteafterinstall
-Source: "artifacts\bridge-installer-payload\config\providers\*"; DestDir: "{tmp}\dms-provider-payload\config\providers"; Flags: ignoreversion recursesubdirs createallsubdirs deleteafterinstall
+Source: "artifacts\bridge-installer-payload\config\tc-vfs-contract\*"; DestDir: "{tmp}\dms-provider-payload\config\tc-vfs-contract"; Flags: ignoreversion recursesubdirs createallsubdirs deleteafterinstall
 Source: "artifacts\bridge-installer-payload\config\drivers\*"; DestDir: "{tmp}\dms-provider-payload\config\drivers"; Flags: ignoreversion recursesubdirs createallsubdirs deleteafterinstall
 Source: "artifacts\bridge-installer-payload\config\connections\*"; DestDir: "{tmp}\dms-provider-payload\config\connections"; Flags: ignoreversion recursesubdirs createallsubdirs deleteafterinstall
 Source: "artifacts\bridge-installer-payload\user-config\drivers\alfresco.local.json"; DestDir: "{tmp}\dms-provider-payload\user-config\drivers"; Flags: ignoreversion deleteafterinstall
@@ -296,7 +296,7 @@ begin
     'Ensure-Dir $appRoot' + #13#10 +
     'Ensure-Dir $configRoot' + #13#10 +
     'Ensure-Dir (Join-Path $configRoot "auth")' + #13#10 +
-    'Ensure-Dir (Join-Path $configRoot "providers")' + #13#10 +
+    'Ensure-Dir (Join-Path $configRoot "tc-vfs-contract")' + #13#10 +
     'Ensure-Dir (Join-Path $configRoot "drivers")' + #13#10 +
     'Ensure-Dir (Join-Path $configRoot "connections")' + #13#10 +
     'Ensure-Dir $logsRoot' + #13#10 +
@@ -317,8 +317,8 @@ begin
     'Copy-Checked (Join-Path $payloadRoot "app\uninstall-bridge-service.ps1") (Join-Path $appRoot "uninstall-bridge-service.ps1")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "config\bridge.json") (Join-Path $configRoot "bridge.json")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "config\auth\auth.json") (Join-Path $configRoot "auth\auth.json")' + #13#10 +
-    'Copy-Checked (Join-Path $payloadRoot "config\providers\provider.json") (Join-Path $configRoot "providers\provider.json")' + #13#10 +
-    'Copy-Checked (Join-Path $payloadRoot "config\providers\provider.local.json") (Join-Path $configRoot "providers\provider.local.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\tc-vfs-contract\tc-vfs-contract.json") (Join-Path $configRoot "tc-vfs-contract\tc-vfs-contract.json")' + #13#10 +
+    'Copy-Checked (Join-Path $payloadRoot "config\tc-vfs-contract\tc-vfs-contract.local.json") (Join-Path $configRoot "tc-vfs-contract\tc-vfs-contract.local.json")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "config\drivers\driver.json") (Join-Path $configRoot "drivers\driver.json")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "config\drivers\alfresco.json") (Join-Path $configRoot "drivers\alfresco.json")' + #13#10 +
     'Copy-Checked (Join-Path $payloadRoot "config\drivers\edocat.json") (Join-Path $configRoot "drivers\edocat.json")' + #13#10 +

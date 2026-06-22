@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.9.9-beta`
-- Latest bridge-only release: `v0.9.9-beta`
+- Bridge repository latest changelog version: `0.9.10-beta`
+- Latest bridge-only release: `v0.9.10-beta`
 
 ## 0.8.x Naming Refactor Strategy
 
@@ -101,7 +101,7 @@ Compatibility aliases:
 
 Current UI rules:
 
-- `provider.json` is shown as the TC VFS Contract.
+- `tc-vfs-contract.json` is shown as the TC VFS Contract.
 - `driver.json` and `connection.json` are templates and are shown as readonly.
 - Concrete driver and connection files can be created and saved from the UI.
 - Connection saves validate required driver and mount fields before writing JSON.
@@ -162,7 +162,7 @@ Bridge can be run in two different Windows runtime models. Keep them separate:
   - Current setup installs the bridge service and preserves the installing user AppData path for configuration and logs.
   - `LocalSystem` cannot see credentials stored in an interactive user's Windows Credential Manager.
 
-Current setup release `v0.9.9-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
+Current setup release `v0.9.10-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
 
 ## Connection Operations
 
@@ -454,7 +454,7 @@ The machine config is authoritative. For each config file, the bridge loads the 
 - User overrides: `bridge.local.json`, `<driver>.local.json`, `drivers/<driver>.local.json`, `connections/<connection>.local.json`
 
 User `*.local.json` values override existing machine keys and may add missing keys. If the machine JSON file is missing, the matching user `*.local.json` is ignored.
-The tracked template files under `config/providers`, `config/drivers` and `config/connections` define the machine-level contract and examples.
+The tracked template files under `config/tc-vfs-contract`, `config/drivers` and `config/connections` define the machine-level contract and examples.
 
 ## First Working Driver Config
 
@@ -506,7 +506,7 @@ For eDoCat:
 
 Rules:
 
-- Do not edit `provider.json` unless you are changing the internal TC VFS Contract.
+- Do not edit `tc-vfs-contract.json` unless you are changing the internal TC VFS Contract.
 - Do not overwrite `driver.json` or `connection.json` templates.
 - Driver local config contains technical DMS settings such as `base_url`, timeouts and driver-specific defaults.
 - Connection config contains the mount shown to clients, for example `alfresco:/` or `company-dms:/`.

@@ -39,8 +39,8 @@ $configStageDir = Join-Path $pyiRoot "config"
 $configTemplatePaths = @(
     "bridge.json",
     "auth\auth.json",
-    "providers\provider.json",
-    "providers\provider.local.json",
+    "tc-vfs-contract\tc-vfs-contract.json",
+    "tc-vfs-contract\tc-vfs-contract.local.json",
     "drivers\driver.json",
     "drivers\alfresco.json",
     "drivers\edocat.json",

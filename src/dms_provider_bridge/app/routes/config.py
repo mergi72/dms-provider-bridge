@@ -25,21 +25,21 @@ router = APIRouter()
 
 
 _SECTION_TITLES = {
-    "providers": "TC VFS Contract",
+    "tc-vfs-contract": "TC VFS Contract",
     "auth": "Auth",
     "drivers": "Drivers",
     "connections": "Connections",
 }
 
 _SECTION_ROLES = {
-    "providers": "Total Commander VFS/common contract",
+    "tc-vfs-contract": "Total Commander VFS/common contract",
     "auth": "credential/token resolution contract",
     "drivers": "filesystem driver definitions",
     "connections": "mount definitions",
 }
 
 _SECTION_HELP = {
-    "providers": (
+    "tc-vfs-contract": (
         "TC VFS Contract is the internal bridge filesystem contract. It can be changed and configured, "
         "but only when you know exactly what you are doing."
     ),
@@ -70,10 +70,6 @@ _NEW_KEYS = {
 }
 
 _SECTION_ALIASES = {
-    "tc-vfs-contract": "providers",
-}
-
-_SECTION_URLS = {
     "providers": "tc-vfs-contract",
 }
 
@@ -84,7 +80,7 @@ def _normalize_section(section: str) -> str:
 
 def _section_url(section: str) -> str:
     section = _normalize_section(section)
-    return _SECTION_URLS.get(section, section)
+    return section
 
 
 def _machine_config_dir() -> Path:
@@ -101,8 +97,12 @@ def _registry_paths() -> dict[str, Path]:
     if not isinstance(paths, dict):
         paths = {}
     machine_config_dir = _machine_config_dir()
+    contract_path = machine_config_dir / str(paths.get("tc_vfs_contract") or paths.get("tc-vfs-contract") or "tc-vfs-contract")
+    legacy_contract_path = machine_config_dir / str(paths.get("providers") or "providers")
+    if not contract_path.exists() and legacy_contract_path.exists():
+        contract_path = legacy_contract_path
     return {
-        "providers": machine_config_dir / str(paths.get("providers") or "providers"),
+        "tc-vfs-contract": contract_path,
         "auth": machine_config_dir / str(paths.get("auth") or "auth"),
         "drivers": machine_config_dir / str(paths.get("drivers") or "drivers"),
         "connections": machine_config_dir / str(paths.get("connections") or "connections"),
@@ -145,7 +145,7 @@ def _read_json_file(path: Path) -> dict[str, Any]:
 
 def _file_read_only(section: str, file_name: str) -> bool:
     section = _normalize_section(section)
-    return section in {"providers", "auth"} or _TEMPLATE_FILES.get(section) == file_name
+    return section in {"tc-vfs-contract", "auth"} or _TEMPLATE_FILES.get(section) == file_name
 
 
 def _section_can_create(section: str) -> bool:
@@ -211,7 +211,7 @@ def _string_cell(value: Any) -> str:
 
 def _file_mode(section: str, file_name: str) -> str:
     section = _normalize_section(section)
-    if section == "providers":
+    if section == "tc-vfs-contract":
         return "read-only contract"
     if section == "auth":
         return "read-only contract"
@@ -303,8 +303,16 @@ def _fallback_template_path(section: str, template_file: str) -> Path:
     return PROJECT_ROOT / "config" / section / template_file
 
 
+def _legacy_file_name(section: str, file_name: str) -> str:
+    section = _normalize_section(section)
+    if section == "tc-vfs-contract" and file_name == "provider.json":
+        return "tc-vfs-contract.json"
+    return file_name
+
+
 def _config_file_path(section: str, file_name: str) -> Path:
     section = _normalize_section(section)
+    file_name = _legacy_file_name(section, file_name)
     path = _section_dir(section) / file_name
     if path.exists() and path.is_file():
         return path
@@ -801,7 +809,7 @@ def config_section(section: str) -> HTMLResponse:
   <h2>{html.escape(_SECTION_TITLES[section])}</h2>
   <div class="panel-content">
     <p>{html.escape(_SECTION_ROLES[section])}</p>
-    <p class="{'contract-warning' if section == 'providers' else 'help'}">{html.escape(_SECTION_HELP[section])}</p>
+    <p class="{'contract-warning' if section == 'tc-vfs-contract' else 'help'}">{html.escape(_SECTION_HELP[section])}</p>
     {new_link}
     <p class="muted file-path" title="{html.escape(str(directory))}">Directory: {html.escape(str(directory))}</p>
     <table>
@@ -1066,7 +1074,7 @@ def _render_editor(
     display_name = _payload_display_name(payload, key)
     notice = f'<p class="notice">{html.escape(message)}</p>' if message else ""
     read_only_warning = ""
-    if readonly_attr and section != "providers":
+    if readonly_attr and section != "tc-vfs-contract":
         read_only_warning = '<p class="read-only-warning">This file is read-only. Use New to create an editable copy.</p>'
     submit_label = "Create" if is_new else "Save"
     original_value = original_file_name or ("" if is_new else file_name)
@@ -1129,7 +1137,7 @@ def _render_editor(
         <span>Role: {html.escape(_SECTION_ROLES[section])}</span>
         <span>Mode: {html.escape(mode)}</span>
       </p>
-      <p class="{'contract-warning' if section in {'providers', 'auth'} else 'help'}">{html.escape(_SECTION_HELP[section])}</p>
+      <p class="{'contract-warning' if section in {'tc-vfs-contract', 'auth'} else 'help'}">{html.escape(_SECTION_HELP[section])}</p>
       {form_open}
         <input type="hidden" name="file_name" value="{html.escape(original_value)}">
         <input type="hidden" name="overwrite" value="{html.escape(overwrite_value)}">

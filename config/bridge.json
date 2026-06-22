@@ -4,7 +4,7 @@
     "port": 8765
   },
   "paths": {
-    "providers": "providers",
+    "tc_vfs_contract": "tc-vfs-contract",
     "drivers": "drivers",
     "connections": "connections",
     "auth": "auth"

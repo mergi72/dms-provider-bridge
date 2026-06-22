@@ -162,8 +162,12 @@ def _configured_registry_paths(machine_dir: Path) -> dict[str, Path]:
     paths = config.get("paths") if isinstance(config, dict) else None
     if not isinstance(paths, dict):
         paths = {}
+    contract_path = machine_dir / str(paths.get("tc_vfs_contract") or paths.get("tc-vfs-contract") or "tc-vfs-contract")
+    legacy_contract_path = machine_dir / str(paths.get("providers") or "providers")
+    if not contract_path.exists() and legacy_contract_path.exists():
+        contract_path = legacy_contract_path
     return {
-        "providers": machine_dir / str(paths.get("providers") or "providers"),
+        "tc-vfs-contract": contract_path,
         "drivers": machine_dir / str(paths.get("drivers") or "drivers"),
         "connections": machine_dir / str(paths.get("connections") or "connections"),
         "auth": machine_dir / str(paths.get("auth") or "auth"),

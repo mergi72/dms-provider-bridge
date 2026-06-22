@@ -487,19 +487,23 @@ if (Test-Path $bridgeInternalSource) {
 
 $machineConfigNames = @(
     "bridge.json",
-    "providers\provider.json",
-    "providers\provider.local.json",
+    "auth\auth.json",
+    "tc-vfs-contract\tc-vfs-contract.json",
+    "tc-vfs-contract\tc-vfs-contract.local.json",
     "drivers\driver.json",
     "drivers\alfresco.json",
     "drivers\edocat.json",
+    "drivers\webdav.json",
     "connections\connection.json",
     "connections\alfresco.json",
-    "connections\edocat.json"
+    "connections\edocat.json",
+    "connections\webdav.json"
 )
 
 $userConfigNames = @(
     "drivers\alfresco.local.json",
-    "drivers\edocat.local.json"
+    "drivers\edocat.local.json",
+    "drivers\webdav.local.json"
 )
 
 Write-Step "Copying default configuration..."

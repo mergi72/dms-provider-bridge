@@ -113,7 +113,7 @@ def test_docs_openapi_links_config() -> None:
 def test_config_tc_vfs_contract_is_read_only() -> None:
     client = TestClient(create_app())
 
-    response = client.get("/config/tc-vfs-contract/provider.json")
+    response = client.get("/config/tc-vfs-contract/tc-vfs-contract.json")
 
     assert response.status_code == 200
     assert "readonly" in response.text
@@ -123,6 +123,25 @@ def test_config_tc_vfs_contract_is_read_only() -> None:
 
     assert legacy_response.status_code == 200
     assert "TC VFS Contract" in legacy_response.text
+
+
+def test_config_tc_vfs_contract_ignores_stale_legacy_provider_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repo_config = Path(__file__).resolve().parents[1] / "config"
+    config_dir = tmp_path / "config"
+    shutil.copytree(repo_config, config_dir)
+    (config_dir / "bridge.json").write_text(
+        '{"paths":{"providers":"providers","drivers":"drivers","connections":"connections","auth":"auth"}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(config_dir))
+    client = TestClient(create_app())
+
+    response = client.get("/config/tc-vfs-contract")
+
+    assert response.status_code == 200
+    assert "tc-vfs-contract.json" in response.text
+    assert "No JSON files found" not in response.text
+    assert "config\\tc-vfs-contract" in response.text or "config/tc-vfs-contract" in response.text
 
 
 def test_config_bridge_is_read_only() -> None:
@@ -285,9 +304,9 @@ def test_config_templates_are_visible_when_machine_section_is_empty(tmp_path: Pa
     config_dir = tmp_path / "config"
     (config_dir / "drivers").mkdir(parents=True)
     (config_dir / "connections").mkdir(parents=True)
-    (config_dir / "providers").mkdir(parents=True)
+    (config_dir / "tc-vfs-contract").mkdir(parents=True)
     (config_dir / "bridge.json").write_text(
-        '{"paths":{"providers":"providers","drivers":"drivers","connections":"connections"}}',
+        '{"paths":{"tc_vfs_contract":"tc-vfs-contract","drivers":"drivers","connections":"connections"}}',
         encoding="utf-8",
     )
     monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(config_dir))
@@ -485,7 +504,7 @@ def test_config_delete_rejects_read_only_template() -> None:
 def test_config_delete_rejects_tc_vfs_contract() -> None:
     client = TestClient(create_app())
 
-    response = client.post("/config/tc-vfs-contract/provider.json/delete")
+    response = client.post("/config/tc-vfs-contract/tc-vfs-contract.json/delete")
 
     assert response.status_code == 403
 

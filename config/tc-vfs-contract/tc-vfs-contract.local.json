@@ -1,11 +1,9 @@
 {
     "_comment": "Template for TC VFS Contract local overrides. This is an advanced internal contract file; most user-specific DMS settings belong to driver or connection config.",
 
-    "key": "provider_name",
+    "key": "tc-vfs-contract",
 
-    "provider_name": {
-        "base_url": "https://dms-provider.example/base-url",
-
+    "tc-vfs-contract": {
         "timeouts": {
             "requestSeconds": 60,
             "downloadSeconds": 300,
