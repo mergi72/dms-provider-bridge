@@ -3,13 +3,13 @@
         "name": "eDoCat Helper",
         "author": "DMS Provider Bridge contributors",
         "email": "",
-        "version": "0.0.2",
+        "version": "0.9.9-beta",
         "description": "Alfresco Search configuration for eDoCat Helper",
         "license": "......"
     },
 
     "config.json": {
-        "version": "0.0.1",
+        "version": "0.9.9-beta",
         "lastModified": "2025-12-22T09:30:00Z",
         "_comment": "Configuration for Alfresco Search API (used instead of eDoCat wrapper search)."
     },
@@ -48,7 +48,7 @@
     "alfresco": {
         "display_name": "Alfresco",
         "description": "Alfresco repository driver.",
-        "tc_vfs_contract": "provider",
+        "tc_vfs_contract": "tc-vfs-contract",
 
         "base_url": "https://example.com/alfresco",
 

@@ -3,13 +3,13 @@
         "name": "WebDAV Driver",
         "author": "DMS Provider Bridge contributors",
         "email": "",
-        "version": "0.7.20-beta",
+        "version": "0.9.9-beta",
         "description": "Generic WebDAV driver configuration.",
         "license": ""
     },
 
     "config.json": {
-        "version": "0.7.20-beta",
+        "version": "0.9.9-beta",
         "lastModified": "",
         "_comment": "Generic WebDAV driver. Concrete server URL and mount values belong to connection config."
     },
@@ -27,7 +27,7 @@
         "display_name": "WebDAV",
         "description": "Generic WebDAV filesystem driver.",
 
-        "tc_vfs_contract": "provider",
+        "tc_vfs_contract": "tc-vfs-contract",
 
         "api": {
             "base": "",

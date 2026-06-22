@@ -14,7 +14,7 @@ import pytest
 import dms_provider_bridge.clients.edocat_client as edocat_client_module  # type: ignore[import-untyped]
 import dms_provider_bridge.drivers.edocat as edocat_provider_module  # type: ignore[import-untyped]
 from dms_provider_bridge.clients.edocat_client import EdocatClient  # type: ignore[import-untyped]
-from dms_provider_bridge.core.errors import AuthenticationError, ProviderOperationError  # type: ignore[import-untyped]
+from dms_provider_bridge.core.errors import AuthenticationError, ConnectionOperationError  # type: ignore[import-untyped]
 from dms_provider_bridge.models.bridge import BridgeAuthContext  # type: ignore[import-untyped]
 from dms_provider_bridge.models.operation import OperationResult  # type: ignore[import-untyped]
 from dms_provider_bridge.drivers.edocat import EdocatProvider  # type: ignore[import-untyped]
@@ -157,7 +157,7 @@ def test_rename_item_uses_update_node(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_rename_item_falls_back_to_parent_query_when_file_path_query_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     client = FakeClient()
     client.query_nodes.side_effect = [
-        ProviderOperationError("eDoCat query failed for /deals/folder/old.txt: HTTP 400.", status_code=400),
+        ConnectionOperationError("eDoCat query failed for /deals/folder/old.txt: HTTP 400.", status_code=400),
         {
             "nodes": [
                 {"uuid": "node-1", "name": "old.txt", "path": "/deals/folder/old.txt", "nodeType": "ctbd:baseDoc"}
@@ -1255,7 +1255,7 @@ def test_stat_item_propagates_upstream_query_error(monkeypatch: pytest.MonkeyPat
     client.query_nodes.side_effect = Exception("upstream timeout")
     provider = _make_provider(monkeypatch, client)
 
-    with pytest.raises(ProviderOperationError, match="query failed"):
+    with pytest.raises(ConnectionOperationError, match="query failed"):
         provider.stat_item("/folder/file.txt", BridgeAuthContext(mode="credentials", username="user", password="pass"))
 
 

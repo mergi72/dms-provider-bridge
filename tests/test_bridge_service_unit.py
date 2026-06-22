@@ -7,7 +7,7 @@ from unittest.mock import Mock
 import pytest
 
 import dms_provider_bridge.services.bridge_service as bridge_service_module
-from dms_provider_bridge.core.errors import AuthenticationError, ProviderOperationError
+from dms_provider_bridge.core.errors import AuthenticationError, ConnectionOperationError
 from dms_provider_bridge.models.bridge import BridgeAuthContext
 from dms_provider_bridge.models.item import DmsItem
 from dms_provider_bridge.models.listing import ListingResult
@@ -844,7 +844,7 @@ def test_stat_path_maps_provider_authentication_error_to_access_denied(monkeypat
 
 def test_stat_path_maps_provider_operation_error_to_internal_error(monkeypatch: pytest.MonkeyPatch) -> None:
     provider = DummyProvider("edocat")
-    provider.stat_item.side_effect = ProviderOperationError("eDoCat query failed for /folder: HTTP 500.")
+    provider.stat_item.side_effect = ConnectionOperationError("eDoCat query failed for /folder: HTTP 500.")
 
     monkeypatch.setattr(bridge_service_module, "validate_bridge_auth", lambda auth: None)
     monkeypatch.setattr(bridge_service_module, "_resolve", lambda path: (provider, type("P", (), {"path": "/folder"})()))

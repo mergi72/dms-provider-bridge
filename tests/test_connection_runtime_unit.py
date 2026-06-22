@@ -59,7 +59,7 @@ def test_runtime_registry_snapshot_maps_wfx_connections(monkeypatch: pytest.Monk
     snapshot = connection_runtime_module.runtime_registry_snapshot()
     connections = {item["name"]: item for item in snapshot["connections"]}
 
-    assert snapshot["tc_vfs_contract"] == "provider"
+    assert snapshot["tc_vfs_contract"] == "tc-vfs-contract"
     assert "provider_abc" not in snapshot
     assert set(snapshot["wfx_connections"]) >= {"edocat", "alfresco"}
     assert set(snapshot["available_drivers"]) >= {"edocat", "alfresco"}
