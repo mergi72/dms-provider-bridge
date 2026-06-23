@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.9.11-beta`
-- Latest bridge-only release: `v0.9.11-beta`
+- Bridge repository latest changelog version: `0.9.12-beta`
+- Latest bridge-only release: `v0.9.12-beta`
 
 ## 0.9.x Terminology Cleanup
 
@@ -163,7 +163,7 @@ Bridge can be run in two different Windows runtime models. Keep them separate:
   - Current setup installs the bridge service and preserves the installing user AppData path for configuration and logs.
   - `LocalSystem` cannot see credentials stored in an interactive user's Windows Credential Manager.
 
-Current setup release `v0.9.11-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
+Current setup release `v0.9.12-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
 
 ## Connection Operations
 
@@ -633,7 +633,7 @@ Raw upload limits:
 - Config key: `upload.raw.maxBytes` in machine `bridge.json` (can be overridden by user `bridge.local.json`)
 - Default: `536870912` (512 MB)
 - Stream chunk size key: `upload.raw.chunkBytes` (clamped to 1-4 MB, default `1048576` = 1 MB)
-- Bridge rejects larger payloads before provider upload and logs `bytes`, `max_bytes`, and `duration_ms`
+- Bridge rejects larger payloads before driver upload and logs `bytes`, `max_bytes`, and `duration_ms`
 
 Alfresco upload transport:
 
@@ -643,7 +643,7 @@ Alfresco upload transport:
 
 Alfresco Share URL to bridge path conversion:
 
-- `resolve-share-url`: `{ "share_url": "https://.../documentlibrary#/Team%20Documents/Upload?page=1", "provider": "alfresco" }`
+- `resolve-share-url`: `{ "share_url": "https://.../documentlibrary#/Team%20Documents/Upload?page=1", "connection": "alfresco" }`
 - Response returns `data.path` in `alfresco:/...` format, usable for `list/stat/copy/...`.
 
 One-shot browse via Share URL:
@@ -659,7 +659,7 @@ One-shot browse via Share URL:
 Lightweight validation without operation execution:
 
 - `browse-share-url-validate`: same inputs as `browse-share-url`, but without `auth` and without `content_base64`.
-- Endpoint returns computed `source` and `destination` paths and payload validation errors without calling provider operations.
+- Endpoint returns computed `source` and `destination` paths and payload validation errors without calling connection operations.
 - Internally this is an alias to `browse-share-url` with `execute=false` (single shared implementation path).
 - In OpenAPI this endpoint is marked as deprecated; preferred endpoint is `browse-share-url` with `execute=false`.
 

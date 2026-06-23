@@ -3,13 +3,13 @@
             "name": "eDoCat Helper",
             "author": "DMS Provider Bridge contributors",
             "email": "",
-            "version": "0.9.11-beta",
+            "version": "0.9.12-beta",
             "description": "......",
             "license": "......"
     },
 
     "config.json": {
-        "version": "0.9.11-beta",
+        "version": "0.9.12-beta",
         "lastModified": "2025-12-12T16:45:00Z",
         "_comment": "This file contains the configuration for the VBA project."
     },

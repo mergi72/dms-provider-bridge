@@ -12,11 +12,11 @@ from dms_provider_bridge.core import config_loader
 pytestmark = pytest.mark.unit
 
 
-def test_load_provider_config_accepts_utf8_bom(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_driver_config_accepts_utf8_bom(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     machine_dir = tmp_path / "machine"
     machine_dir.mkdir()
-    provider_file = machine_dir / "sample.json"
-    provider_file.write_text(
+    driver_file = machine_dir / "sample.json"
+    driver_file.write_text(
         '{"key":"sample","sample":{"base_url":"https://example.test"}}',
         encoding="utf-8-sig",
     )
@@ -24,7 +24,7 @@ def test_load_provider_config_accepts_utf8_bom(tmp_path: Path, monkeypatch: pyte
     monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
     monkeypatch.delenv("DMS_PROVIDER_USER_CONFIG_DIR", raising=False)
 
-    config = config_loader.load_provider_config("sample")
+    config = config_loader.load_driver_config("sample")
 
     assert config["base_url"] == "https://example.test"
 
@@ -72,7 +72,7 @@ def test_load_config_ignores_user_bridge_local_json_when_machine_bridge_json_is_
     assert config_loader.load_config() == {}
 
 
-def test_load_provider_config_merges_user_provider_local_json_over_machine_provider_json(
+def test_load_driver_config_merges_user_driver_local_json_over_machine_driver_json(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     machine_dir = tmp_path / "machine"
@@ -92,14 +92,14 @@ def test_load_provider_config_merges_user_provider_local_json_over_machine_provi
     monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
     monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_dir))
 
-    config = config_loader.load_provider_config("edocat")
+    config = config_loader.load_driver_config("edocat")
 
     assert config["base_url"] == "https://local.edocat.net"
     assert config["transfer"]["maxNodes"] == 100
     assert config["transfer"]["maxBase64Bytes"] == 42
 
 
-def test_load_provider_config_reads_driver_directory_layout(
+def test_load_driver_config_reads_driver_directory_layout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     machine_dir = tmp_path / "machine"
@@ -132,7 +132,7 @@ def test_load_provider_config_reads_driver_directory_layout(
     assert compat_config == config
 
 
-def test_load_provider_config_merges_root_contract_values_into_keyed_driver_section(
+def test_load_driver_config_merges_root_contract_values_into_keyed_driver_section(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     machine_dir = tmp_path / "machine"
@@ -165,7 +165,7 @@ def test_load_provider_config_merges_root_contract_values_into_keyed_driver_sect
     assert config["debug"]["path"] == "driver-path"
 
 
-def test_load_provider_config_reads_legacy_user_local_for_driver_directory_layout(
+def test_load_driver_config_reads_legacy_user_local_for_driver_directory_layout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     machine_dir = tmp_path / "machine"
@@ -196,7 +196,7 @@ def test_load_provider_config_reads_legacy_user_local_for_driver_directory_layou
     assert config["transfer"]["maxNodes"] == 100
 
 
-def test_list_provider_config_names_reads_driver_directory_layout(
+def test_list_driver_config_names_reads_driver_directory_layout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     machine_dir = tmp_path / "machine"
@@ -343,7 +343,7 @@ def test_load_connection_config_ignores_blank_template_values(
     assert config["doc_library"] == "/driver"
 
 
-def test_load_provider_config_accepts_direct_provider_payload(
+def test_load_driver_config_accepts_direct_driver_payload(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     machine_dir = tmp_path / "machine"
@@ -361,14 +361,14 @@ def test_load_provider_config_accepts_direct_provider_payload(
     monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
     monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_dir))
 
-    config = config_loader.load_provider_config("alfresco")
+    config = config_loader.load_driver_config("alfresco")
 
     assert config["base_url"] == "https://local.alfresco.net"
     assert config["api"]["repo_root"] == "/repo"
     assert config["timeouts"]["requestSeconds"] == 60
 
 
-def test_load_provider_config_accepts_keyed_direct_provider_payload(
+def test_load_driver_config_accepts_keyed_direct_driver_payload(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     machine_dir = tmp_path / "machine"
@@ -386,7 +386,7 @@ def test_load_provider_config_accepts_keyed_direct_provider_payload(
     monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
     monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_dir))
 
-    config = config_loader.load_provider_config("alfresco")
+    config = config_loader.load_driver_config("alfresco")
 
     assert config == {
         "base_url": "https://local.alfresco.net",
@@ -394,7 +394,7 @@ def test_load_provider_config_accepts_keyed_direct_provider_payload(
     }
 
 
-def test_load_provider_config_ignores_user_provider_local_json_when_machine_provider_json_is_missing(
+def test_load_driver_config_ignores_user_driver_local_json_when_machine_driver_json_is_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     machine_dir = tmp_path / "machine"
@@ -410,10 +410,10 @@ def test_load_provider_config_ignores_user_provider_local_json_when_machine_prov
     monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
     monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_dir))
 
-    assert config_loader.load_provider_config("edocat") == {}
+    assert config_loader.load_driver_config("edocat") == {}
 
 
-def test_load_provider_config_masks_sensitive_values_in_log(
+def test_load_driver_config_masks_sensitive_values_in_log(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     machine_dir = tmp_path / "machine"
@@ -432,7 +432,7 @@ def test_load_provider_config_masks_sensitive_values_in_log(
     monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_dir))
 
     with caplog.at_level(logging.DEBUG, logger="dms_provider_bridge.core.config_loader"):
-        config = config_loader.load_provider_config("alfresco")
+        config = config_loader.load_driver_config("alfresco")
 
     assert config["password"] == "machine-pass"
     assert config["token"] == "local-token"
@@ -447,7 +447,7 @@ def test_load_provider_config_masks_sensitive_values_in_log(
     assert '"clientSecret": "***"' in logged
 
 
-def test_load_provider_config_does_not_log_config_when_debug_is_disabled(
+def test_load_driver_config_does_not_log_config_when_debug_is_disabled(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     machine_dir = tmp_path / "machine"
@@ -462,7 +462,7 @@ def test_load_provider_config_does_not_log_config_when_debug_is_disabled(
     monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_dir))
 
     with caplog.at_level(logging.DEBUG, logger="dms_provider_bridge.core.config_loader"):
-        config = config_loader.load_provider_config("alfresco")
+        config = config_loader.load_driver_config("alfresco")
 
     assert config["password"] == "machine-pass"
     logged = "\n".join(record.getMessage() for record in caplog.records)
@@ -470,7 +470,7 @@ def test_load_provider_config_does_not_log_config_when_debug_is_disabled(
     assert "machine-pass" not in logged
 
 
-def test_load_provider_config_ignores_bridge_debug_for_provider_dump(
+def test_load_driver_config_ignores_bridge_debug_for_driver_dump(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     machine_dir = tmp_path / "machine"
@@ -486,7 +486,7 @@ def test_load_provider_config_ignores_bridge_debug_for_provider_dump(
     monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_dir))
 
     with caplog.at_level(logging.DEBUG, logger="dms_provider_bridge.core.config_loader"):
-        config = config_loader.load_provider_config("alfresco")
+        config = config_loader.load_driver_config("alfresco")
 
     assert config["password"] == "machine-pass"
     logged = "\n".join(record.getMessage() for record in caplog.records)
@@ -494,7 +494,7 @@ def test_load_provider_config_ignores_bridge_debug_for_provider_dump(
     assert "machine-pass" not in logged
 
 
-def test_load_provider_config_writes_provider_debug_file_without_bridge_debug(
+def test_load_driver_config_writes_driver_debug_file_without_bridge_debug(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     machine_dir = tmp_path / "machine"
@@ -518,7 +518,7 @@ def test_load_provider_config_writes_provider_debug_file_without_bridge_debug(
     monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(machine_dir))
     monkeypatch.setenv("DMS_PROVIDER_USER_CONFIG_DIR", str(user_dir))
 
-    config = config_loader.load_provider_config("alfresco")
+    config = config_loader.load_driver_config("alfresco")
 
     assert config["password"] == "machine-pass"
     debug_log = debug_dir / "alfresco-debug.log"

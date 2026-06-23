@@ -2,7 +2,7 @@
 
 Suggested description:
 
-Python DMS provider bridge service for Total Commander WFX access to eDoCat, Alfresco, and local filesystem repositories.
+Python TC VFS bridge service for Total Commander WFX access to DMS repositories through Auth, Drivers and Connections.
 
 Suggested topics:
 
@@ -12,13 +12,17 @@ Suggested topics:
 - wfx
 - alfresco
 - edocat
+- webdav
 - dms
+- tc-vfs
 - bridge
 
 Suggested labels:
 
-- `provider:alfresco`
-- `provider:edocat`
+- `driver:alfresco`
+- `driver:edocat`
+- `driver:webdav`
+- `area:connection`
 - `bridge:wfx`
 - `area:backend`
 - `area:auth`
@@ -32,7 +36,7 @@ Suggested labels:
 
 Suggested next milestones:
 
-1. Real Alfresco list/stat against upstream API
-2. Alfresco download/upload flow
-3. eDoCat path-to-uuid resolver via query API
-4. C# WFX plugin request mapping
+1. Continue connection/driver terminology cleanup without breaking WFX aliases
+2. Harden installer and config UI validation for public beta users
+3. Expand WebDAV compatibility testing
+4. Keep WFX plugin thin and bridge-owned runtime logic explicit
