@@ -1,7 +1,7 @@
 # dms-provider-bridge
 
 [![CI](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/mergi72/dms-provider-bridge/actions/workflows/ci.yml)
-[![Status](https://img.shields.io/badge/Status-Beta-yellowgreen)](https://github.com/mergi72/dms-provider-bridge)
+[![Status](https://img.shields.io/badge/Status-1.0-brightgreen)](https://github.com/mergi72/dms-provider-bridge)
 [![Bridge](https://img.shields.io/github/v/release/mergi72/dms-provider-bridge?include_prereleases&label=Bridge&color=blue)](https://github.com/mergi72/dms-provider-bridge/releases/latest)
 [![Setup](https://img.shields.io/github/v/release/mergi72/dms-provider-bridge?include_prereleases&label=Setup&color=blueviolet)](https://github.com/mergi72/dms-provider-bridge/releases/latest)
 
@@ -15,11 +15,11 @@ Current release mapping:
 - Bridge repository latest changelog version: `1.0.0`
 - Latest bridge-only release: `v1.0.0`
 
-## 0.9.x Terminology Cleanup
+## Terminology and Compatibility
 
-The 0.9.x line continues the terminology cleanup without breaking the WFX/API
-contract. Runtime code should use the new names while public compatibility
-aliases stay available for older clients.
+The bridge uses connection-first terminology without breaking the existing
+WFX/API contract. Runtime code should use the new names while public
+compatibility aliases stay available for older clients.
 
 - `TC VFS Contract` for the internal bridge filesystem contract.
 - `Driver` for concrete DMS implementations such as Alfresco, eDoCat and WebDAV.

@@ -2,9 +2,19 @@ $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Push-Location $repoRoot
 
 try {
-    $cacheDirs = Get-ChildItem -Path . -Recurse -Force -Directory -Filter "__pycache__"
-    $pycFiles = Get-ChildItem -Path . -Recurse -Force -File -Filter "*.pyc"
-    $pyoFiles = Get-ChildItem -Path . -Recurse -Force -File -Filter "*.pyo"
+    $excludedRoots = @(".git", ".venv", ".venv312", ".pytest_cache", ".tmp", "artifacts", "build", "dist")
+    $searchRoots = Get-ChildItem -Path . -Force -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $excludedRoots -notcontains $_.Name }
+
+    $cacheDirs = @($searchRoots | ForEach-Object {
+        Get-ChildItem -LiteralPath $_.FullName -Recurse -Force -Directory -Filter "__pycache__" -ErrorAction SilentlyContinue
+    })
+    $pycFiles = @($searchRoots | ForEach-Object {
+        Get-ChildItem -LiteralPath $_.FullName -Recurse -Force -File -Filter "*.pyc" -ErrorAction SilentlyContinue
+    })
+    $pyoFiles = @($searchRoots | ForEach-Object {
+        Get-ChildItem -LiteralPath $_.FullName -Recurse -Force -File -Filter "*.pyo" -ErrorAction SilentlyContinue
+    })
 
     foreach ($dir in $cacheDirs) {
         Remove-Item -Path $dir.FullName -Recurse -Force -ErrorAction SilentlyContinue
