@@ -626,7 +626,7 @@ class EdocatProvider(TcVfsContract):
             )
 
         # 2) Update node description metadata (name) on the same UUID
-        # NOTE: do NOT include "path" Ă˘â‚¬â€ś eDoCat interprets path in updateNode as
+        # NOTE: do NOT include "path" - eDoCat interprets path in updateNode as
         # a move/copy operation, not a metadata-only update.
         payload: dict[str, object] = {
             "uuid": source_uuid,
