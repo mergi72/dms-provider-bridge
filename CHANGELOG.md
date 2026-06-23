@@ -1,10 +1,10 @@
-## 0.9.13-beta - 2026-06-23
+## 1.0.0 - 2026-06-23
 
 - Added the missing current changelog entry so the top release matches the package version.
 - Updated WebDAV documentation from proposal wording to implemented generic driver status.
 - Documented current supported drivers: Alfresco, eDoCat and WebDAV.
 - Clarified that WebDAV server behavior depends on the concrete backend and that WebDAV uses overwrite/cancel behavior instead of DMS version prompts.
-- Release/version bump to `0.9.13-beta`.
+- Release/version bump to `1.0.0`.
 
 ## 0.9.3-beta - 2026-06-21
 
