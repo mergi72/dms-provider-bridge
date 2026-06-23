@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `0.9.12-beta`
-- Latest bridge-only release: `v0.9.12-beta`
+- Bridge repository latest changelog version: `0.9.13-beta`
+- Latest bridge-only release: `v0.9.13-beta`
 
 ## 0.9.x Terminology Cleanup
 
@@ -48,6 +48,12 @@ The bridge configuration follows a simple VFS-style model:
 - `Driver` describes one DMS type, for example Alfresco, eDoCat, WebDAV or another backend.
 - `Connection` is the named mount exposed to clients and Total Commander, for example `alfresco:/` or `company-dms:/`.
 - `Auth` resolves how a connection obtains credentials, tokens or anonymous access. Secrets are still owned by the Credential Broker / Windows Credential Manager.
+
+Supported drivers in the current beta:
+
+- `alfresco`
+- `edocat`
+- `webdav`
 
 Bridge Configurator is available at [http://127.0.0.1:8765/config](http://127.0.0.1:8765/config).
 
@@ -163,7 +169,7 @@ Bridge can be run in two different Windows runtime models. Keep them separate:
   - Current setup installs the bridge service and preserves the installing user AppData path for configuration and logs.
   - `LocalSystem` cannot see credentials stored in an interactive user's Windows Credential Manager.
 
-Current setup release `v0.9.12-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
+Current setup release `v0.9.13-beta` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
 
 ## Connection Operations
 
@@ -197,11 +203,11 @@ Connection-to-connection copy/move can use separate credentials for each side:
 
 `source_auth` and `destination_auth` are optional. When omitted, the bridge falls back to `auth` for backward compatibility.
 
-## WebDAV Driver Proposal
+## WebDAV Driver
 
-WebDAV is a good driver candidate because it is a standard filesystem-like HTTP protocol and maps naturally to the bridge TC VFS Contract. It is implemented as a generic driver, not as an Alfresco or eDoCat special case.
+WebDAV is implemented as a generic driver because it is a standard filesystem-like HTTP protocol and maps naturally to the bridge TC VFS Contract. It is not an Alfresco or eDoCat special case.
 
-Planned mapping:
+Current operation mapping:
 
 ```text
 TC VFS operation          WebDAV operation
@@ -215,14 +221,13 @@ copy                      COPY
 move                      MOVE
 ```
 
-Initial scope:
+Current scope:
 
-- Add `config/drivers/webdav.json`.
-- Add `config/connections/webdav.json`.
-- Add a generic WebDAV driver implementation behind the existing TC VFS Contract.
-- Support `list`, `stat`, `download`, `upload`, `mkdir` and `delete` first.
-- Add `copy` and `move` after the basic operations are stable.
-- Keep versioning, WebDAV locks, `PROPPATCH`, WebDAV Sync and driver-specific extensions out of the first implementation.
+- `config/drivers/webdav.json` defines generic WebDAV driver behavior.
+- `config/connections/webdav.json` defines the default WebDAV mount.
+- `list`, `stat`, `download`, `upload`, `mkdir`, `delete`, `copy` and `move` are implemented.
+- Versioning, WebDAV locks, `PROPPATCH`, WebDAV Sync and server-specific extensions are intentionally outside the first beta implementation.
+- Server behavior still depends on the concrete WebDAV backend. Some servers may restrict write operations, overwrite behavior, authentication schemes or path encoding.
 
 Configuration shape:
 
@@ -234,7 +239,7 @@ TC VFS Contract
        -> Connection: nextcloud_test
 ```
 
-The driver should contain generic WebDAV behavior and defaults:
+The driver contains generic WebDAV behavior and defaults:
 
 ```json
 {
@@ -260,7 +265,7 @@ The driver should contain generic WebDAV behavior and defaults:
 }
 ```
 
-The connection should contain the concrete mount and target server:
+The connection contains the concrete mount and target server:
 
 ```json
 {
@@ -282,12 +287,12 @@ The connection should contain the concrete mount and target server:
 }
 ```
 
-Testing strategy:
+Testing notes:
 
-- First test against a disposable local or private WebDAV server.
-- Use a public WebDAV endpoint only as a smoke test, because public writable WebDAV services may disappear, rate-limit, or behave differently from real DMS-backed servers.
-- Keep the first test matrix small: root listing, folder listing, upload small file, download small file, create directory, delete file, delete directory.
-- Add large file and connection-to-connection transfer tests only after the basic WebDAV operations are stable.
+- Prefer a disposable local or private WebDAV server for write tests.
+- Public WebDAV endpoints should be treated only as smoke tests because they may reset, rate-limit, change authentication tokens or behave differently from real DMS-backed servers.
+- Useful baseline tests are root listing, folder listing, upload/download small file, upload/download large file, create directory, rename, delete, copy and move.
+- WebDAV does not provide DMS versioning by default. When copying from a versioned DMS connection to WebDAV, overwrite/cancel behavior is used instead of major/minor version prompts.
 
 This driver is useful as a reference implementation because it proves that `TC VFS Contract -> Driver -> Connection` is not tied to Alfresco/eDoCat APIs.
 

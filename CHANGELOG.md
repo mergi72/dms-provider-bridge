@@ -1,3 +1,11 @@
+## 0.9.13-beta - 2026-06-23
+
+- Added the missing current changelog entry so the top release matches the package version.
+- Updated WebDAV documentation from proposal wording to implemented generic driver status.
+- Documented current supported drivers: Alfresco, eDoCat and WebDAV.
+- Clarified that WebDAV server behavior depends on the concrete backend and that WebDAV uses overwrite/cancel behavior instead of DMS version prompts.
+- Release/version bump to `0.9.13-beta`.
+
 ## 0.9.3-beta - 2026-06-21
 
 - Removed remaining user-facing Provider ABC wording from README and Config UI.
@@ -573,10 +581,10 @@
 ## 0.2.3-alpha - 2026-06-06
 
 ### Added
-- `scripts/install-bridge-service.ps1` — standalone Windows Service installer for bridge, no TC plugin dependency.
-- `scripts/uninstall-bridge-service.ps1` — standalone Windows Service uninstall script for bridge.
-- `scripts/build-bridge-service-package.ps1` — creates service package ZIP for ops/dev deployment.
-- `scripts/build-bridge-installer.ps1` + `bridge-installer.iss` — bridge-only Inno Setup EXE installer build.
+- `scripts/install-bridge-service.ps1` â€” standalone Windows Service installer for bridge, no TC plugin dependency.
+- `scripts/uninstall-bridge-service.ps1` â€” standalone Windows Service uninstall script for bridge.
+- `scripts/build-bridge-service-package.ps1` â€” creates service package ZIP for ops/dev deployment.
+- `scripts/build-bridge-installer.ps1` + `bridge-installer.iss` â€” bridge-only Inno Setup EXE installer build.
 - `DMS_PROVIDER_CONFIG_DIR` environment variable support in `core/paths.py` for installed EXE deployments.
 
 ### Fixed
