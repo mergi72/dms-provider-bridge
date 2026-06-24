@@ -4,6 +4,8 @@ import html
 import json
 import os
 import re
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -73,6 +75,8 @@ _SECTION_ALIASES = {
     "providers": "tc-vfs-contract",
 }
 
+_DEFAULT_BROKER_HEALTH_URL = "http://127.0.0.1:8776/health"
+
 
 def _normalize_section(section: str) -> str:
     return _SECTION_ALIASES.get(section, section)
@@ -81,6 +85,68 @@ def _normalize_section(section: str) -> str:
 def _section_url(section: str) -> str:
     section = _normalize_section(section)
     return section
+
+
+def _broker_health_url() -> str:
+    configured = os.environ.get("DMS_CREDENTIAL_BROKER_HEALTH_URL") or os.environ.get("DMS_CREDENTIAL_BROKER_URL")
+    if not configured:
+        bridge_config = load_config()
+        broker_config = bridge_config.get("broker") if isinstance(bridge_config, dict) else None
+        if isinstance(broker_config, dict):
+            configured = (
+                broker_config.get("health_url")
+                or broker_config.get("healthUrl")
+                or broker_config.get("url")
+                or broker_config.get("base_url")
+                or broker_config.get("baseUrl")
+            )
+            health_path = broker_config.get("health_path") or broker_config.get("healthPath") or "/health"
+        else:
+            health_path = "/health"
+    else:
+        health_path = "/health"
+
+    if not configured:
+        return _DEFAULT_BROKER_HEALTH_URL
+    configured = configured.strip()
+    if not configured:
+        return _DEFAULT_BROKER_HEALTH_URL
+    if configured.rstrip("/").endswith("/health"):
+        return configured
+    if not isinstance(health_path, str) or not health_path.strip():
+        health_path = "/health"
+    health_path = health_path.strip()
+    if not health_path.startswith("/"):
+        health_path = "/" + health_path
+    return configured.rstrip("/") + health_path
+
+
+def _broker_health_snapshot(timeout_seconds: float = 2.0) -> dict[str, Any]:
+    url = _broker_health_url()
+    try:
+        with urllib.request.urlopen(url, timeout=timeout_seconds) as response:
+            raw_body = response.read(4096)
+            body_text = raw_body.decode("utf-8", errors="replace")
+            try:
+                payload: Any = json.loads(body_text) if body_text.strip() else {}
+            except json.JSONDecodeError:
+                payload = {"raw": body_text}
+            status_code = int(response.status)
+            return {
+                "ok": 200 <= status_code < 300,
+                "url": url,
+                "status_code": status_code,
+                "payload": payload,
+                "error": "",
+            }
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        return {
+            "ok": False,
+            "url": url,
+            "status_code": None,
+            "payload": {},
+            "error": str(exc),
+        }
 
 
 def _machine_config_dir() -> Path:
@@ -474,6 +540,8 @@ def _render_nav(active: str | None = None) -> str:
         links.append(
             f'<a class="button button-muted {class_name}" href="/config/{_section_url(section)}">{html.escape(title)}</a>'
         )
+    broker_class = "active" if active == "broker" else ""
+    links.append(f'<a class="button button-muted {broker_class}" href="/config/broker">Broker</a>')
     utility = (
         '<span class="utility">'
         '<a class="button button-muted" href="/config/reload">Reload</a>'
@@ -598,6 +666,14 @@ def config_home() -> HTMLResponse:
       <p>Credential, token and upstream auth resolution contract.</p>
     </div>
   </a>
+  <a class="section-card" href="/config/broker">
+    <h2>Broker</h2>
+    <div>
+      <p><span class="badge badge-preview">STATUS</span></p>
+      <p class="help">Credential Broker is the local user-context service used to resolve stored credentials.</p>
+      <p>Read-only health and version status for the broker process.</p>
+    </div>
+  </a>
   <a class="section-card" href="/config/drivers">
     <h2>Drivers</h2>
     <div>
@@ -690,6 +766,43 @@ def config_bridge_file() -> HTMLResponse:
 </div>
 """
     return _render_layout("Bridge Config", body, "bridge")
+
+
+@router.get("/broker", response_class=HTMLResponse)
+def config_broker() -> HTMLResponse:
+    snapshot = _broker_health_snapshot()
+    payload = snapshot.get("payload") if isinstance(snapshot.get("payload"), dict) else {}
+    version = payload.get("version") if isinstance(payload, dict) else None
+    service = payload.get("service") if isinstance(payload, dict) else None
+    status_code = snapshot.get("status_code")
+    ok = bool(snapshot.get("ok"))
+    status_class = "notice" if ok else "read-only-warning"
+    status_text = "Credential Broker health OK." if ok else "Credential Broker health failed."
+    rendered_payload = json.dumps(payload, ensure_ascii=False, indent=4) if payload else "{}"
+    error = str(snapshot.get("error") or "")
+    error_html = f'<p class="read-only-warning">{html.escape(error)}</p>' if error else ""
+    body = f"""
+<section class="panel">
+  <h2>Credential Broker</h2>
+  <div class="panel-content">
+    <p class="{status_class}">{html.escape(status_text)}</p>
+    <p class="help">Broker runs in the user context and resolves credentials from Windows Credential Manager. This page is read-only.</p>
+    <p class="meta">
+      <span>URL: {html.escape(str(snapshot.get("url") or ""))}</span>
+      <span>Status: {html.escape(str(status_code) if status_code is not None else "n/a")}</span>
+      <span>Service: {html.escape(str(service or ""))}</span>
+      <span>Version: {html.escape(str(version or ""))}</span>
+    </p>
+    {error_html}
+    <pre>{html.escape(rendered_payload)}</pre>
+    <div class="actions">
+      <a class="button button-muted" href="/config/broker">Refresh</a>
+      <a class="button button-muted" href="/config">Back to Config</a>
+    </div>
+  </div>
+</section>
+"""
+    return _render_layout("Credential Broker", body, "broker")
 
 
 @router.get("/reload", response_class=HTMLResponse)

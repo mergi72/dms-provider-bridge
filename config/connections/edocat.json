@@ -3,13 +3,13 @@
         "name": "eDoCat Connection",
         "author": "DMS Provider Bridge contributors",
         "email": "",
-        "version": "1.0.0",
+        "version": "1.0.1",
         "description": "Default eDoCat mount exposed as edocat:/",
         "license": ""
     },
 
     "config.json": {
-        "version": "1.0.0",
+        "version": "1.0.1",
         "lastModified": "",
         "_comment": "Concrete eDoCat connection. Technical DMS settings are inherited from driver edocat."
     },

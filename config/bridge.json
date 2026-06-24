@@ -9,6 +9,10 @@
     "connections": "connections",
     "auth": "auth"
   },
+  "broker": {
+    "url": "http://127.0.0.1:8776",
+    "health_path": "/health"
+  },
   "operations": {
     "list": true,
     "stat": true,

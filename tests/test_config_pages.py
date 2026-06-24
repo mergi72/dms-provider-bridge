@@ -34,6 +34,7 @@ def test_config_home_links_sections() -> None:
     assert "/config/reload" in response.text
     assert "/config/bridge" in response.text
     assert "/config/tc-vfs-contract" in response.text
+    assert "/config/broker" in response.text
     assert "/config/drivers" in response.text
     assert "/config/connections" in response.text
 
@@ -94,6 +95,70 @@ def test_config_audit_shows_connection_runtime_status() -> None:
     assert "Drivers" in response.text
     assert "Connections" in response.text
     assert "ABC -&gt; driver -&gt; connection" not in response.text
+
+
+def test_config_broker_shows_health_status(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        config_routes,
+        "_broker_health_snapshot",
+        lambda: {
+            "ok": True,
+            "url": "http://127.0.0.1:8776/health",
+            "status_code": 200,
+            "payload": {"ok": True, "service": "credential-broker", "version": "1.0.0"},
+            "error": "",
+        },
+    )
+    client = TestClient(create_app())
+
+    response = client.get("/config/broker")
+
+    assert response.status_code == 200
+    assert "Credential Broker health OK" in response.text
+    assert "http://127.0.0.1:8776/health" in response.text
+    assert "credential-broker" in response.text
+    assert "1.0.0" in response.text
+
+
+def test_config_broker_shows_health_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        config_routes,
+        "_broker_health_snapshot",
+        lambda: {
+            "ok": False,
+            "url": "http://127.0.0.1:8776/health",
+            "status_code": None,
+            "payload": {},
+            "error": "connection refused",
+        },
+    )
+    client = TestClient(create_app())
+
+    response = client.get("/config/broker")
+
+    assert response.status_code == 200
+    assert "Credential Broker health failed" in response.text
+    assert "connection refused" in response.text
+
+
+def test_broker_health_url_uses_bridge_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "bridge.json").write_text(
+        json.dumps({"broker": {"url": "http://127.0.0.1:9999", "health_path": "status"}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(config_dir))
+    monkeypatch.delenv("DMS_CREDENTIAL_BROKER_URL", raising=False)
+    monkeypatch.delenv("DMS_CREDENTIAL_BROKER_HEALTH_URL", raising=False)
+
+    assert config_routes._broker_health_url() == "http://127.0.0.1:9999/status"
+
+
+def test_broker_health_url_env_overrides_bridge_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DMS_CREDENTIAL_BROKER_URL", "http://127.0.0.1:9888")
+
+    assert config_routes._broker_health_url() == "http://127.0.0.1:9888/health"
 
 
 def test_docs_openapi_links_config() -> None:

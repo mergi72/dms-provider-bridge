@@ -1,7 +1,7 @@
 [Setup]
 AppId={{CFD8BDCC-B59A-4CB3-93D7-530BB5283773}
 AppName=DMS Provider Bridge Setup
-AppVersion=1.0.0
+AppVersion=1.0.1
 AppPublisher=mergi72
 DefaultDirName={commonpf}\DMS Provider
 DefaultGroupName=DMS Provider Bridge
@@ -11,7 +11,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=artifacts\installer
-OutputBaseFilename=DmsProviderBridgeSetupCore-v1.0.0
+OutputBaseFilename=DmsProviderBridgeSetupCore-v1.0.1
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
