@@ -46,6 +46,8 @@ class FakeClient:
         self.update_node = Mock(return_value={"uuid": "updated-uuid"})
         self.delete_nodes = Mock(return_value={"ok": True})
         self.request_bytes = Mock(return_value=(b"PK\x03\x04", "application/zip"))
+        self.resolve_share_url = Mock(return_value="/Shared/Documents")
+        self.base_url = "https://example.test"
 
     def endpoint_url(self, endpoint_key: str) -> str:
         return {
@@ -84,6 +86,15 @@ def test_search_capability_uses_edocat_query_endpoint(monkeypatch: pytest.Monkey
         "mode": "native_full_text",
         "max_results": 100,
     }
+
+
+def test_share_url_resolution_delegates_to_edocat_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    provider = _make_provider(monkeypatch, client=client)
+
+    assert provider.supports_share_url() is True
+    assert provider.share_url_to_path("https://example.test/share/page/browse/DIR-1") == "/Shared/Documents"
+    client.resolve_share_url.assert_called_once_with("https://example.test/share/page/browse/DIR-1")
 
 
 def _make_provider(

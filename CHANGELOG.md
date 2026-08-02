@@ -1,3 +1,9 @@
+## 1.1.3 - 2026-08-02
+
+- Added read-only resolution of eDoCat `DIR-...` share URLs through their same-host redirect.
+- Kept the existing TC-WFX operations and contract unchanged.
+- Release/version bump to `1.1.3`.
+
 ## 1.1.2 - 2026-08-02
 
 - Search returns unique files by default, with optional folder inclusion.

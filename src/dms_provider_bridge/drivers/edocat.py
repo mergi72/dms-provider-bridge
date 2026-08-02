@@ -96,6 +96,12 @@ class EdocatProvider(TcVfsContract):
             return {"supported": True, "mode": "native_full_text", "max_results": 100}
         return {"supported": False, "mode": None}
 
+    def supports_share_url(self) -> bool:
+        return bool(self.client.base_url)
+
+    def share_url_to_path(self, share_url: str) -> str:
+        return self.client.resolve_share_url(share_url)
+
     @staticmethod
     def _search_query(query: str) -> str:
         escaped = query.replace("\\", "\\\\").replace('"', '\\"')

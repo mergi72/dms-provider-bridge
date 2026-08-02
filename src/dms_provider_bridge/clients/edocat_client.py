@@ -3,8 +3,10 @@ from __future__ import annotations
 import base64
 import json
 from dataclasses import dataclass
+import re
 from typing import Any
-from urllib.parse import urlencode
+from urllib.error import HTTPError
+from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 from urllib import request
 
 
@@ -13,6 +15,11 @@ def _join_url(*parts: str) -> str:
     if not clean:
         return ""
     return f"{clean[0]}" + ("/" + "/".join(clean[1:]) if len(clean) > 1 else "")
+
+
+class _NoRedirect(request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
+        return None
 
 
 @dataclass(slots=True)
@@ -51,6 +58,37 @@ class EdocatClient:
     def endpoint_url(self, endpoint_key: str) -> str:
         suffix = self.endpoints.get(endpoint_key, "")
         return _join_url(self.base_url, self.api_root, suffix)
+
+    def resolve_share_url(self, share_url: str) -> str:
+        parsed = urlparse(share_url.strip())
+        configured = urlparse(self.base_url)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            raise ValueError("eDoCat Share URL must use HTTP or HTTPS.")
+        if parsed.hostname.casefold() != (configured.hostname or "").casefold() or parsed.port != configured.port:
+            raise ValueError("eDoCat Share URL host does not match the configured connection host.")
+        if not re.fullmatch(r"/share/page/browse/DIR-[A-Za-z0-9_-]+", parsed.path):
+            raise ValueError("eDoCat Share URL must use /share/page/browse/DIR-... format.")
+
+        req = request.Request(share_url.strip(), method="GET", headers={"Accept": "text/html"})
+        opener = request.build_opener(_NoRedirect())
+        try:
+            with opener.open(req, timeout=self.request_timeout) as response:
+                location = response.headers.get("Location")
+        except HTTPError as exc:
+            if exc.code not in {301, 302, 303, 307, 308}:
+                raise
+            location = exc.headers.get("Location")
+        if not location:
+            raise ValueError("eDoCat Share URL did not return a redirect path.")
+
+        redirected = urlparse(urljoin(share_url, location))
+        if redirected.hostname.casefold() != parsed.hostname.casefold() or redirected.port != parsed.port:
+            raise ValueError("eDoCat Share URL redirected outside the configured host.")
+        paths = parse_qs(redirected.query).get("path", [])
+        if len(paths) != 1 or not paths[0].strip():
+            raise ValueError("eDoCat Share URL redirect does not contain one path parameter.")
+        normalized = paths[0].replace("\\", "/").strip()
+        return normalized if normalized.startswith("/") else f"/{normalized}"
 
     def _request_json(
         self,

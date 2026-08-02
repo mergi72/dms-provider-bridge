@@ -83,7 +83,7 @@
                 "comment_supported": true
             },
             "shareUrl": {
-                "supported": false
+                "supported": true
             },
             "folderDownload": {
                 "supported": true

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -24,6 +25,43 @@ class FakeResponse:
 
     def read(self) -> bytes:
         return self._body.encode("utf-8")
+
+
+def test_resolve_share_url_reads_same_host_redirect_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    class RedirectError(HTTPError):
+        pass
+
+    class FakeOpener:
+        def open(self, req, timeout=30):
+            assert req.full_url == "https://example.test/share/page/browse/DIR-250566"
+            assert timeout == 30
+            raise RedirectError(
+                req.full_url,
+                302,
+                "Found",
+                {"Location": "../../page/site/deals/documentlibrary?path=/Shared%20Documents/Projects"},
+                None,
+            )
+
+    monkeypatch.setattr(edocat_client_module.request, "build_opener", lambda *_handlers: FakeOpener())
+    client = EdocatClient("https://example.test", "api", {}, "/deals")
+
+    assert client.resolve_share_url("https://example.test/share/page/browse/DIR-250566") == "/Shared Documents/Projects"
+
+
+@pytest.mark.parametrize(
+    "share_url",
+    [
+        "https://evil.test/share/page/browse/DIR-250566",
+        "https://example.test/other/DIR-250566",
+        "file:///share/page/browse/DIR-250566",
+    ],
+)
+def test_resolve_share_url_rejects_untrusted_target(share_url: str) -> None:
+    client = EdocatClient("https://example.test", "api", {}, "/deals")
+
+    with pytest.raises(ValueError):
+        client.resolve_share_url(share_url)
 
 
 def test_query_nodes_fetches_all_pages(monkeypatch: pytest.MonkeyPatch) -> None:
