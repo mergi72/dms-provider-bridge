@@ -17,6 +17,7 @@ env/
 
 # Local runtime artifacts
 .tmp/
+/tmp/
 *.log
 
 # Environment files

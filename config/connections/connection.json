@@ -3,13 +3,13 @@
         "name": "DMS Connection / Mount",
         "author": "DMS Provider Bridge contributors",
         "email": "",
-        "version": "1.1.0",
+        "version": "1.1.1",
         "description": "Generic Connection contract template, equivalent to a mount definition.",
         "license": ""
     },
 
     "config.json": {
-        "version": "1.1.0",
+        "version": "1.1.1",
         "lastModified": "",
         "_comment": "Connection / mount contract template. Concrete user-visible mount values belong here."
     },

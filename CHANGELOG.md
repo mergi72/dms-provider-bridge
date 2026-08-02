@@ -1,3 +1,8 @@
+## 1.1.1 - 2026-08-02
+
+- Added the repository-root `/tmp/` directory to `.gitignore` for runtime logs and local pytest work trees.
+- Release/version bump to `1.1.1`.
+
 ## 1.1.0 - 2026-08-02
 
 - Added a separate read-only `/bridge/wfx/search` endpoint without changing the existing TC-WFX operations or contract.
