@@ -25,6 +25,15 @@ class FakeClient:
         self.update_node_content_calls: list[dict[str, Any]] = []
         self.children_by_name: dict[tuple[str, str], dict | None] = {}
         self.node_details: dict[str, dict] = {}
+        self.search_calls: list[dict[str, Any]] = []
+        self.search_response: dict[str, Any] = {"list": {"entries": [], "pagination": {"totalItems": 0}}}
+
+    def search_nodes_url(self) -> str:
+        return "https://example.test/search"
+
+    def search_nodes(self, ticket: str, query: str, max_items: int = 200, skip_count: int = 0) -> dict:
+        self.search_calls.append({"ticket": ticket, "query": query, "max_items": max_items, "skip_count": skip_count})
+        return self.search_response
 
     def node_create_child_url(self, parent_id: str) -> str:
         return f"https://example.test/repo/nodes/{parent_id}/children"
@@ -158,6 +167,33 @@ def _provider_with_config(monkeypatch: pytest.MonkeyPatch, config: dict[str, Any
     provider = AlfrescoProvider()
     provider.client = fake_client  # type: ignore[assignment]
     return provider
+
+
+def test_search_items_uses_native_search_and_filters_root(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    client.search_response = {
+        "list": {
+            "entries": [
+                {"entry": {"id": "1", "name": "steam.docx", "path": {"name": "/projects"}}},
+                {"entry": {"id": "2", "name": "other.docx", "path": {"name": "/other"}}},
+            ],
+            "pagination": {"totalItems": 2},
+        }
+    }
+    provider = _provider(monkeypatch, client)
+    monkeypatch.setattr(provider, "_ticket", lambda auth: "ticket-a")
+
+    result = provider.search_items('steam "DN50"', "/projects", 20, None)
+
+    assert [item.name for item in result.items] == ["steam.docx"]
+    assert result.truncated is True
+    assert client.search_calls[0]["max_items"] == 20
+    assert '\\"DN50\\"' in client.search_calls[0]["query"]
+
+
+def test_search_capability_is_native_full_text(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _provider(monkeypatch)
+    assert provider.search_capabilities() == {"supported": True, "mode": "native_full_text", "max_results": 100}
 
 
 def test_upload_item_passes_content_base64_to_client(monkeypatch: pytest.MonkeyPatch) -> None:

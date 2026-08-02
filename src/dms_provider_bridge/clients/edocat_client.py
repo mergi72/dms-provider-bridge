@@ -219,6 +219,26 @@ class EdocatClient:
         url = f"{endpoint}?{urlencode(params)}" if params else endpoint
         return self._request_json("GET", url, headers=headers)
 
+    def search_nodes(
+        self,
+        query: str,
+        max_items: int = 20,
+        username: str | None = None,
+        password: str | None = None,
+    ) -> dict[str, Any]:
+        """Search through eDoCat's Alfresco FTS query endpoint."""
+        payload = {
+            "query": query,
+            "includeContent": False,
+            "paging": {"maxItems": max_items, "skipCount": 0},
+        }
+        return self._request_json(
+            "POST",
+            self.endpoint_url("query"),
+            headers=self.basic_auth_headers(username, password),
+            payload=payload,
+        )
+
     def create_node(self, payload: dict[str, Any], username: str | None = None, password: str | None = None) -> dict[str, Any]:
         return self._request_json(
             "POST",

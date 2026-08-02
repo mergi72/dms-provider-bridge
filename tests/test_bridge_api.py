@@ -335,6 +335,7 @@ def test_openapi_exposes_listing_but_not_legacy_edit_transfer_routes() -> None:
     assert response.status_code == 200
     paths = response.json()["paths"]
     assert "/listing" in paths
+    assert "/bridge/wfx/search" in paths
     assert "/edit/rename" not in paths
     assert "/edit/delete" not in paths
     assert "/transfer/copy" not in paths

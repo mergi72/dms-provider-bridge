@@ -41,6 +41,7 @@ class FakeClient:
     def __init__(self) -> None:
         self.query_nodes = Mock()
         self.query_nodes_by_uuids = Mock()
+        self.search_nodes = Mock(return_value={"nodes": [], "pagination": {"totalItems": 0}})
         self.create_node = Mock(return_value={"uuid": "created-uuid"})
         self.update_node = Mock(return_value={"uuid": "updated-uuid"})
         self.delete_nodes = Mock(return_value={"ok": True})
@@ -51,6 +52,36 @@ class FakeClient:
             "query": "https://example.test/api/v1/node/query",
             "node": "https://example.test/api/v1/node",
         }[endpoint_key]
+
+
+def test_search_items_uses_edocat_fts_and_filters_requested_root(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FakeClient()
+    client.search_nodes.return_value = {
+        "nodes": [
+            {"uuid": "inside", "name": "steam.docx", "path": "deals/projects"},
+            {"uuid": "outside", "name": "steam.pdf", "path": "deals/archive"},
+        ],
+        "pagination": {"totalItems": 2},
+    }
+    provider = _make_provider(monkeypatch, client=client)
+    monkeypatch.setattr(provider, "_alfresco_version_metadata_from_uuid", lambda *args, **kwargs: {})
+
+    result = provider.search_items('steam "DN50"', "/projects", 20, None)
+
+    assert [item.id for item in result.items] == ["inside"]
+    assert result.path == "/projects"
+    assert result.total == 1
+    assert client.search_nodes.call_args.kwargs["max_items"] == 100
+    assert '\\"DN50\\"' in client.search_nodes.call_args.args[0]
+
+
+def test_search_capability_uses_edocat_query_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _make_provider(monkeypatch)
+    assert provider.search_capabilities() == {
+        "supported": True,
+        "mode": "native_full_text",
+        "max_results": 100,
+    }
 
 
 def _make_provider(

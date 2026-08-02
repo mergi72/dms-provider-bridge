@@ -3,13 +3,13 @@
         "name": "Alfresco Connection",
         "author": "DMS Provider Bridge contributors",
         "email": "",
-        "version": "1.0.1",
+        "version": "1.1.0",
         "description": "Default Alfresco mount exposed as alfresco:/",
         "license": ""
     },
 
     "config.json": {
-        "version": "1.0.1",
+        "version": "1.1.0",
         "lastModified": "",
         "_comment": "Concrete Alfresco connection. Technical DMS settings are inherited from driver alfresco."
     },

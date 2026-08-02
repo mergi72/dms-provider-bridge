@@ -3,13 +3,13 @@
         "name": "DMS TC VFS Contract",
         "author": "DMS Provider Bridge contributors",
         "email": "",
-        "version": "1.0.1",
+        "version": "1.1.0",
         "description": "Generic Total Commander VFS contract used by the bridge runtime.",
         "license": ""
     },
 
     "config.json": {
-        "version": "1.0.1",
+        "version": "1.1.0",
         "lastModified": "",
         "_comment": "TC VFS contract. Driver and mount specific values belong to driver.json and connection.json."
     },

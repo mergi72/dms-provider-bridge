@@ -120,6 +120,37 @@ def test_query_nodes_by_uuids_uses_uuid_params_and_include_content(monkeypatch: 
     assert "size" not in query
 
 
+def test_search_nodes_posts_fts_query_without_content(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_urlopen(req, timeout=30):
+        captured["method"] = req.get_method()
+        captured["url"] = str(req.full_url)
+        captured["payload"] = json.loads(req.data.decode("utf-8"))
+        captured["authorization"] = req.headers.get("Authorization")
+        return FakeResponse(json.dumps({"nodes": [{"uuid": "found"}]}))
+
+    monkeypatch.setattr(edocat_client_module.request, "urlopen", fake_urlopen)
+    client = EdocatClient(
+        base_url="https://example.test",
+        api_root="edocat/api/v1",
+        endpoints={"query": "node/query"},
+        doc_library="/deals",
+    )
+
+    response = client.search_nodes('TEXT:"steam"', max_items=25, username="user", password="pass")
+
+    assert response["nodes"] == [{"uuid": "found"}]
+    assert captured["method"] == "POST"
+    assert captured["url"] == "https://example.test/edocat/api/v1/node/query"
+    assert captured["payload"] == {
+        "query": 'TEXT:"steam"',
+        "includeContent": False,
+        "paging": {"maxItems": 25, "skipCount": 0},
+    }
+    assert str(captured["authorization"]).startswith("Basic ")
+
+
 def test_create_node_uses_upload_timeout_from_config(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}
 

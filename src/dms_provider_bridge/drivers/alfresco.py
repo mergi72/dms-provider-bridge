@@ -18,6 +18,7 @@ from dms_provider_bridge.models.bridge import BridgeAuthContext
 from dms_provider_bridge.models.item import DmsItem
 from dms_provider_bridge.models.listing import ListingResult
 from dms_provider_bridge.models.operation import OperationResult
+from dms_provider_bridge.models.search import SearchResult
 from dms_provider_bridge.drivers.tc_vfs_contract import TcVfsContract
 from dms_provider_bridge.drivers import alfresco_config, alfresco_items, alfresco_share, alfresco_versioning
 from dms_provider_bridge.services.auth_resolver import resolve_effective_auth
@@ -53,6 +54,61 @@ class AlfrescoProvider(TcVfsContract):
 
     def supports_share_url(self) -> bool:
         return True
+
+    def search_capabilities(self) -> dict[str, object]:
+        return {"supported": True, "mode": "native_full_text", "max_results": 100}
+
+    @staticmethod
+    def _search_query(value: str) -> str:
+        escaped = value.strip().replace("\\", "\\\\").replace('"', '\\"')
+        if not escaped:
+            raise ValueError("Search query must not be empty.")
+        return f'(cm:name:"*{escaped}*" OR TEXT:"{escaped}")'
+
+    def search_items(
+        self,
+        query: str,
+        path: str = "/",
+        max_results: int = 20,
+        auth: BridgeAuthContext | None = None,
+    ) -> SearchResult:
+        normalized_root = self.client.normalize_path(path)
+        limit = max(1, min(max_results, 100))
+        try:
+            def _run(ticket: str) -> SearchResult:
+                response = self.client.search_nodes(ticket, self._search_query(query), max_items=limit)
+                entries = response.get("list", {}).get("entries", [])
+                if not isinstance(entries, list):
+                    raise ConnectionOperationError("Alfresco search returned invalid entries.")
+                items = []
+                for item in entries:
+                    if not isinstance(item, dict) or not isinstance(item.get("entry"), dict):
+                        continue
+                    entry = item["entry"]
+                    parent = entry.get("path", {}).get("name") if isinstance(entry.get("path"), dict) else None
+                    name = entry.get("name")
+                    fallback = f"{str(parent).rstrip('/')}/{name}" if isinstance(parent, str) and name else None
+                    items.append(self._item_from_entry(entry, fallback))
+                if normalized_root != "/":
+                    prefix = normalized_root.rstrip("/") + "/"
+                    items = [item for item in items if item.path == normalized_root or item.path.startswith(prefix)]
+                pagination = response.get("list", {}).get("pagination", {})
+                total_items = pagination.get("totalItems") if isinstance(pagination, dict) else None
+                total = total_items if isinstance(total_items, int) and total_items >= 0 else len(items)
+                return SearchResult(
+                    connection=self.name,
+                    path=normalized_root,
+                    query=query.strip(),
+                    total=total,
+                    items=items,
+                    truncated=total > len(items),
+                )
+
+            return self._run_with_ticket_retry(auth, f"search {normalized_root}", _run)
+        except AuthenticationError:
+            raise
+        except Exception as exc:
+            raise ConnectionOperationError(f"Alfresco search failed for {normalized_root}: {exc}") from exc
 
     def share_url_to_path(self, share_url: str) -> str:
         return alfresco_share.share_url_to_path(share_url)
@@ -230,6 +286,7 @@ class AlfrescoProvider(TcVfsContract):
 
     def bridge_endpoint_for(self, operation: str) -> str | None:
         mapping = {
+            "search": self.client.search_nodes_url(),
             "list": self.client.search_nodes_url(),
             "stat": self.client.node_by_id_url("{nodeId}"),
             "copy": self.client.node_copy_url("{nodeId}"),

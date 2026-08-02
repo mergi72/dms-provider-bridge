@@ -19,6 +19,7 @@ from dms_provider_bridge.models.bridge import BridgeAuthContext
 from dms_provider_bridge.models.item import DmsItem
 from dms_provider_bridge.models.listing import ListingResult
 from dms_provider_bridge.models.operation import OperationResult
+from dms_provider_bridge.models.search import SearchResult
 from dms_provider_bridge.drivers.tc_vfs_contract import TcVfsContract
 from dms_provider_bridge.drivers import alfresco_versioning
 from dms_provider_bridge.drivers import edocat_config, edocat_items, edocat_nodes, edocat_paths, edocat_tree
@@ -89,6 +90,25 @@ class EdocatProvider(TcVfsContract):
             "majorVersion": False,
             "comment_supported": True,
         }
+
+    def search_capabilities(self) -> dict[str, object]:
+        if self.client.endpoint_url("query"):
+            return {"supported": True, "mode": "native_full_text", "max_results": 100}
+        return {"supported": False, "mode": None}
+
+    @staticmethod
+    def _search_query(query: str) -> str:
+        escaped = query.replace("\\", "\\\\").replace('"', '\\"')
+        return f'(cm:name:"*{escaped}*" OR TEXT:"{escaped}")'
+
+    @staticmethod
+    def _response_total(response: dict, fallback: int) -> int:
+        pagination = response.get("pagination")
+        if isinstance(pagination, dict):
+            total = pagination.get("totalItems")
+            if isinstance(total, int) and total >= 0:
+                return total
+        return fallback
 
     def _versioning_choice(self, versioning: dict | None) -> tuple[bool, str | None] | None:
         return alfresco_versioning.versioning_choice(versioning)
@@ -524,6 +544,65 @@ class EdocatProvider(TcVfsContract):
         items = [self._item_from_node(node, resolved_path, auth) for node in nodes if isinstance(node, dict)]
         return ListingResult(provider=self.name, connection=self.name, path=self._public_path(resolved_path), total=len(items), items=items)
 
+    def search_items(
+        self,
+        query: str,
+        path: str = "/",
+        max_results: int = 20,
+        auth: BridgeAuthContext | None = None,
+    ) -> SearchResult:
+        resolved_path = self._resolve_path(path).rstrip("/") or "/"
+        username, password = self._runtime_credentials(auth)
+        try:
+            response = self.client.search_nodes(
+                self._search_query(query),
+                max_items=100,
+                username=username,
+                password=password,
+            )
+        except HTTPError as exc:
+            if exc.code in {401, 403}:
+                raise AuthenticationError(
+                    f"eDoCat access denied while searching {path}: HTTP {exc.code}.",
+                    status_code=exc.code,
+                ) from exc
+            raise ConnectionOperationError(
+                f"eDoCat search failed for {path}: HTTP {exc.code}.",
+                status_code=exc.code,
+            ) from exc
+        except ConnectionOperationError:
+            raise
+        except Exception as exc:
+            raise ConnectionOperationError(f"eDoCat search failed for {path}: {exc}") from exc
+
+        nodes = response.get("nodes", [])
+        if not isinstance(nodes, list):
+            raise ConnectionOperationError("eDoCat search returned invalid nodes data.")
+
+        prefix = resolved_path.rstrip("/") + "/"
+        matching_nodes = [
+            node
+            for node in nodes
+            if isinstance(node, dict)
+            and (
+                resolved_path == "/"
+                or self._normalize_node_path(node) == resolved_path
+                or self._normalize_node_path(node).startswith(prefix)
+            )
+        ]
+        selected = matching_nodes[:max_results]
+        items = [self._item_from_node(node, resolved_path, auth) for node in selected]
+        upstream_total = self._response_total(response, len(nodes))
+        truncated = len(matching_nodes) > max_results or upstream_total > len(nodes)
+        return SearchResult(
+            connection=self.name,
+            path=self._public_path(resolved_path),
+            query=query,
+            total=len(matching_nodes) if resolved_path != "/" else upstream_total,
+            items=items,
+            truncated=truncated,
+        )
+
     def bridge_endpoint_for(self, operation: str) -> str | None:
         mapping = {
             "list": self.client.endpoint_url("query"),
@@ -533,6 +612,7 @@ class EdocatProvider(TcVfsContract):
             "delete": self.client.endpoint_url("node"),
             "mkdir": self.client.endpoint_url("node"),
             "download": self.client.endpoint_url("query"),
+            "search": self.client.endpoint_url("query"),
             "upload": self.client.endpoint_url("node"),
         }
         return mapping.get(operation)

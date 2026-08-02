@@ -1,3 +1,11 @@
+## 1.1.0 - 2026-08-02
+
+- Added a separate read-only `/bridge/wfx/search` endpoint without changing the existing TC-WFX operations or contract.
+- Added native full-text search for Alfresco connections.
+- Added eDoCat search through its Alfresco FTS query endpoint.
+- Added bounded results, path filtering, authentication handling and regression coverage.
+- Release/version bump to `1.1.0`.
+
 ## 1.0.0 - 2026-06-23
 
 - Added the missing current changelog entry so the top release matches the package version.
