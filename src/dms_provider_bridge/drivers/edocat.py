@@ -19,7 +19,7 @@ from dms_provider_bridge.models.bridge import BridgeAuthContext
 from dms_provider_bridge.models.item import DmsItem
 from dms_provider_bridge.models.listing import ListingResult
 from dms_provider_bridge.models.operation import OperationResult
-from dms_provider_bridge.models.search import SearchResult
+from dms_provider_bridge.models.search import SearchResult, select_unique_items
 from dms_provider_bridge.drivers.tc_vfs_contract import TcVfsContract
 from dms_provider_bridge.drivers import alfresco_versioning
 from dms_provider_bridge.drivers import edocat_config, edocat_items, edocat_nodes, edocat_paths, edocat_tree
@@ -550,6 +550,8 @@ class EdocatProvider(TcVfsContract):
         path: str = "/",
         max_results: int = 20,
         auth: BridgeAuthContext | None = None,
+        *,
+        files_only: bool = True,
     ) -> SearchResult:
         resolved_path = self._resolve_path(path).rstrip("/") or "/"
         username, password = self._runtime_credentials(auth)
@@ -590,17 +592,18 @@ class EdocatProvider(TcVfsContract):
                 or self._normalize_node_path(node).startswith(prefix)
             )
         ]
-        selected = matching_nodes[:max_results]
-        items = [self._item_from_node(node, resolved_path, auth) for node in selected]
+        items = [self._item_from_node(node, resolved_path, auth) for node in matching_nodes]
+        selected = select_unique_items(items, max_results, files_only)
         upstream_total = self._response_total(response, len(nodes))
-        truncated = len(matching_nodes) > max_results or upstream_total > len(nodes)
+        total = len(matching_nodes) if resolved_path != "/" else upstream_total
         return SearchResult(
             connection=self.name,
             path=self._public_path(resolved_path),
             query=query,
-            total=len(matching_nodes) if resolved_path != "/" else upstream_total,
-            items=items,
-            truncated=truncated,
+            total=total,
+            returned=len(selected),
+            items=selected,
+            truncated=total > len(selected) or upstream_total > len(nodes),
         )
 
     def bridge_endpoint_for(self, operation: str) -> str | None:

@@ -18,7 +18,7 @@ from dms_provider_bridge.models.bridge import BridgeAuthContext
 from dms_provider_bridge.models.item import DmsItem
 from dms_provider_bridge.models.listing import ListingResult
 from dms_provider_bridge.models.operation import OperationResult
-from dms_provider_bridge.models.search import SearchResult
+from dms_provider_bridge.models.search import SearchResult, select_unique_items
 from dms_provider_bridge.drivers.tc_vfs_contract import TcVfsContract
 from dms_provider_bridge.drivers import alfresco_config, alfresco_items, alfresco_share, alfresco_versioning
 from dms_provider_bridge.services.auth_resolver import resolve_effective_auth
@@ -71,12 +71,14 @@ class AlfrescoProvider(TcVfsContract):
         path: str = "/",
         max_results: int = 20,
         auth: BridgeAuthContext | None = None,
+        *,
+        files_only: bool = True,
     ) -> SearchResult:
         normalized_root = self.client.normalize_path(path)
         limit = max(1, min(max_results, 100))
         try:
             def _run(ticket: str) -> SearchResult:
-                response = self.client.search_nodes(ticket, self._search_query(query), max_items=limit)
+                response = self.client.search_nodes(ticket, self._search_query(query), max_items=100)
                 entries = response.get("list", {}).get("entries", [])
                 if not isinstance(entries, list):
                     raise ConnectionOperationError("Alfresco search returned invalid entries.")
@@ -92,6 +94,7 @@ class AlfrescoProvider(TcVfsContract):
                 if normalized_root != "/":
                     prefix = normalized_root.rstrip("/") + "/"
                     items = [item for item in items if item.path == normalized_root or item.path.startswith(prefix)]
+                selected = select_unique_items(items, limit, files_only)
                 pagination = response.get("list", {}).get("pagination", {})
                 total_items = pagination.get("totalItems") if isinstance(pagination, dict) else None
                 total = total_items if isinstance(total_items, int) and total_items >= 0 else len(items)
@@ -100,8 +103,9 @@ class AlfrescoProvider(TcVfsContract):
                     path=normalized_root,
                     query=query.strip(),
                     total=total,
-                    items=items,
-                    truncated=total > len(items),
+                    returned=len(selected),
+                    items=selected,
+                    truncated=total > len(selected),
                 )
 
             return self._run_with_ticket_retry(auth, f"search {normalized_root}", _run)

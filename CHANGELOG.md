@@ -1,3 +1,11 @@
+## 1.1.2 - 2026-08-02
+
+- Search returns unique files by default, with optional folder inclusion.
+- Added explicit `returned` and reliable `truncated` result metadata alongside provider `total`.
+- Increased native fetch headroom so filtering and deduplication still honor the requested result limit.
+- Kept all existing TC-WFX operations and contracts unchanged.
+- Release/version bump to `1.1.2`.
+
 ## 1.1.1 - 2026-08-02
 
 - Added the repository-root `/tmp/` directory to `.gitignore` for runtime logs and local pytest work trees.

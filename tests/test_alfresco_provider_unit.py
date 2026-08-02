@@ -186,8 +186,9 @@ def test_search_items_uses_native_search_and_filters_root(monkeypatch: pytest.Mo
     result = provider.search_items('steam "DN50"', "/projects", 20, None)
 
     assert [item.name for item in result.items] == ["steam.docx"]
+    assert result.returned == 1
     assert result.truncated is True
-    assert client.search_calls[0]["max_items"] == 20
+    assert client.search_calls[0]["max_items"] == 100
     assert '\\"DN50\\"' in client.search_calls[0]["query"]
 
 

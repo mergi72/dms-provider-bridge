@@ -5,6 +5,8 @@ import pytest
 from dms_provider_bridge.models.listing import ListingResult
 from dms_provider_bridge.models.operation import OperationResult
 from dms_provider_bridge.models.bridge import WfxResponse
+from dms_provider_bridge.models.item import DmsItem
+from dms_provider_bridge.models.search import select_unique_items
 
 
 pytestmark = pytest.mark.unit
@@ -61,3 +63,34 @@ def test_wfx_response_mirrors_connection_aliases_in_data_payload() -> None:
 
     assert response.data["connection"] == "edocat1"
     assert response.data["provider"] == "edocat1"
+
+
+def test_search_selection_defaults_to_unique_files() -> None:
+    items = [
+        DmsItem(id="folder", name="docs", path="/docs", is_folder=True),
+        DmsItem(id="doc-1", name="first.docx", path="/docs/first.docx"),
+        DmsItem(id="doc-1", name="duplicate.docx", path="/elsewhere/duplicate.docx"),
+        DmsItem(id="doc-2", name="second.pdf", path="/docs/second.pdf"),
+    ]
+
+    selected = select_unique_items(items, max_results=20, files_only=True)
+
+    assert [item.id for item in selected] == ["doc-1", "doc-2"]
+
+
+def test_search_selection_can_include_folders() -> None:
+    items = [DmsItem(id="folder", name="docs", path="/docs", is_folder=True)]
+
+    assert select_unique_items(items, max_results=20, files_only=False) == items
+
+
+def test_search_selection_uses_path_when_stable_id_is_blank() -> None:
+    items = [
+        DmsItem(id=" ", name="first.txt", path="/A/first.txt"),
+        DmsItem(id="", name="duplicate.txt", path="/a/FIRST.txt"),
+        DmsItem(id="", name="second.txt", path="/a/second.txt"),
+    ]
+
+    selected = select_unique_items(items, max_results=20, files_only=True)
+
+    assert [item.name for item in selected] == ["first.txt", "second.txt"]

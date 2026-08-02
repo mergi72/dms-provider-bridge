@@ -61,6 +61,7 @@ class WfxSearchRequest(BaseModel):
     path: str = Field(min_length=3, description="Search root in connection:/path format.")
     query: str = Field(min_length=1, max_length=500)
     max_results: int = Field(default=20, ge=1, le=100)
+    files_only: bool = True
     auth: BridgeAuthContext | None = None
 
 

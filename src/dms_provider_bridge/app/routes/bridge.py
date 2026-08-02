@@ -95,7 +95,7 @@ def bridge_list(payload: WfxPathRequest) -> JSONResponse:
 
 @router.post("/search")
 def bridge_search(payload: WfxSearchRequest) -> JSONResponse:
-    return _wfx_json(search_path(payload.path, payload.query, payload.max_results, payload.auth))
+    return _wfx_json(search_path(payload.path, payload.query, payload.max_results, payload.files_only, payload.auth))
 
 
 @router.post("/stat")

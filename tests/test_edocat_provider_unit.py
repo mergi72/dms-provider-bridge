@@ -71,6 +71,8 @@ def test_search_items_uses_edocat_fts_and_filters_requested_root(monkeypatch: py
     assert [item.id for item in result.items] == ["inside"]
     assert result.path == "/projects"
     assert result.total == 1
+    assert result.returned == 1
+    assert result.truncated is False
     assert client.search_nodes.call_args.kwargs["max_items"] == 100
     assert '\\"DN50\\"' in client.search_nodes.call_args.args[0]
 

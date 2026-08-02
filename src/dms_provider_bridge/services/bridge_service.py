@@ -483,7 +483,7 @@ def list_path(path: str, auth: BridgeAuthContext | None) -> WfxResponse:
         return _log_and_return("list", connection_name, resolved_path, started_at, response, str(exc))
 
 
-def search_path(path: str, query: str, max_results: int, auth: BridgeAuthContext | None) -> WfxResponse:
+def search_path(path: str, query: str, max_results: int, files_only: bool, auth: BridgeAuthContext | None) -> WfxResponse:
     started_at = time.perf_counter()
     connection_name: str | None = None
     resolved_path = path
@@ -503,7 +503,7 @@ def search_path(path: str, query: str, max_results: int, auth: BridgeAuthContext
             response = _failure(WfxErrorCode.ACCESS_DENIED, "Authentication is required for connection search.")
             return _log_and_return("search", connection_name, resolved_path, started_at, response, response.message)
         runtime_auth = _validated_connection_auth(connection_runtime, auth) if auth is not None else None
-        result = search_items(query, parsed.path, max_results, runtime_auth)
+        result = search_items(query, parsed.path, max_results, runtime_auth, files_only=files_only)
         response = _success(data=result.model_dump(), metadata=_metadata(connection_runtime, "search"))
         return _log_and_return("search", connection_name, resolved_path, started_at, response)
     except Exception as exc:
