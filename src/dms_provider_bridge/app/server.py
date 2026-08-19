@@ -8,15 +8,24 @@ from dms_provider_bridge.app.routes.bridge import router as bridge_router, share
 from dms_provider_bridge.app.routes.config import router as config_router
 from dms_provider_bridge.app.routes.health import router as health_router
 from dms_provider_bridge.app.routes.listing import router as listing_router
+from dms_provider_bridge.tracing import CORRELATION_HEADER, correlation_scope
 
 
 def create_app() -> FastAPI:
     app = FastAPI(
         title="dms-provider-bridge",
-        version="1.1.3",
+        version="1.1.4",
         description="Local DMS provider bridge API. Config UI is available at /config.",
         docs_url=None,
     )
+
+    @app.middleware("http")
+    async def correlation_middleware(request, call_next):
+        with correlation_scope(request.headers.get(CORRELATION_HEADER)) as correlation_id:
+            response = await call_next(request)
+            response.headers[CORRELATION_HEADER] = correlation_id
+            return response
+
     app.include_router(health_router, prefix="/health", tags=["Health"])
     app.include_router(listing_router, prefix="/listing", tags=["Listing"])
     app.include_router(bridge_router, prefix="/bridge/wfx", tags=["Bridge"])

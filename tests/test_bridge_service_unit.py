@@ -60,7 +60,7 @@ def test_list_path_logs_connection_and_legacy_provider_alias(monkeypatch: pytest
     assert response.ok is True
     assert response.metadata["connection"] == "edocat"
     assert response.metadata["provider"] == "edocat"
-    assert "bridge_operation operation=list connection=edocat provider=edocat path=/folder" in caplog.text
+    assert "bridge_operation correlation_id=- operation=list connection=edocat provider=edocat path=/folder" in caplog.text
 
 
 def test_list_path_root_exposes_connection_and_legacy_provider_alias(monkeypatch: pytest.MonkeyPatch) -> None:

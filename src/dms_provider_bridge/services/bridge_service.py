@@ -397,7 +397,8 @@ def _log_and_return(
     error_value = error or response.message or ""
     level_method = _LOGGER.info if response.ok else _LOGGER.warning
     level_method(
-        "bridge_operation operation=%s connection=%s provider=%s path=%s error=%s duration_ms=%d",
+        "bridge_operation correlation_id=%s operation=%s connection=%s provider=%s path=%s error=%s duration_ms=%d",
+        current_correlation_id(),
         operation,
         connection_value,
         connection_value,
@@ -790,3 +791,4 @@ def upload_path(destination: str, file_name: str, auth: BridgeAuthContext, conte
         return _log_and_return("upload", connection_name, resolved_path, started_at, response, str(exc))
 
 
+from dms_provider_bridge.tracing import current_correlation_id

@@ -1,3 +1,9 @@
+## 1.1.4 - 2026-08-19
+
+- Added additive `X-VFS-Correlation-ID` propagation for platform diagnostics without changing the stable Bridge request or response contracts.
+- Included the correlation ID in Bridge operation logs.
+- Release/version bump to `1.1.4`.
+
 ## 1.1.3 - 2026-08-02
 
 - Added read-only resolution of eDoCat `DIR-...` share URLs through their same-host redirect.
