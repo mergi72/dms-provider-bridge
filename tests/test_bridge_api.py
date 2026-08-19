@@ -264,7 +264,9 @@ def test_bridge_root_list_returns_connection_folders_without_auth() -> None:
     assert body["metadata"]["connection_root"] is True
 
 
-def test_bridge_root_list_returns_connections_when_default_is_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_bridge_root_list_returns_connections_when_default_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
     monkeypatch.setattr(bridge_service, "get_default_connection_name", lambda: (_ for _ in ()).throw(RuntimeError("bad default")))
     client = TestClient(create_app())
 
@@ -275,6 +277,7 @@ def test_bridge_root_list_returns_connections_when_default_is_unavailable(monkey
     assert body["ok"] is True
     assert {item["name"] for item in body["data"]["items"]} >= {"edocat", "alfresco"}
     assert body["metadata"]["default_connection"] is None
+    assert "default_connection_unavailable" not in caplog.text
 
 
 def test_resolve_share_url() -> None:

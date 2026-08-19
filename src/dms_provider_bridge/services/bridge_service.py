@@ -341,8 +341,10 @@ def _connection_root_listing() -> ListingResult:
 def _default_connection_name_or_none() -> str | None:
     try:
         return get_default_connection_name()
-    except Exception as exc:
-        _LOGGER.warning("default_connection_unavailable error=%s", exc)
+    except Exception:
+        # A default connection is optional. Clients select registered mounts
+        # explicitly (for example alfresco:/ or edocat:/), so its absence is
+        # not a runtime warning.
         return None
 
 

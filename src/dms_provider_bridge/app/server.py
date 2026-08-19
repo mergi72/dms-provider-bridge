@@ -14,7 +14,7 @@ from dms_provider_bridge.tracing import CORRELATION_HEADER, correlation_scope
 def create_app() -> FastAPI:
     app = FastAPI(
         title="dms-provider-bridge",
-        version="1.1.5",
+        version="1.1.6",
         description="Local DMS provider bridge API. Config UI is available at /config.",
         docs_url=None,
     )

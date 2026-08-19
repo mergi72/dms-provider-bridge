@@ -1,3 +1,10 @@
+## 1.1.6 - 2026-08-20
+
+- Treated an unconfigured default connection as an expected optional state.
+- Stopped emitting a warning when clients enumerate explicitly registered connection mounts.
+- Added regression coverage for clean connection enumeration without a default mount.
+- Release/version bump to `1.1.6`.
+
 ## 1.1.5 - 2026-08-20
 
 - Stopped writing complete Bridge, driver and connection configuration payloads to debug logs.
