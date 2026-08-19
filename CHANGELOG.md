@@ -1,3 +1,10 @@
+## 1.1.5 - 2026-08-20
+
+- Stopped writing complete Bridge, driver and connection configuration payloads to debug logs.
+- Kept configuration-load diagnostics as concise single-line path metadata without values or credentials.
+- Added regression coverage for the clean VFS Debugger output.
+- Release/version bump to `1.1.5`.
+
 ## 1.1.4 - 2026-08-19
 
 - Added additive `X-VFS-Correlation-ID` propagation for platform diagnostics without changing the stable Bridge request or response contracts.

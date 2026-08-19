@@ -10,8 +10,6 @@ from dms_provider_bridge.core.logging import get_logger
 from dms_provider_bridge.core.paths import MACHINE_CONFIG_DIR, USER_CONFIG_DIR
 
 _LOGGER = get_logger(__name__)
-_SENSITIVE_CONFIG_KEY_PARTS = ("password", "secret", "token", "apikey")
-_MASKED_CONFIG_VALUE = "***"
 _CONFIG_METADATA_KEYS = {"key", "projectInfo", "config.json", "_comment"}
 
 
@@ -75,22 +73,6 @@ def _strip_empty_overrides(value: Any) -> Any:
     return value
 
 
-def _is_sensitive_config_key(key: str) -> bool:
-    normalized = key.replace("_", "").replace("-", "").casefold()
-    return any(part in normalized for part in _SENSITIVE_CONFIG_KEY_PARTS)
-
-
-def sanitize_config_for_logging(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {
-            key: _MASKED_CONFIG_VALUE if _is_sensitive_config_key(str(key)) else sanitize_config_for_logging(item)
-            for key, item in value.items()
-        }
-    if isinstance(value, list):
-        return [sanitize_config_for_logging(item) for item in value]
-    return value
-
-
 def _load_bridge_config(machine_dir: Path, user_dir: Path | None) -> dict[str, Any]:
     base = _read_json(machine_dir / "bridge.json")
     if base is None:
@@ -110,17 +92,10 @@ def _log_bridge_config(config: dict[str, Any], machine_path: Path, user_path: Pa
     if not debug_enabled(config):
         return
 
-    sanitized_config = sanitize_config_for_logging(config)
-    try:
-        rendered = json.dumps(sanitized_config, ensure_ascii=False, indent=2, sort_keys=True)
-    except TypeError:
-        rendered = repr(sanitized_config)
-    debug_logger = connection_debug_logger("bridge", config)
-    debug_logger.debug(
-        "bridge_config_loaded machine_path=%s user_path=%s config=%s",
+    _LOGGER.debug(
+        "bridge_config_loaded machine_path=%s user_path=%s",
         machine_path,
         user_path or "",
-        rendered,
     )
 
 
@@ -133,18 +108,12 @@ def _log_driver_config(
     if not debug_enabled(config):
         return
 
-    sanitized_config = sanitize_config_for_logging(config)
-    try:
-        rendered = json.dumps(sanitized_config, ensure_ascii=False, indent=2, sort_keys=True)
-    except TypeError:
-        rendered = repr(sanitized_config)
     debug_logger = connection_debug_logger(driver_name, config)
     debug_logger.debug(
-        "driver_config_loaded driver=%s machine_path=%s user_path=%s config=%s",
+        "driver_config_loaded driver=%s machine_path=%s user_path=%s",
         driver_name,
         machine_path,
         user_path or "",
-        rendered,
     )
 
 

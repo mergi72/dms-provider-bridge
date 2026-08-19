@@ -413,7 +413,7 @@ def test_load_driver_config_ignores_user_driver_local_json_when_machine_driver_j
     assert config_loader.load_driver_config("edocat") == {}
 
 
-def test_load_driver_config_masks_sensitive_values_in_log(
+def test_load_driver_config_omits_values_from_log(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     machine_dir = tmp_path / "machine"
@@ -441,10 +441,9 @@ def test_load_driver_config_masks_sensitive_values_in_log(
     assert "machine-api-key" not in logged
     assert "local-token" not in logged
     assert "local-secret" not in logged
-    assert '"password": "***"' in logged
-    assert '"api_key": "***"' in logged
-    assert '"token": "***"' in logged
-    assert '"clientSecret": "***"' in logged
+    assert "driver_config_loaded driver=alfresco" in logged
+    assert "config=" not in logged
+    assert "\n" not in next(record.getMessage() for record in caplog.records if "driver_config_loaded" in record.getMessage())
 
 
 def test_load_driver_config_does_not_log_config_when_debug_is_disabled(
@@ -526,7 +525,7 @@ def test_load_driver_config_writes_driver_debug_file_without_bridge_debug(
     logged = debug_log.read_text(encoding="utf-8")
     assert "driver_config_loaded driver=alfresco" in logged
     assert "machine-pass" not in logged
-    assert '"password": "***"' in logged
+    assert "config=" not in logged
 
 
 def test_load_config_logs_bridge_config_only_when_debug_is_enabled(
@@ -556,5 +555,6 @@ def test_load_config_logs_bridge_config_only_when_debug_is_enabled(
     assert config["debug"]["enable"] is True
     assert "bridge_config_loaded" in logged
     assert "hidden" not in logged
-    assert '"secret": "***"' in logged
+    assert "config=" not in logged
+    assert "\n" not in next(record.getMessage() for record in caplog.records if "bridge_config_loaded" in record.getMessage())
 
