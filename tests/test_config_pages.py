@@ -39,7 +39,7 @@ def test_config_home_links_sections() -> None:
     assert "/config/connections" in response.text
 
 
-def test_config_reload_clears_connection_runtime_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_config_reload_get_only_shows_confirmation(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = []
     monkeypatch.setattr(config_routes, "reload_connection_runtime_cache", lambda: calls.append("reload"))
     client = TestClient(create_app())
@@ -47,12 +47,13 @@ def test_config_reload_clears_connection_runtime_cache(monkeypatch: pytest.Monke
     response = client.get("/config/reload")
 
     assert response.status_code == 200
-    assert calls == ["reload"]
-    assert "Configuration cache was reloaded" in response.text
+    assert calls == []
+    assert 'method="post" action="/config/reload"' in response.text
 
 
 def test_config_reload_post_returns_audit_and_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = []
+    monkeypatch.setattr(config_routes, "clear_credential_cache", lambda: calls.append("credentials"))
     monkeypatch.setattr(config_routes, "reload_connection_runtime_cache", lambda: calls.append("reload"))
     monkeypatch.setattr(
         config_routes,
@@ -71,12 +72,46 @@ def test_config_reload_post_returns_audit_and_registry(monkeypatch: pytest.Monke
 
     assert response.status_code == 200
     payload = response.json()
-    assert calls == ["reload"]
+    assert calls == ["credentials", "reload"]
     assert payload["ok"] is True
     assert payload["message"] == "Configuration cache was reloaded."
     assert payload["audit"]["ok"] is True
     assert payload["registry"]["wfx_connections"] == ["alfresco"]
     assert payload["registry"]["available_drivers"] == ["alfresco"]
+
+
+def test_config_rejects_non_loopback_host() -> None:
+    client = TestClient(create_app(), base_url="http://bridge.example:8765")
+
+    response = client.get("/config")
+
+    assert response.status_code == 403
+
+
+def test_config_post_rejects_cross_origin_request() -> None:
+    client = TestClient(create_app(), base_url="http://127.0.0.1:8765")
+
+    response = client.post("/config/reload", headers={"Origin": "https://attacker.example"})
+
+    assert response.status_code == 403
+
+
+def test_config_post_rejects_missing_origin_for_real_local_host() -> None:
+    client = TestClient(create_app(), base_url="http://127.0.0.1:8765")
+
+    response = client.post("/config/reload")
+
+    assert response.status_code == 403
+
+
+def test_config_post_accepts_exact_local_origin(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config_routes, "clear_credential_cache", lambda: None)
+    monkeypatch.setattr(config_routes, "reload_connection_runtime_cache", lambda: None)
+    client = TestClient(create_app(), base_url="http://127.0.0.1:8765")
+
+    response = client.post("/config/reload", headers={"Origin": "http://127.0.0.1:8765"})
+
+    assert response.status_code == 200
 
 
 def test_config_audit_shows_connection_runtime_status() -> None:
@@ -420,6 +455,7 @@ def test_config_save_reloads_connection_runtime_cache(tmp_path: Path, monkeypatc
     shutil.copytree(repo_config, config_dir)
     monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(config_dir))
     calls = []
+    monkeypatch.setattr(config_routes, "clear_credential_cache", lambda: calls.append("credentials"))
     monkeypatch.setattr(config_routes, "reload_connection_runtime_cache", lambda: calls.append("reload"))
     client = TestClient(create_app())
     payload = {
@@ -437,7 +473,7 @@ def test_config_save_reloads_connection_runtime_cache(tmp_path: Path, monkeypatc
     )
 
     assert response.status_code == 200
-    assert calls == ["reload"]
+    assert calls == ["credentials", "reload"]
 
 
 def test_config_save_new_connection_requires_overwrite_confirmation(
@@ -547,6 +583,7 @@ def test_config_delete_removes_editable_file_and_reloads_cache(
     target.write_text('{"key": "delete_me", "delete_me": {"driver": "alfresco", "mount": "delete_me:/"}}', encoding="utf-8")
     monkeypatch.setenv("DMS_PROVIDER_MACHINE_CONFIG_DIR", str(config_dir))
     calls = []
+    monkeypatch.setattr(config_routes, "clear_credential_cache", lambda: calls.append("credentials"))
     monkeypatch.setattr(config_routes, "reload_connection_runtime_cache", lambda: calls.append("reload"))
     client = TestClient(create_app())
 
@@ -555,7 +592,7 @@ def test_config_delete_removes_editable_file_and_reloads_cache(
     assert response.status_code == 200
     assert "Deleted delete_me.json." in response.text
     assert not target.exists()
-    assert calls == ["reload"]
+    assert calls == ["credentials", "reload"]
 
 
 def test_config_delete_rejects_read_only_template() -> None:

@@ -12,8 +12,8 @@ Stable release branch: `main`
 
 Current release mapping:
 
-- Bridge repository latest changelog version: `1.1.6`
-- Latest bridge-only release: `v1.1.6`
+- Bridge repository latest changelog version: `1.1.7`
+- Latest bridge-only release: `v1.1.7`
 
 ## Terminology and Compatibility
 
@@ -169,7 +169,7 @@ Bridge can be run in two different Windows runtime models. Keep them separate:
   - Current setup installs the bridge service and preserves the installing user AppData path for configuration and logs.
   - `LocalSystem` cannot see credentials stored in an interactive user's Windows Credential Manager.
 
-Current setup release `v1.1.6` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
+Current setup release `v1.1.7` is the Service mode installer with bootstrapper-based user AppData handling. TC user mode remains a separate runtime model for scenarios where user-scoped credentials are required.
 
 ## Connection Operations
 
@@ -307,7 +307,7 @@ This driver is useful as a reference implementation because it proves that `TC V
 python -m venv .venv312
 .venv312\\Scripts\\activate
 pip install -e .
-python -m uvicorn dms_provider_bridge.app.server:app --host 127.0.0.1 --port 8765
+python -u -m dms_provider_bridge.main
 ```
 
 Verify bridge:
@@ -687,7 +687,7 @@ Restart local server:
 ```powershell
 $conn = Get-NetTCPConnection -LocalAddress 127.0.0.1 -LocalPort 8765 -ErrorAction SilentlyContinue | Where-Object { $_.State -eq 'Listen' }
 if ($conn) { Stop-Process -Id $conn.OwningProcess -Force }
-.\.venv312\Scripts\python.exe -m uvicorn dms_provider_bridge.app.server:app --app-dir src --host 127.0.0.1 --port 8765
+.\.venv312\Scripts\python.exe -u -m dms_provider_bridge.main
 ```
 
 Health check:

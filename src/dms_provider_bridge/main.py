@@ -11,6 +11,14 @@ from dms_provider_bridge.core.logging import configure_logging
 
 HOST = "127.0.0.1"
 PORT = 8765
+_LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
+
+
+def _validate_local_host(host: object) -> str:
+    normalized = str(host).strip().casefold()
+    if normalized not in _LOOPBACK_HOSTS:
+        raise ValueError("Bridge can listen only on localhost until authenticated remote access is implemented.")
+    return str(host).strip()
 
 
 def _uvicorn_stdout_log_config() -> dict[str, object]:
@@ -35,7 +43,7 @@ def main() -> None:
     args = parse_args()
     config = load_config()
     configure_logging(config)
-    host = args.host or config.get("server", {}).get("host", HOST)
+    host = _validate_local_host(args.host or config.get("server", {}).get("host", HOST))
     port = args.port or config.get("server", {}).get("port", PORT)
     advertised_host = "127.0.0.1" if str(host) in {"0.0.0.0", "::"} else str(host)
     base_url = f"http://{advertised_host}:{int(port)}"

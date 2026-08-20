@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from dms_provider_bridge.core.connection_aliases import mirror_connection_path_override_aliases
 from dms_provider_bridge.core.connection_aliases import mirror_connection_result_aliases
@@ -88,6 +88,8 @@ class WfxMoveRequest(BaseModel):
 
 
 class WfxUploadRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     destination: str = Field(
         min_length=3,
         description="Destination folder or file path in format connection:/path.",
@@ -95,7 +97,6 @@ class WfxUploadRequest(BaseModel):
     auth: BridgeAuthContext
     file_name: str = Field(min_length=1)
     content_base64: str | None = None
-    source_path: str | None = None
     overwrite: bool = False
     versioning: UploadVersioning | None = None
 

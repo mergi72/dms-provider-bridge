@@ -1,3 +1,13 @@
+## 1.1.7 - 2026-08-20
+
+- Restricted Bridge startup and HTTP access to the local machine until authenticated remote access is implemented.
+- Protected mutating Config UI requests with localhost Host and same-origin validation.
+- Changed runtime reload to an explicit POST confirmation and cleared credential caches after config changes.
+- Removed local `source_path` access from the public JSON upload contract while preserving internal streamed transfers.
+- Standardized VS Code and documented startup on the initialized Bridge entrypoint.
+- Added Python 3.11 to CI and regression coverage for the new security boundaries.
+- Release/version bump to `1.1.7`.
+
 ## 1.1.6 - 2026-08-20
 
 - Treated an unconfigured default connection as an expected optional state.

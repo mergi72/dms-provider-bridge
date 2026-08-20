@@ -196,6 +196,7 @@ def test_openapi_upload_versioning_schema_is_typed() -> None:
     assert response.status_code == 200
     schemas = response.json()["components"]["schemas"]
     upload_schema = schemas["WfxUploadRequest"]
+    assert "source_path" not in upload_schema["properties"]
     versioning_ref = upload_schema["properties"]["versioning"]["anyOf"][0]["$ref"]
     assert versioning_ref == "#/components/schemas/UploadVersioning"
     versioning_schema = schemas["UploadVersioning"]
@@ -203,6 +204,22 @@ def test_openapi_upload_versioning_schema_is_typed() -> None:
     assert versioning_schema["properties"]["mode"]["const"] == "version"
     assert versioning_schema["properties"]["mode"]["default"] == "version"
     assert versioning_schema["properties"]["majorVersion"]["default"] is False
+
+
+def test_upload_rejects_public_source_path() -> None:
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/bridge/wfx/upload",
+        json={
+            "destination": "alfresco:/contracts",
+            "file_name": "secret.txt",
+            "source_path": "C:/Windows/System32/config/SAM",
+            "auth": {"mode": "none"},
+        },
+    )
+
+    assert response.status_code == 422
 
 
 def test_bridge_connection_detail_unknown_connection() -> None:

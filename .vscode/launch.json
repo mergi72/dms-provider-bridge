@@ -2,38 +2,11 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "FastAPI: dms-provider-bridge",
+      "name": "DMS Provider Bridge",
       "type": "python",
       "request": "launch",
-      "module": "uvicorn",
-      "args": [
-        "dms_provider_bridge.app.server:app",
-        "--host",
-        "127.0.0.1",
-        "--port",
-        "8765"
-      ],
-      "cwd": "${workspaceFolder}",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}/src",
-        "DMS_PROVIDER_MACHINE_CONFIG_DIR": "${workspaceFolder}/config",
-        "DMS_PROVIDER_USER_CONFIG_DIR": "${env:APPDATA}/DMS Provider/config"
-      },
-      "justMyCode": true
-    },
-    {
-      "name": "FastAPI: dms-provider-bridge (reload)",
-      "type": "python",
-      "request": "launch",
-      "module": "uvicorn",
-      "args": [
-        "dms_provider_bridge.app.server:app",
-        "--host",
-        "127.0.0.1",
-        "--port",
-        "8765",
-        "--reload"
-      ],
+      "module": "dms_provider_bridge.main",
+      "args": [],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}/src",

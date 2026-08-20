@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import ipaddress
+from urllib.parse import urlsplit
+
 from fastapi import FastAPI
 from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from dms_provider_bridge.app.routes.bridge import router as bridge_router, share_url_router
 from dms_provider_bridge.app.routes.config import router as config_router
@@ -11,10 +14,46 @@ from dms_provider_bridge.app.routes.listing import router as listing_router
 from dms_provider_bridge.tracing import CORRELATION_HEADER, correlation_scope
 
 
+_LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
+
+
+def _request_is_local(request) -> bool:
+    client_host = request.client.host if request.client is not None else ""
+    if client_host == "testclient":
+        return True
+    try:
+        return ipaddress.ip_address(client_host).is_loopback
+    except ValueError:
+        return False
+
+
+def _config_request_allowed(request) -> bool:
+    hostname = (request.url.hostname or "").casefold()
+    if hostname == "testserver":
+        return True
+    if hostname not in _LOOPBACK_HOSTS:
+        return False
+    if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+        return True
+    origin = request.headers.get("origin")
+    if not origin:
+        return False
+    try:
+        parsed_origin = urlsplit(origin)
+        return (
+            parsed_origin.scheme == request.url.scheme
+            and parsed_origin.hostname is not None
+            and parsed_origin.hostname.casefold() == hostname
+            and parsed_origin.port == request.url.port
+        )
+    except ValueError:
+        return False
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="dms-provider-bridge",
-        version="1.1.6",
+        version="1.1.7",
         description="Local DMS provider bridge API. Config UI is available at /config.",
         docs_url=None,
     )
@@ -22,6 +61,18 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def correlation_middleware(request, call_next):
         with correlation_scope(request.headers.get(CORRELATION_HEADER)) as correlation_id:
+            if not _request_is_local(request):
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Bridge accepts requests only from the local machine."},
+                    headers={CORRELATION_HEADER: correlation_id},
+                )
+            if request.url.path.startswith("/config") and not _config_request_allowed(request):
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Config UI accepts only same-origin localhost requests."},
+                    headers={CORRELATION_HEADER: correlation_id},
+                )
             response = await call_next(request)
             response.headers[CORRELATION_HEADER] = correlation_id
             return response

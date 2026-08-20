@@ -196,7 +196,6 @@ def bridge_upload(payload: WfxUploadRequest) -> JSONResponse:
         payload.file_name,
         payload.auth,
         content_base64=payload.content_base64,
-        source_path=payload.source_path,
         overwrite=payload.overwrite,
         versioning=payload.versioning,
     ))
