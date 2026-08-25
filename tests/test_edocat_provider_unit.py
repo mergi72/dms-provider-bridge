@@ -1393,3 +1393,6 @@ def test_rename_item_does_not_target_child_with_same_name(monkeypatch: pytest.Mo
         password="pass",
     )
 
+def test_metadata_query_targets_namespaced_field_exactly() -> None:
+    provider = EdocatProvider(config={"metadataSearch": {"fieldAliases": {"rf:set.CMtaggable": "TAG"}}})
+    assert provider._metadata_rule("rf:set.CMtaggable") == ("TAG", None)

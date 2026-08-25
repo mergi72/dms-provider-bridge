@@ -189,6 +189,33 @@ def test_search_nodes_posts_fts_query_without_content(monkeypatch: pytest.Monkey
     assert str(captured["authorization"]).startswith("Basic ")
 
 
+def test_search_metadata_nodes_uses_structured_tag_query(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_urlopen(req, timeout=30):
+        captured["url"] = str(req.full_url)
+        captured["payload"] = json.loads(req.data.decode("utf-8"))
+        return FakeResponse(json.dumps({"nodes": []}))
+
+    monkeypatch.setattr(edocat_client_module.request, "urlopen", fake_urlopen)
+    client = EdocatClient(
+        base_url="https://example.test",
+        api_root="edocat/api/v1",
+        endpoints={"search": "node/search"},
+        doc_library="/deals",
+    )
+
+    client.search_metadata_nodes("TAG", None, "nod68-dps", "com.onlio.edocat.BaseFolder")
+
+    assert captured["url"] == "https://example.test/edocat/api/v1/node/search"
+    assert captured["payload"] == {
+        "nodeType": "com.onlio.edocat.BaseFolder",
+        "query": [["TAG", "nod68-dps"]],
+        "includeContent": False,
+        "paging": {"maxItems": 20, "skipCount": 0},
+    }
+
+
 def test_create_node_uses_upload_timeout_from_config(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}
 

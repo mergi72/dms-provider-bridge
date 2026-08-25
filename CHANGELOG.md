@@ -1,3 +1,10 @@
+## 1.1.8 - 2026-08-25
+
+- Added an additive read-only metadata search endpoint without changing existing TC-WFX operations or contracts.
+- Added exact metadata/tag search support for Alfresco and eDoCat through driver-configured field aliases.
+- Added bounded results, public VFS paths, authentication handling and regression coverage.
+- Release/version bump to `1.1.8`.
+
 ## 1.1.7 - 2026-08-20
 
 - Restricted Bridge startup and HTTP access to the local machine until authenticated remote access is implemented.

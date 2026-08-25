@@ -705,3 +705,6 @@ def test_list_items_maps_expired_ticket_without_refresh_to_auth_error(monkeypatc
     with pytest.raises(AuthenticationError, match="access denied"):
         provider.list_items("/contracts", auth)
 
+def test_metadata_query_targets_namespaced_field_exactly() -> None:
+    provider = AlfrescoProvider(config={"metadataSearch": {"fieldAliases": {"rf:set.CMtaggable": "TAG"}}})
+    assert provider._metadata_query("rf:set.CMtaggable", "nod68-dps") == 'TAG:"nod68-dps"'

@@ -58,6 +58,23 @@ class AlfrescoProvider(TcVfsContract):
     def search_capabilities(self) -> dict[str, object]:
         return {"supported": True, "mode": "native_full_text", "max_results": 100}
 
+    def metadata_search_capabilities(self) -> dict[str, object]:
+        return {"supported": True, "mode": "native_property", "max_results": 100}
+
+    def _metadata_query(self, field: str, value: str) -> str:
+        escaped = value.strip().replace("\\", "\\\\").replace('"', '\\"')
+        if not escaped:
+            raise ValueError("Metadata value must not be empty.")
+        metadata_config = self.config.get("metadataSearch", {})
+        aliases = metadata_config.get("fieldAliases", {}) if isinstance(metadata_config, dict) else {}
+        configured = next(
+            (alias for key, alias in aliases.items() if str(key).casefold() == field.casefold()),
+            None,
+        ) if isinstance(aliases, dict) else None
+        if isinstance(configured, str) and configured.strip().upper() == "TAG":
+            return f'TAG:"{escaped}"'
+        return f'@{field}:"{escaped}"'
+
     @staticmethod
     def _search_query(value: str) -> str:
         escaped = value.strip().replace("\\", "\\\\").replace('"', '\\"')
@@ -113,6 +130,50 @@ class AlfrescoProvider(TcVfsContract):
             raise
         except Exception as exc:
             raise ConnectionOperationError(f"Alfresco search failed for {normalized_root}: {exc}") from exc
+
+    def search_metadata(
+        self,
+        field: str,
+        value: str,
+        path: str = "/",
+        max_results: int = 20,
+        auth: BridgeAuthContext | None = None,
+        *,
+        files_only: bool = False,
+    ) -> SearchResult:
+        normalized_root = self.client.normalize_path(path)
+        limit = max(1, min(max_results, 100))
+        fts_query = self._metadata_query(field, value)
+
+        def _run(ticket: str) -> SearchResult:
+            response = self.client.search_nodes(ticket, fts_query, max_items=100)
+            entries = response.get("list", {}).get("entries", [])
+            if not isinstance(entries, list):
+                raise ConnectionOperationError("Alfresco metadata search returned invalid entries.")
+            items = []
+            for item in entries:
+                if not isinstance(item, dict) or not isinstance(item.get("entry"), dict):
+                    continue
+                entry = item["entry"]
+                parent = entry.get("path", {}).get("name") if isinstance(entry.get("path"), dict) else None
+                name = entry.get("name")
+                fallback = f"{str(parent).rstrip('/')}/{name}" if isinstance(parent, str) and name else None
+                items.append(self._item_from_entry(entry, fallback))
+            if normalized_root != "/":
+                prefix = normalized_root.rstrip("/") + "/"
+                items = [item for item in items if item.path == normalized_root or item.path.startswith(prefix)]
+            selected = select_unique_items(items, limit, files_only)
+            pagination = response.get("list", {}).get("pagination", {})
+            upstream_total = pagination.get("totalItems") if isinstance(pagination, dict) else None
+            total = upstream_total if normalized_root == "/" and isinstance(upstream_total, int) else len(items)
+            return SearchResult(connection=self.name, path=normalized_root, query=f"{field}={value}", total=total, returned=len(selected), items=selected, truncated=total > len(selected))
+
+        try:
+            return self._run_with_ticket_retry(auth, f"search metadata {normalized_root}", _run)
+        except AuthenticationError:
+            raise
+        except Exception as exc:
+            raise ConnectionOperationError(f"Alfresco metadata search failed for {normalized_root}: {exc}") from exc
 
     def share_url_to_path(self, share_url: str) -> str:
         return alfresco_share.share_url_to_path(share_url)

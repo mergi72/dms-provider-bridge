@@ -96,6 +96,26 @@ class EdocatProvider(TcVfsContract):
             return {"supported": True, "mode": "native_full_text", "max_results": 100}
         return {"supported": False, "mode": None}
 
+    def metadata_search_capabilities(self) -> dict[str, object]:
+        if self.client.endpoint_url("query"):
+            return {"supported": True, "mode": "native_property", "max_results": 100}
+        return {"supported": False, "mode": None}
+
+    def _metadata_rule(self, field: str) -> tuple[str, str | None]:
+        metadata_config = self.config.get("metadataSearch", {})
+        aliases = metadata_config.get("fieldAliases", {}) if isinstance(metadata_config, dict) else {}
+        configured = next(
+            (value for key, value in aliases.items() if str(key).casefold() == field.casefold()),
+            None,
+        ) if isinstance(aliases, dict) else None
+        if isinstance(configured, str) and configured.strip().upper() == "TAG":
+            return "TAG", None
+        if isinstance(configured, dict):
+            function = str(configured.get("function") or "exact").strip()
+            mapped_field = configured.get("field", field)
+            return function, str(mapped_field).strip() if mapped_field is not None else None
+        return "exact", field
+
     def supports_share_url(self) -> bool:
         return bool(self.client.base_url)
 
@@ -611,6 +631,57 @@ class EdocatProvider(TcVfsContract):
             items=selected,
             truncated=total > len(selected) or upstream_total > len(nodes),
         )
+
+    def search_metadata(
+        self,
+        field: str,
+        value: str,
+        path: str = "/",
+        max_results: int = 20,
+        auth: BridgeAuthContext | None = None,
+        *,
+        files_only: bool = False,
+    ) -> SearchResult:
+        resolved_path = self._resolve_path(path).rstrip("/") or "/"
+        username, password = self._runtime_credentials(auth)
+        function, provider_field = self._metadata_rule(field)
+        node_types = [self._document_node_type()]
+        if not files_only:
+            node_types.append(self._folder_node_type())
+        responses: list[dict] = []
+        try:
+            for node_type in dict.fromkeys(node_types):
+                responses.append(
+                    self.client.search_metadata_nodes(
+                        function,
+                        provider_field,
+                        value,
+                        node_type,
+                        max_items=100,
+                        username=username,
+                        password=password,
+                    )
+                )
+        except HTTPError as exc:
+            if exc.code in {401, 403}:
+                raise AuthenticationError(f"eDoCat access denied while searching metadata below {path}: HTTP {exc.code}.", status_code=exc.code) from exc
+            raise ConnectionOperationError(f"eDoCat metadata search failed for {path}: HTTP {exc.code}.", status_code=exc.code) from exc
+        except Exception as exc:
+            raise ConnectionOperationError(f"eDoCat metadata search failed for {path}: {exc}") from exc
+        nodes: list[dict] = []
+        upstream_total = 0
+        for response in responses:
+            response_nodes = response.get("nodes", [])
+            if not isinstance(response_nodes, list):
+                raise ConnectionOperationError("eDoCat metadata search returned invalid nodes data.")
+            nodes.extend(node for node in response_nodes if isinstance(node, dict))
+            upstream_total += self._response_total(response, len(response_nodes))
+        prefix = resolved_path.rstrip("/") + "/"
+        matching_nodes = [node for node in nodes if isinstance(node, dict) and (resolved_path == "/" or self._normalize_node_path(node) == resolved_path or self._normalize_node_path(node).startswith(prefix))]
+        items = [self._item_from_node(node, resolved_path, auth) for node in matching_nodes]
+        selected = select_unique_items(items, max_results, files_only)
+        total = len(matching_nodes) if resolved_path != "/" else upstream_total
+        return SearchResult(connection=self.name, path=self._public_path(resolved_path), query=f"{field}={value}", total=total, returned=len(selected), items=selected, truncated=total > len(selected) or upstream_total > len(nodes))
 
     def bridge_endpoint_for(self, operation: str) -> str | None:
         mapping = {

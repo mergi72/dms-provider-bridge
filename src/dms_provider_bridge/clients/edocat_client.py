@@ -277,6 +277,30 @@ class EdocatClient:
             payload=payload,
         )
 
+    def search_metadata_nodes(
+        self,
+        function: str,
+        field: str | None,
+        value: str,
+        node_type: str,
+        max_items: int = 20,
+        username: str | None = None,
+        password: str | None = None,
+    ) -> dict[str, Any]:
+        clause = [function, value] if field is None else [function, field, value]
+        payload = {
+            "nodeType": node_type,
+            "query": [clause],
+            "includeContent": False,
+            "paging": {"maxItems": max_items, "skipCount": 0},
+        }
+        return self._request_json(
+            "POST",
+            self.endpoint_url("search"),
+            headers=self.basic_auth_headers(username, password),
+            payload=payload,
+        )
+
     def create_node(self, payload: dict[str, Any], username: str | None = None, password: str | None = None) -> dict[str, Any]:
         return self._request_json(
             "POST",

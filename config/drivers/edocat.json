@@ -68,6 +68,11 @@
             "search": "/node/search",
             "tracker": "/node/tracker"
         },
+        "metadataSearch": {
+            "fieldAliases": {
+                "rf:set.CMtaggable": "TAG"
+            }
+        },
         "nodeType":{
             "baseFolder": "com.onlio.edocat.BaseFolder",
             "baseDoc": "com.onlio.edocat.BaseDoc",

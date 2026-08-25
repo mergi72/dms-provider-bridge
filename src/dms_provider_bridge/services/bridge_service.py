@@ -514,6 +514,32 @@ def search_path(path: str, query: str, max_results: int, files_only: bool, auth:
         return _log_and_return("search", connection_name, resolved_path, started_at, response, str(exc))
 
 
+def metadata_search_path(path: str, field: str, value: str, max_results: int, files_only: bool, auth: BridgeAuthContext | None) -> WfxResponse:
+    started_at = time.perf_counter()
+    connection_name: str | None = None
+    resolved_path = path
+    try:
+        connection_runtime, parsed = _resolve(path)
+        connection_name = connection_runtime.name
+        resolved_path = parsed.path
+        capability_reader = getattr(connection_runtime, "metadata_search_capabilities", None)
+        search_metadata = getattr(connection_runtime, "search_metadata", None)
+        capabilities = capability_reader() if callable(capability_reader) else {"supported": False}
+        if not isinstance(capabilities, dict) or capabilities.get("supported") is not True or not callable(search_metadata):
+            raise ConnectionOperationError(f"Connection '{connection_name}' does not support metadata search.")
+        auth_info = _connection_auth_requirements(connection_runtime)
+        if auth is None and auth_info.get("required") is not False:
+            response = _failure(WfxErrorCode.ACCESS_DENIED, "Authentication is required for connection metadata search.")
+            return _log_and_return("search_metadata", connection_name, resolved_path, started_at, response, response.message)
+        runtime_auth = _validated_connection_auth(connection_runtime, auth) if auth is not None else None
+        result = search_metadata(field, value, parsed.path, max_results, runtime_auth, files_only=files_only)
+        response = _success(data=result.model_dump(), metadata=_metadata(connection_runtime, "search_metadata"))
+        return _log_and_return("search_metadata", connection_name, resolved_path, started_at, response)
+    except Exception as exc:
+        response = _failure_from_exception(exc)
+        return _log_and_return("search_metadata", connection_name, resolved_path, started_at, response, str(exc))
+
+
 def stat_path(path: str, auth: BridgeAuthContext) -> WfxResponse:
     started_at = time.perf_counter()
     connection_name: str | None = None

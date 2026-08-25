@@ -65,6 +65,15 @@ class WfxSearchRequest(BaseModel):
     auth: BridgeAuthContext | None = None
 
 
+class WfxMetadataSearchRequest(BaseModel):
+    path: str = Field(min_length=3, description="Search root in connection:/path format.")
+    field: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z_][A-Za-z0-9_.:-]*$")
+    value: str = Field(min_length=1, max_length=500)
+    max_results: int = Field(default=20, ge=1, le=100)
+    files_only: bool = False
+    auth: BridgeAuthContext | None = None
+
+
 class WfxMoveRequest(BaseModel):
     source: str = Field(
         min_length=3,

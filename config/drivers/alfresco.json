@@ -64,6 +64,11 @@
             "nodes": "/nodes",
             "people_me": "/people/-me-"
         },
+        "metadataSearch": {
+            "fieldAliases": {
+                "rf:set.CMtaggable": "TAG"
+            }
+        },
 
         "search": {
             "language": "afts",
